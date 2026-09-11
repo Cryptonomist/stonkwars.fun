@@ -12,6 +12,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import devnet from "@/data/stocks.devnet.json";
 import localnet from "@/data/stocks.localnet.json";
+import mainnet from "@/data/stocks.mainnet-beta.json";
 import { TOKEN_2022_PROGRAM_ID, type StakeAsset } from "@/lib/duel";
 
 export type Stock = {
@@ -48,9 +49,14 @@ type Deployment = {
   mints: Record<string, string>;
 };
 
+/* Mainnet lists the issuer's real tokenized shares (xStocks, from Jupiter's
+ * verified list). scripts/xstocks-probe.ts checks each passes the program's
+ * escrow screen. The program is not deployed there; before it is, the app must
+ * also apply each mint's ScaledUiAmount multiplier when it sizes stakes. */
 const DEPLOYMENTS: Record<string, Deployment> = {
   devnet: devnet as Deployment,
   localnet: localnet as Deployment,
+  "mainnet-beta": mainnet as Deployment,
 };
 
 const deployment: Deployment | undefined = DEPLOYMENTS[CLUSTER];

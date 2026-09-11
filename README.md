@@ -110,7 +110,34 @@ NEXT_PUBLIC_CLUSTER=localnet NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8899 RPC_URL=h
 
 **Devnet, with real Pyth prices:** copy `.env.example` to `.env.local`, add a Pyth API key (Hermes has required one since the Core upgrade of 2026-08-26), deploy, run `scripts/setup-devnet.ts`, then `scripts/settler.ts` beside the app.
 
+## Against real tokenized stocks
+
+The demo runs on devnet test shares, but the program was checked against the
+real thing. `scripts/xstocks-probe.ts` reads the 13 xStocks mints the app lists
+for mainnet (`src/data/stocks.mainnet-beta.json`) and applies the program's
+escrow screen:
+
+- all are Token-2022 with 8 decimals, the same shape as the test shares;
+- each carries a TransferHook extension **with no program set**, which the
+  screen allows; a live hook would be refused, because the escrow could never
+  pay out without the hook's extra accounts;
+- new accounts default to Initialized, not Frozen, so an escrow can receive;
+- **13 of 13 pass.**
+
+Two issuer powers come with them and are worth saying out loud. A
+**PermanentDelegate** lets the issuer move tokens out of any account, escrow
+included, which is how a regulated issuer complies with a court order. A
+**Pausable** switch lets it halt all transfers, which would hold a fight's
+payout until transfers resume; the week-long refund path waits on the same
+switch. Neither is something an escrow on top can remove.
+
 ## Honest limits
+
+- **Scaled amounts.** xStocks reinvest dividends by raising a `ScaledUiAmount`
+  multiplier (between 1.0000 and 1.0059 across the 13 today). The winner is
+  decided on Pyth prices, so the outcome is unaffected, but a mainnet build must
+  apply the multiplier when it values and sizes stakes. The test shares have
+  none.
 
 - **Dividends.** Pyth prices the underlying stock. A stock that goes ex-dividend mid-fight drops by the dividend, which counts against it, while an issuer's token typically compensates holders through its scaled amount. For rounds of minutes to days this is rarely material; it is not yet corrected for.
 - **Extended hours.** A round runs on whatever Pyth publishes. The app only offers end times inside the regular session (the "bell" is 3:59:30 PM ET) so that a price follows within a second.
