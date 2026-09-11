@@ -21,8 +21,10 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 
 import { FaucetButton } from "@/components/FaucetButton";
+import { Combo, Damage, Knockout, useFightFeel, useKnockout } from "@/components/FightFx";
 import { HealthBars } from "@/components/HealthBars";
 import { Move } from "@/components/Ticker";
+import type { Hit } from "@/lib/fightFeel";
 import {
   ataFor,
   buildAcceptDuel,
@@ -89,11 +91,16 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
   const p1Cooked = d.status === STATUS_SETTLED && d.outcome === OUTCOME_OPPONENT;
   const p2Cooked = d.status === STATUS_SETTLED && d.outcome === OUTCOME_CREATOR;
 
+  /* The round as a fight: every price that lands is a punch thrown. */
+  const { hits, combo, landing, heavy } = useFightFeel(m1, m2, d.status === STATUS_LIVE);
+  const ko = useKnockout(d.status === STATUS_SETTLED || d.status === STATUS_REFUNDED);
+
   return (
     <div className="py-8">
       <StatusStrip d={d} now={now} />
 
-      <section className="card relative mt-4 overflow-hidden p-5 sm:p-8">
+      <section className={`card relative mt-4 overflow-hidden p-5 sm:p-8 ${heavy ? "shake" : ""}`}>
+        <Knockout show={ko} tie={d.outcome === OUTCOME_TIE} />
         <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
           <Corner
             side="p1"
@@ -105,8 +112,10 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
             move={m1}
             cooked={p1Cooked}
             winner={d.status === STATUS_SETTLED && d.outcome === OUTCOME_CREATOR}
+            hits={hits}
+            hurt={landing?.side === "p2"}
           />
-          <Center d={d} now={now} m1={m1} m2={m2} />
+          <Center d={d} now={now} m1={m1} m2={m2} combo={combo} />
           <Corner
             side="p2"
             ticker={t2}
@@ -117,6 +126,8 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
             move={m2}
             cooked={p2Cooked}
             winner={d.status === STATUS_SETTLED && d.outcome === OUTCOME_OPPONENT}
+            hits={hits}
+            hurt={landing?.side === "p1"}
           />
         </div>
 
@@ -183,6 +194,8 @@ function Corner({
   move,
   cooked,
   winner,
+  hits,
+  hurt,
 }: {
   side: "p1" | "p2";
   ticker: string;
@@ -193,11 +206,14 @@ function Corner({
   move: number | null;
   cooked: boolean;
   winner: boolean;
+  hits: Hit[];
+  hurt: boolean;
 }) {
   const right = side === "p2";
   const value = stakeValue(amount, STAKE_DECIMALS, quote);
   return (
-    <div className={`relative flex flex-col ${right ? "md:items-end md:text-right" : ""}`}>
+    <div className={`relative flex flex-col ${right ? "md:items-end md:text-right" : ""} ${hurt ? "hit-flash" : ""}`}>
+      <Damage hits={hits} side={side} />
       <span className="label">{role}</span>
       <span className={`display mt-1 text-7xl sm:text-8xl ${side === "p1" ? "text-p1" : "text-p2"} ${cooked ? "opacity-40" : ""}`}>
         {ticker}
@@ -221,9 +237,22 @@ function Corner({
   );
 }
 
-function Center({ d, now, m1, m2 }: { d: DuelView; now: number; m1: number | null; m2: number | null }) {
+function Center({
+  d,
+  now,
+  m1,
+  m2,
+  combo,
+}: {
+  d: DuelView;
+  now: number;
+  m1: number | null;
+  m2: number | null;
+  combo: { side: "p1" | "p2"; count: number; damage: number } | null;
+}) {
   const live = d.status === STATUS_LIVE;
   const done = d.status === STATUS_SETTLED || d.status === STATUS_REFUNDED;
+  const left = now && d.endTs > now ? d.endTs - now : 0;
   return (
     <div className="flex flex-col items-center gap-3 md:w-80">
       {live || done ? (
@@ -235,8 +264,11 @@ function Center({ d, now, m1, m2 }: { d: DuelView; now: number; m1: number | nul
       )}
       {live ? (
         <>
-          <span className="display font-mono text-5xl tabular-nums">{now && d.endTs > now ? clock(d.endTs - now) : "0:00"}</span>
+          <span className={`display font-mono text-5xl tabular-nums ${left > 0 && left <= 10 ? "final-seconds" : ""}`}>
+            {left > 0 ? clock(left) : "0:00"}
+          </span>
           <span className="label">to the bell · {etTime(d.endTs)}</span>
+          <Combo combo={combo} />
           {m1 !== null && m2 !== null ? (
             <span className="text-sm text-dim">
               {Math.abs(m1 - m2) < 0.005 ? "Dead even" : `${m1 > m2 ? "Challenger" : "Answer"} leads by ${Math.abs(m1 - m2).toFixed(2)} pts`}
