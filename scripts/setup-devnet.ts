@@ -86,8 +86,12 @@ function writeEnv(key: string, value: string) {
   console.log(`${key} written to .env.local`);
 }
 
-/** The symbol a stock's first mainnet issuer uses, for the test token. */
-const MAINNET_SYMBOL = new Map((mainnet as { tokens: Token[] }).tokens.map((t) => [t.ticker, t.symbol]));
+/** The symbol a stock's first mainnet issuer uses (the list is in issuer
+ * order: xStocks, then Ondo, then Backpack), for the test token. */
+const MAINNET_SYMBOL = new Map<string, string>();
+for (const t of (mainnet as { tokens: Token[] }).tokens) {
+  if (!MAINNET_SYMBOL.has(t.ticker)) MAINNET_SYMBOL.set(t.ticker, t.symbol);
+}
 
 async function send(conn: Connection, ixs: TransactionInstruction[], signers: Keypair[]) {
   const tx = new Transaction().add(...ixs);
