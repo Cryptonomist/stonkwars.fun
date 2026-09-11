@@ -21,7 +21,7 @@ import {
 import { BRAND } from "@/lib/brand";
 import { shares } from "@/lib/format";
 import { loadGoogleFont } from "@/lib/ogFont";
-import { movePct } from "@/lib/prices";
+import { movePct } from "@/lib/pricemath";
 import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
 
 export const runtime = "nodejs";
@@ -142,8 +142,19 @@ export default async function Image({ params }: { params: Promise<{ duel: string
     );
   };
 
-  return new ImageResponse(
-    (
+  /* Rendered to bytes here rather than streamed, so a failure is caught, logged
+   * and answered with the site card instead of an empty 500 that X caches. */
+  try {
+    const res = new ImageResponse(card(), { ...size, fonts: fonts.length ? fonts : undefined });
+    const png = await res.arrayBuffer();
+    return new Response(png, { headers: { "content-type": "image/png", "cache-control": "public, max-age=30" } });
+  } catch (e) {
+    console.error("share card failed", e);
+    return new Response(String(e instanceof Error ? e.stack : e), { status: 500 });
+  }
+
+  function card() {
+    return (
       <div
         style={{
           width: "100%",
@@ -178,7 +189,6 @@ export default async function Image({ params }: { params: Promise<{ duel: string
           <div style={{ fontSize: 30, color: C.dim, textTransform: "lowercase" }}>{BRAND.domain}</div>
         </div>
       </div>
-    ),
-    { ...size, fonts: fonts.length ? fonts : undefined },
-  );
+    );
+  }
 }

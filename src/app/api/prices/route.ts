@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { DEV_EXPO, devPrice } from "@/lib/devPrices";
 import { bareFeed, hermes } from "@/lib/hermes.server";
 import { byFeed, ROSTER } from "@/lib/stocks";
-import type { Quote, Quotes } from "@/lib/prices";
+import type { Quote, Quotes } from "@/lib/pricemath";
 
 export const dynamic = "force-dynamic";
 
