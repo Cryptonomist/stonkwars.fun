@@ -40,7 +40,7 @@ export function FaucetButton({ className = "", compact = false }: { className?: 
 
   return (
     <div className={`relative ${className}`}>
-      <button type="button" onClick={drip} disabled={state === "busy"} className={`btn btn-sm btn-ghost ${compact ? "!px-2" : ""}`}>
+      <button type="button" onClick={drip} disabled={state === "busy"} className={`btn btn-sm btn-ghost ${compact ? "px-2" : ""}`}>
         {state === "busy" ? "Minting..." : compact ? "Faucet" : "Get test stocks"}
       </button>
       {msg ? (
