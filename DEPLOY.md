@@ -5,10 +5,18 @@ Written to be followed once, in order. Everything in a code block runs from
 
 ## 1. Program on devnet
 
-The deploy wallet needs about 4.5 devnet SOL at the peak (program data plus the
-temporary upload buffer, which is refunded) and a few more for the faucet and
-the settler. **(you)** Get 5–10 SOL at https://faucet.solana.com for
-`HoYb6BCszJUY89WhKt2itTpxtLHMJKuoEwXwQPdbhtVu`.
+What the deploy wallet spends on devnet:
+
+| For | SOL |
+|---|---|
+| The program (413 KB of program data) | 2.1, plus 2.1 more during the upload, refunded after |
+| 1,033 test stocks: a mint and a registry entry each | 2.5 |
+| The faucet, to hand out SOL and pay for players' token accounts | 2 |
+| The settler's fee key (step 3) | 1 |
+
+About **8 SOL** in all, and 4.2 free at the moment of the deploy.
+**(you)** Top up `HoYb6BCszJUY89WhKt2itTpxtLHMJKuoEwXwQPdbhtVu` at
+https://faucet.solana.com (signing in with GitHub raises the limit).
 
 ```bash
 anchor build
@@ -27,9 +35,12 @@ RPC=https://api.devnet.solana.com FAUCET_SOL=2 npx tsx scripts/setup-devnet.ts
 git add src/data/stocks.devnet.json && git commit -m "Devnet test stocks" && git push
 ```
 
-This initialises the config (the deploy wallet becomes admin), creates the 14
-test stocks as Token-2022 mints, registers each next to its Pyth feed, writes
-`src/data/stocks.devnet.json`, and puts `FAUCET_SECRET_KEY` in `.env.local`.
+This initialises the config (the deploy wallet becomes admin), makes an oracle
+key and names it in the config, creates a Token-2022 test mint for each of the
+1,033 stocks in `src/data/roster.json` and registers it with its feed id and
+price source (eight at a time; a re-run picks up where a failure stopped),
+writes `src/data/stocks.devnet.json`, and puts `FAUCET_SECRET_KEY` and
+`ORACLE_SECRET_KEY` in `.env.local`.
 
 ## 3. The settler's key
 
@@ -43,8 +54,10 @@ cat keys/crank-devnet.json   # the value of CRANK_SECRET_KEY
 
 ## 4. Pyth
 
-**(you)** Sign up at https://pythdata.app/signup (free trial) and copy the API
-key. Hermes has required one since the Pyth Core upgrade of 2026-08-26. It is
+**(you)** Sign up at https://pythdata.app/signup and copy the API key. Hermes
+has required one since the Pyth Core upgrade of 2026-08-26. The free plan
+grants TSLA, QQQ and VOO, which is what `scripts/build-roster.ts` registers
+with the Pyth source; every other stock is priced by the oracle. The key is
 only ever read on the server.
 
 ## 5. Vercel
@@ -62,6 +75,7 @@ Production and Preview:
 | `PYTH_API_KEY` | from step 4 |
 | `HERMES_URL` | `https://hermes.pyth.network` |
 | `FAUCET_SECRET_KEY` | from `.env.local` after step 2 |
+| `ORACLE_SECRET_KEY` | from `.env.local` after step 2 |
 | `CRANK_SECRET_KEY` | the byte array from step 3 |
 | `CRON_SECRET` | any long random string, e.g. `openssl rand -hex 24` |
 

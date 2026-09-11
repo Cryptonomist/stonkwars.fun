@@ -1,4 +1,5 @@
-/* Would real xStocks pass the escrow screen? Read their mainnet mint accounts,
+/* Would the real tokens pass the escrow screen? Read every mainnet mint the
+ * roster lists (src/data/stocks.mainnet-beta.json: xStocks, Ondo, Backpack),
  * list their Token-2022 extensions, and apply the same test as
  * programs/duel/src/mint_check.rs.
  *
@@ -7,32 +8,12 @@
 
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import mainnet from "../src/data/stocks.mainnet-beta.json";
+
 const RPC = process.env.RPC ?? "https://api.mainnet-beta.solana.com";
+const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 
-/* Mints from Jupiter's verified token list, 2026-09-11. */
-const XSTOCKS: Record<string, string> = {
-  NVDAx: "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
-  TSLAx: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
-  AAPLx: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
-  SPYx: "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W",
-  QQQx: "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
-  MSFTx: "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX",
-  GOOGLx: "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN",
-  AMZNx: "Xs3eBt7uRfJX8QUs4suhyU8p2M6DoUDrJyWBa8LLZsg",
-  METAx: "Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu",
-  COINx: "Xs7ZdzSHLU9ftNJsii5fCeJhoRWSC32SQGzGQtePxNu",
-  MSTRx: "XsP7xzNPvEHS1m6qfanPUGjNmdnmsLKEoNAnHjdxxyZ",
-  HOODx: "XsvNBAYkrDRNhA7wPHQfX3ZUXZyZLdnCQDfHZ56bzpg",
-  PLTRx: "XsoBhf2ufR8fTyNSjqfU71DYGaE6Z3SUGAidpzriAA4",
-};
-
-const NAMES: Record<number, string> = {
-  1: "TransferFeeConfig", 3: "MintCloseAuthority", 4: "ConfidentialTransferMint", 6: "DefaultAccountState",
-  9: "NonTransferable", 10: "InterestBearingConfig", 12: "PermanentDelegate", 14: "TransferHook",
-  16: "ConfidentialTransferFeeConfig", 18: "MetadataPointer", 19: "TokenMetadata", 20: "GroupPointer",
-  21: "TokenGroup", 22: "GroupMemberPointer", 23: "TokenGroupMember", 24: "ConfidentialMintBurn",
-  25: "ScaledUiAmount", 26: "Pausable",
-};
+type Token = { ticker: string; symbol: string; issuer: string; mint: string };
 
 function extensions(data: Buffer): { kind: number; value: Buffer }[] {
   if (data.length <= 82) return [];
@@ -50,33 +31,40 @@ function extensions(data: Buffer): { kind: number; value: Buffer }[] {
 
 async function main() {
   const conn = new Connection(RPC, "confirmed");
-  const infos = await conn.getMultipleAccountsInfo(Object.values(XSTOCKS).map((m) => new PublicKey(m)));
+  const tokens = (mainnet as { tokens: Token[] }).tokens;
+  const tally = new Map<string, { pass: number; refused: string[]; multipliers: number[] }>();
+  for (let i = 0; i < tokens.length; i += 100) {
+    const batch = tokens.slice(i, i + 100);
+    const infos = await conn.getMultipleAccountsInfo(batch.map((t) => new PublicKey(t.mint)));
+    batch.forEach((t, j) => {
+      const row = tally.get(t.issuer) ?? { pass: 0, refused: [], multipliers: [] };
+      tally.set(t.issuer, row);
+      const info = infos[j];
+      if (!info) return row.refused.push(`${t.symbol}: missing`);
+      const exts = info.owner.toBase58() === TOKEN_2022 ? extensions(info.data) : [];
+      const hook = exts.find((e) => e.kind === 14);
+      const liveHook = hook ? !hook.value.subarray(32, 64).every((b) => b === 0) : false;
+      const nonTransferable = exts.some((e) => e.kind === 9);
+      // DefaultAccountState: one byte, 1 = Initialized, 2 = Frozen.
+      const frozenByDefault = exts.find((e) => e.kind === 6)?.value[0] === 2;
+      const fee = exts.some((e) => e.kind === 1);
+      // ScaledUiAmount: authority(32) multiplier(f64) ...
+      const sua = exts.find((e) => e.kind === 25)?.value;
+      if (sua && sua.length >= 40) row.multipliers.push(sua.readDoubleLE(32));
+      const why = [liveHook && "live transfer hook", nonTransferable && "non-transferable", frozenByDefault && "frozen by default", fee && "transfer fee"].filter(Boolean);
+      if (why.length) row.refused.push(`${t.symbol}: ${why.join(", ")}`);
+      else row.pass++;
+    });
+  }
   let pass = 0;
-  Object.keys(XSTOCKS).forEach((sym, i) => {
-    const info = infos[i];
-    if (!info) return console.log(sym.padEnd(7), "MISSING");
-    const exts = extensions(info.data);
-    const hook = exts.find((e) => e.kind === 14);
-    const liveHook = hook ? !hook.value.subarray(32, 64).every((b) => b === 0) : false;
-    const nonTransferable = exts.some((e) => e.kind === 9);
-    // DefaultAccountState: one byte, 1 = Initialized, 2 = Frozen.
-    const das = exts.find((e) => e.kind === 6)?.value[0];
-    const frozenByDefault = das === 2;
-    // ScaledUiAmount: authority(32) multiplier(f64) new_multiplier_effective_timestamp(i64) new_multiplier(f64)
-    const sua = exts.find((e) => e.kind === 25)?.value;
-    const multiplier = sua && sua.length >= 40 ? sua.readDoubleLE(32) : null;
-    const nextMultiplier = sua && sua.length >= 56 ? sua.readDoubleLE(48) : null;
-    const ok = !liveHook && !nonTransferable && !frozenByDefault;
-    if (ok) pass++;
-    console.log(
-      sym.padEnd(7),
-      ok ? "ESCROWABLE" : "REFUSED   ",
-      `defaultState=${das === 1 ? "Initialized" : das === 2 ? "FROZEN" : das}`,
-      `multiplier=${multiplier}${nextMultiplier !== null && nextMultiplier !== multiplier ? ` -> ${nextMultiplier}` : ""}`,
-      liveHook ? "(live transfer hook)" : "",
-    );
-  });
-  console.log(`${pass}/${Object.keys(XSTOCKS).length} pass the escrow screen`);
+  for (const [issuer, row] of tally) {
+    pass += row.pass;
+    const m = row.multipliers;
+    const range = m.length ? ` · scaled-amount multiplier ${Math.min(...m).toFixed(4)} to ${Math.max(...m).toFixed(4)}` : "";
+    console.log(`${issuer.padEnd(10)} ${row.pass} pass, ${row.refused.length} refused${range}`);
+    for (const r of row.refused.slice(0, 10)) console.log(`  ${r}`);
+  }
+  console.log(`${pass}/${tokens.length} pass the escrow screen`);
 }
 
 main().catch((e) => {
