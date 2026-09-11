@@ -139,7 +139,7 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
         ) : null}
       </section>
 
-      <Actions d={d} now={now} t1={t1} t2={t2} />
+      <Actions d={d} now={now} t1={t1} t2={t2} stakeUsd={stakeValue(d.creatorAmount, STAKE_DECIMALS, q1)} />
       <Share d={d} t1={t1} t2={t2} m1={m1} m2={m2} fresh={fresh} />
       <Proof d={d} t1={t1} t2={t2} />
     </div>
@@ -290,7 +290,20 @@ function Center({
   );
 }
 
-function Actions({ d, now, t1, t2 }: { d: DuelView; now: number; t1: string; t2: string }) {
+function Actions({
+  d,
+  now,
+  t1,
+  t2,
+  stakeUsd,
+}: {
+  d: DuelView;
+  now: number;
+  t1: string;
+  t2: string;
+  /** What the challenger's stake is worth now, for sizing a rematch. */
+  stakeUsd: number | null;
+}) {
   const { publicKey, signTransaction, signAllTransactions } = useWallet();
   const { connection } = useConnection();
   const send = useSend();
@@ -397,6 +410,25 @@ function Actions({ d, now, t1, t2 }: { d: DuelView; now: number; t1: string; t2:
     );
   }
 
+  /* Run it back: the same two stocks, twice the stake, with whoever is looking
+   * in their own corner. A fresh challenge — nothing about this fight changes,
+   * and the other side still has to take it. */
+  const over = d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE);
+  const iFought = isCreator || (hasOpponent(d) && me === d.opponent.toBase58());
+  const iLost =
+    d.status === STATUS_SETTLED &&
+    ((isCreator && d.outcome === OUTCOME_OPPONENT) || (!isCreator && iFought && d.outcome === OUTCOME_CREATOR));
+  if (over) {
+    const mine = isCreator || !iFought ? t1 : t2;
+    const theirs = mine === t1 ? t2 : t1;
+    const again = Math.max(1, Math.round((stakeUsd ?? 25) * 2));
+    buttons.push(
+      <Link key="rematch" href={`/new?p1=${mine}&p2=${theirs}&usd=${again}`} className="btn btn-p1 px-8 text-lg">
+        Run it back · ${again} a side
+      </Link>,
+    );
+  }
+
   const testCluster = CLUSTER !== "mainnet-beta";
   if (canTake && publicKey && short && testCluster) {
     buttons.push(<FaucetButton key="faucet" tickers={[t2]} label={`Get test ${tokenSymbol(t2)}`} />);
@@ -414,6 +446,15 @@ function Actions({ d, now, t1, t2 }: { d: DuelView; now: number; t1: string; t2:
     hints.push("The start is each stock's first price at least two seconds after the accept. Posting it now.");
   if (d.status === STATUS_LIVE && now < d.endTs) hints.push(`${t1} vs ${t2}: whichever moves more, in percent, by the bell takes both stakes.`);
   if ((startDue || settleDue) && !busy) hints.push("The settler normally does this within a minute. Anyone can, and the result is the same whoever does.");
+  if (over) {
+    hints.push(
+      iLost
+        ? "They took your shares. Same two stocks, double the stake, and you can take them back."
+        : iFought
+          ? "Same two stocks, double the stake. They will want it back."
+          : "Think the other one had it? Open the same fight yourself, at twice the stake.",
+    );
+  }
 
   if (!buttons.length && !hints.length) return null;
   return (
