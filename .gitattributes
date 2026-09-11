@@ -1,0 +1,25 @@
+# LINE ENDINGS ARE LF, EVERYWHERE, FOR EVERYBODY.
+#
+# This repository lives on the WSL filesystem and is worked on from both sides
+# of it. Git for Windows defaults to core.autocrlf=true, which rewrites text
+# files with CRLF on checkout, and bash reads a carriage return as part of the
+# interpreter name ("bash\r: No such file or directory"). Committed here, this
+# protects every clone on every platform, which a setting on one machine cannot.
+
+* text=auto eol=lf
+
+*.sh text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.so binary

@@ -1,0 +1,49 @@
+{
+  "name": "stockduel",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/*.ts'",
+    "test:web": "NODE_OPTIONS=--conditions=react-server mocha --import=tsx 'tests-web/**/*.test.ts'"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@pythnetwork/hermes-client": "^2.0.0",
+    "@pythnetwork/pyth-solana-receiver": "^0.10.0",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/wallet-adapter-react-ui": "^0.9.39",
+    "@solana/web3.js": "^1.98.4",
+    "@tanstack/react-query": "^5.102.8",
+    "bn.js": "^5.2.5",
+    "next": "15.5.25",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@solana/kit": "^8.2.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/bn.js": "^5.2.0",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "chai": "^6.2.2",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.25",
+    "litesvm": "^1.4.1",
+    "mocha": "^11.8.0",
+    "tailwindcss": "^4",
+    "ts-mocha": "^11.1.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,50 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+
+# env files. .env.example is the template and MUST be committed; everything
+# else here holds real keys and must not be.
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# anchor / rust
+target/
+.anchor/
+test-ledger/
+**/*.rs.bk
+
+# Keypairs. The program keypair lives in target/deploy (ignored above); these
+# catch one saved anywhere else by accident.
+*-keypair.json
+keys/
+
+# workers
+workers/**/node_modules
+.dev.vars
+**/.dev.vars
+.wrangler/
