@@ -405,6 +405,11 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
   }
 
   const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  /* The same fight as a Blink: a wallet-enabled viewer can take it without
+   * leaving the post. dial.to renders any Action URL, registered or not. */
+  const blink = `https://dial.to/?action=${encodeURIComponent(
+    `solana-action:${window.location.origin}/api/actions/fight/${d.address.toBase58()}`,
+  )}${CLUSTER === "mainnet-beta" ? "" : "&cluster=devnet"}`;
 
   return (
     <section className={`card mx-auto mt-6 max-w-2xl p-5 ${fresh && d.status === STATUS_OPEN ? "ring-2 ring-gold" : ""}`}>
@@ -434,6 +439,14 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
           Post on X
         </a>
       </div>
+      {d.status === STATUS_OPEN ? (
+        <p className="mt-3 text-xs text-dim">
+          Wallets that read Blinks can take this fight straight from the post.{" "}
+          <a href={blink} target="_blank" rel="noreferrer" className="text-ink underline decoration-line underline-offset-4">
+            Preview the Blink
+          </a>
+        </p>
+      ) : null}
     </section>
   );
 }
