@@ -6,6 +6,10 @@ import "server-only";
 
 import { HermesClient } from "@pythnetwork/hermes-client";
 
+/** The endpoint Pyth's docs use since the Core upgrade. hermes.pyth.network
+ *  also serves keyed requests; HERMES_URL picks either. */
+export const DEFAULT_HERMES_URL = "https://pyth.dourolabs.app/hermes";
+
 let client: HermesClient | null = null;
 
 export class MissingPythKey extends Error {
@@ -17,7 +21,7 @@ export class MissingPythKey extends Error {
 export function hermes(): HermesClient {
   const key = process.env.PYTH_API_KEY;
   if (!key) throw new MissingPythKey();
-  client ??= new HermesClient(process.env.HERMES_URL || "https://hermes.pyth.network", {
+  client ??= new HermesClient(process.env.HERMES_URL || DEFAULT_HERMES_URL, {
     accessToken: key,
     timeout: 8_000,
   });

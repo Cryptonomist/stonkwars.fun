@@ -43,7 +43,7 @@ async function main() {
     : Keypair.fromSecretKey(
         Uint8Array.from(JSON.parse(fs.readFileSync(process.env.WALLET ?? path.join(os.homedir(), ".config/solana/id.json"), "utf8"))),
       );
-  const hermes = new HermesClient(process.env.HERMES_URL || "https://hermes.pyth.network", {
+  const hermes = new HermesClient(process.env.HERMES_URL || "https://pyth.dourolabs.app/hermes", {
     accessToken: process.env.PYTH_API_KEY,
     timeout: 10_000,
   });

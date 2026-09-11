@@ -8,9 +8,21 @@
  *   npx tsx scripts/hermes-probe.ts
  */
 
+import fs from "fs";
+import path from "path";
 import { HermesClient } from "@pythnetwork/hermes-client";
 
-const hermes = new HermesClient("https://hermes.pyth.network", {});
+// The key lives in .env.local (never in the repo); Hermes refuses without it.
+const envFile = path.resolve(__dirname, "../.env.local");
+if (fs.existsSync(envFile)) {
+  for (const line of fs.readFileSync(envFile, "utf8").split("\n")) {
+    const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+  }
+}
+const hermes = new HermesClient(process.env.HERMES_URL || "https://pyth.dourolabs.app/hermes", {
+  accessToken: process.env.PYTH_API_KEY,
+});
 const SYMBOLS = ["NVDA", "TSLA", "AAPL", "SPY", "QQQ", "MSFT", "GOOGL", "AMZN", "META", "COIN", "MSTR", "HOOD", "PLTR", "AMD"];
 
 async function main() {

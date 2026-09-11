@@ -132,19 +132,17 @@ async function banner() {
             justifyContent: "center",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
-            <img src={markUri(3.4)} width={112} height={112} />
-            <div style={{ display: "flex", fontSize: 150, lineHeight: 1, marginLeft: 22 }}>
-              <span>STONK</span>
-              <span style={{ color: C.p2 }}>WARS</span>
-            </div>
+          {/* Words only, each line centred on the banner's middle: no mark
+              beside the name to pull it off centre. */}
+          <div style={{ display: "flex", justifyContent: "center", fontSize: 170, lineHeight: 1 }}>
+            <span>STONK</span>
+            <span style={{ color: C.p2 }}>WARS</span>
           </div>
-          <div style={{ display: "flex", fontSize: 46, marginTop: 10 }}>
+          <div style={{ display: "flex", justifyContent: "center", fontSize: 48, marginTop: 12 }}>
             <span>Your stock vs theirs.</span>
             <span style={{ color: C.cooked, marginLeft: 14 }}>Loser gets cooked.</span>
           </div>
-          <div style={{ display: "flex", fontSize: 26, color: C.dim, marginTop: 14 }}>
+          <div style={{ display: "flex", justifyContent: "center", fontSize: 26, color: C.dim, marginTop: 16 }}>
             {`Stake real shares · Pyth decides · Solana · ${BRAND.domain}`}
           </div>
         </div>
