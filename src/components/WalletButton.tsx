@@ -132,7 +132,7 @@ export function WalletButton({ className = "" }: { className?: string }) {
         type="button"
         onClick={onClick}
         disabled={hydrated && connecting}
-        className={`btn btn-sm ${connected && hydrated ? "btn-ghost font-mono !normal-case !tracking-normal" : "btn-gold"}`}
+        className={`btn btn-sm ${connected && hydrated ? "btn-ghost font-mono !normal-case !tracking-normal" : "btn-light"}`}
       >
         {label}
       </button>
@@ -145,7 +145,7 @@ export function WalletButton({ className = "" }: { className?: string }) {
             there.
           </p>
           {handoff ? (
-            <button type="button" onClick={() => choose(handoff.adapter.name)} className="btn btn-sm btn-gold mt-3 w-full">
+            <button type="button" onClick={() => choose(handoff.adapter.name)} className="btn btn-sm btn-light mt-3 w-full">
               Use an installed wallet
             </button>
           ) : null}
@@ -155,7 +155,7 @@ export function WalletButton({ className = "" }: { className?: string }) {
                 <span className="font-display text-lg font-extrabold uppercase">{w.name}</span>
                 <span className="text-xs text-dim">{w.note}</span>
                 <span className="flex gap-2">
-                  <a href={w.browse(href, origin)} className="btn btn-sm btn-gold flex-1">
+                  <a href={w.browse(href, origin)} className="btn btn-sm btn-light flex-1">
                     Open
                   </a>
                   <a href={storeFor(w, platform)} target="_blank" rel="noreferrer noopener" className="btn btn-sm btn-ghost flex-1">

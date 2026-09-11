@@ -72,13 +72,13 @@ export function Leaderboard() {
             <tbody>
               {ranked.map((r, i) => (
                 <tr key={r.wallet} className="border-t border-line">
-                  <td className="display py-3 pr-4 text-2xl text-gold">{i + 1}</td>
+                  <td className="display py-3 pr-4 text-2xl text-p1">{i + 1}</td>
                   <td className="py-3 pr-4 font-mono">{shortAddress(r.wallet, 5)}</td>
                   <td className="py-3 pr-4 font-mono">
                     <span className="text-up">{r.wins}W</span> <span className="text-down">{r.losses}L</span>
                   </td>
                   <td className="py-3 pr-4 font-mono">{r.best}</td>
-                  <td className="py-3 text-right font-mono text-gold">{usd(r.taken)}</td>
+                  <td className="py-3 text-right font-mono text-up">{usd(r.taken)}</td>
                 </tr>
               ))}
             </tbody>

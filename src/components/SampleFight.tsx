@@ -13,7 +13,7 @@ export function SampleFight() {
           <p className="display text-6xl text-p1 sm:text-7xl">NVDA</p>
           <p className="font-mono text-3xl text-up">+3.12%</p>
         </div>
-        <span className="display pb-2 text-3xl text-gold">VS</span>
+        <span className="display pb-2 text-3xl text-ink">VS</span>
         <div className="relative text-right">
           <span className="label">Answered</span>
           <p className="display text-6xl text-p2 opacity-40 sm:text-7xl">TSLA</p>
@@ -31,7 +31,7 @@ export function SampleFight() {
         </div>
         <div className="bg-panel-2 px-3 py-2 text-right">
           <span className="label block">To the winner</span>
-          <span className="text-gold">$50.57 in shares</span>
+          <span className="text-up">$50.57 in shares</span>
         </div>
       </div>
     </div>

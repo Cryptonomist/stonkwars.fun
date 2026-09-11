@@ -152,7 +152,7 @@ export function CreateFight() {
                 key={s}
                 type="button"
                 onClick={() => setDollars(s)}
-                className={`btn btn-sm ${dollars === s ? "btn-gold" : "btn-ghost"}`}
+                className={`btn btn-sm ${dollars === s ? "btn-light" : "btn-ghost"}`}
               >
                 ${s}
               </button>
@@ -179,7 +179,7 @@ export function CreateFight() {
                 key={r.id}
                 type="button"
                 onClick={() => setRound(r.id)}
-                className={`btn btn-sm ${round === r.id ? "btn-gold" : "btn-ghost"}`}
+                className={`btn btn-sm ${round === r.id ? "btn-light" : "btn-ghost"}`}
               >
                 {r.label}
               </button>
@@ -227,7 +227,7 @@ export function CreateFight() {
       <section className="card mt-10 p-5 sm:p-6">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <Side ticker={p1} side="p1" amount={amount1} value={stakeValue(amount1, STAKE_DECIMALS, q1)} price={quoteValue(q1)} />
-          <span className="display text-4xl text-gold">VS</span>
+          <span className="display text-4xl text-ink">VS</span>
           <Side ticker={p2} side="p2" amount={amount2} value={stakeValue(amount2, STAKE_DECIMALS, q2)} price={quoteValue(q2)} align="right" />
         </div>
         {taunt.trim() ? <p className="mt-5 text-center text-lg italic">&ldquo;{taunt.trim()}&rdquo;</p> : null}
@@ -237,9 +237,9 @@ export function CreateFight() {
 
         <div className="mt-6 flex flex-col items-center gap-3">
           {!publicKey ? (
-            <p className="text-sm text-gold">Connect a wallet to pick this fight.</p>
+            <p className="text-sm text-ink">Connect a wallet to pick this fight.</p>
           ) : noAccount || short ? (
-            <p className="text-sm text-gold">
+            <p className="text-sm text-ink">
               You need {shares(amount1, STAKE_DECIMALS)} {p1 ? tokenSymbol(p1) : ""} to stake. Hit{" "}
               <b>Get test stocks</b> up top.
             </p>

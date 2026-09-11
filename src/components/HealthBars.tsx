@@ -17,7 +17,7 @@ export function HealthBars({
   return (
     <div className="flex items-center gap-3">
       <Bar health={h1} side="p1" />
-      <span className="display text-2xl text-gold">VS</span>
+      <span className="display text-2xl text-ink">VS</span>
       <Bar health={h2} side="p2" />
     </div>
   );

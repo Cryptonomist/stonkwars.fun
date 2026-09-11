@@ -67,7 +67,7 @@ export function FightsBoard() {
             type="button"
             onClick={() => setTab(t.id)}
             className={`-mb-px border-b-2 px-4 py-2 font-display text-lg font-extrabold uppercase ${
-              tab === t.id ? "border-gold text-ink" : "border-transparent text-dim hover:text-ink"
+              tab === t.id ? "border-p2 text-ink" : "border-transparent text-dim hover:text-ink"
             }`}
           >
             {t.label}

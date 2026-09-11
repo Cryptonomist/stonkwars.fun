@@ -2,11 +2,13 @@
 
 /* STONK WARS: the arena.
  *
- * Two corners and a pot. P1 (the challenger) is cyan, P2 (whoever answers) is
- * magenta, and those two colours mean a SIDE and nothing else. Green and red
- * mean a PRICE MOVE and nothing else: a stock can be P2 and up, and the page
- * must never make you read magenta as "losing". Gold is the pot. The burnt
- * orange is the COOKED stamp, used for exactly one thing.
+ * Two corners. P1 (the challenger) is cyan, P2 (whoever answers) is pink, and
+ * those two colours mean a SIDE, plus the brand they make together. Green and
+ * red mean a PRICE MOVE and nothing else: a stock can be P2 and up, and the
+ * page must never make you read pink as "losing". Green also marks the winner
+ * and the money they take. White is the neutral weight: the VS, and buttons
+ * that are not a fight. The burnt orange is the COOKED stamp, used for exactly
+ * one thing. There is no yellow; there was, and it went.
  */
 @theme {
   --color-void: #07070b;
@@ -21,7 +23,6 @@
   --color-p2-deep: #5a1239;
   --color-up: #35f28b;
   --color-down: #ff4d5e;
-  --color-gold: #ffd84a;
   --color-cooked: #ff7a1a;
 
   --font-display: var(--font-display-face), "Arial Narrow", Impact, sans-serif;
@@ -41,7 +42,7 @@ body {
 }
 
 ::selection {
-  background: var(--color-gold);
+  background: var(--color-p2);
   color: var(--color-void);
 }
 
@@ -54,10 +55,11 @@ body {
 /* The floor: a faint perspective grid, flat enough to read text over. */
 .arena {
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255, 216, 74, 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 20% -10%, rgba(47, 224, 255, 0.07), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 80% -10%, rgba(255, 62, 165, 0.07), transparent 60%),
     linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 100% 100%, 44px 44px, 44px 44px;
+  background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
 }
 
 /* Fighting-game furniture: slanted panels and plates. */
@@ -114,13 +116,14 @@ body {
   filter: grayscale(0.7) brightness(0.6);
 }
 
-.btn-gold {
-  background: var(--color-gold);
+/* Buttons with weight that are not a side: connect, a chosen option, share. */
+.btn-light {
+  background: var(--color-ink);
   color: var(--color-void);
 }
 
-.btn-gold:hover:not(:disabled) {
-  filter: brightness(1.08);
+.btn-light:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .btn-ghost {
@@ -163,7 +166,7 @@ body {
 }
 
 .input:focus {
-  box-shadow: inset 0 0 0 1px var(--color-gold);
+  box-shadow: inset 0 0 0 1px var(--color-p1);
 }
 
 /* The stamp. Rotated, stencilled, and slammed in once. */

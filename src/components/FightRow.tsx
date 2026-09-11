@@ -53,7 +53,7 @@ export function FightRow({ d, now, quotes }: { d: DuelView; now: number; quotes?
         ) : null}
       </div>
       <div className="flex flex-col items-center">
-        <span className="display text-lg text-gold">VS</span>
+        <span className="display text-lg text-ink">VS</span>
         <span className="label whitespace-nowrap">{status}</span>
       </div>
       <div className="flex items-baseline justify-end gap-3">

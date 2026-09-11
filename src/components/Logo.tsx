@@ -26,7 +26,7 @@ export function Wordmark({ className = "" }: { className?: string }) {
     <span className={`display inline-flex items-center gap-2 ${className}`}>
       <Mark size={26} />
       <span className="-skew-x-6 text-[1.55rem] leading-none tracking-tight">
-        STONK<span className="text-gold">WARS</span>
+        STONK<span className="text-p2">WARS</span>
       </span>
     </span>
   );

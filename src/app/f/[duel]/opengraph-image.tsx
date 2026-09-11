@@ -21,6 +21,7 @@ import {
 import { BRAND } from "@/lib/brand";
 import { shares } from "@/lib/format";
 import { loadGoogleFont } from "@/lib/ogFont";
+import { PALETTE } from "@/lib/palette";
 import { movePct } from "@/lib/pricemath";
 import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
 
@@ -30,19 +31,7 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const revalidate = 30;
 
-const C = {
-  void: "#07070b",
-  panel: "#0e0e16",
-  line: "#25253a",
-  ink: "#f3f3f8",
-  dim: "#9090a8",
-  p1: "#2fe0ff",
-  p2: "#ff3ea5",
-  up: "#35f28b",
-  down: "#ff4d5e",
-  gold: "#ffd84a",
-  cooked: "#ff7a1a",
-};
+const C = PALETTE;
 
 async function readDuel(address: string): Promise<DuelView | null> {
   try {
@@ -115,7 +104,13 @@ export default async function Image({ params }: { params: Promise<{ duel: string
           {ticker}
         </div>
         {move !== null ? (
-          <div style={{ fontSize: 64, color: move > 0 ? C.up : move < 0 ? C.down : C.dim }}>{pctText(move)}</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: side === "p1" ? "flex-start" : "flex-end" }}>
+            <div style={{ fontSize: 64, color: move > 0 ? C.up : move < 0 ? C.down : C.dim }}>{pctText(move)}</div>
+            {/* Both stocks can fall; the winner is whoever fell less, so say it. */}
+            {d?.status === STATUS_SETTLED && !cooked ? (
+              <div style={{ fontSize: 34, color: C.up, marginTop: 4 }}>Takes both stakes</div>
+            ) : null}
+          </div>
         ) : (
           <div style={{ fontSize: 40, color: C.dim, textTransform: "none" }}>
             {d ? `${shares(amount, STAKE_DECIMALS)} ${ticker}x staked` : ""}
@@ -173,14 +168,14 @@ export default async function Image({ params }: { params: Promise<{ duel: string
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 34 }}>
           <div style={{ display: "flex" }}>
             <span>STONK</span>
-            <span style={{ color: C.gold }}>WARS</span>
+            <span style={{ color: C.p2 }}>WARS</span>
           </div>
           <div style={{ color: C.dim, fontSize: 30 }}>{status}</div>
         </div>
 
         <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "space-between" }}>
           {corner("p1")}
-          <div style={{ fontSize: 110, color: C.gold }}>VS</div>
+          <div style={{ fontSize: 110, color: C.ink }}>VS</div>
           {corner("p2")}
         </div>
 

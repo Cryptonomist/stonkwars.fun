@@ -6,8 +6,8 @@ import { session, type Session } from "@/lib/market";
 
 const COPY: Record<Session, { text: string; tone: string }> = {
   open: { text: "Market open", tone: "text-up" },
-  pre: { text: "Pre-market", tone: "text-gold" },
-  after: { text: "After hours", tone: "text-gold" },
+  pre: { text: "Pre-market", tone: "text-ink" },
+  after: { text: "After hours", tone: "text-ink" },
   closed: { text: "Market closed", tone: "text-dim" },
 };
 

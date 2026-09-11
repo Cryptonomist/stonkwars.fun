@@ -136,11 +136,11 @@ function StatusStrip({ d, now }: { d: DuelView; now: number }) {
   switch (d.status) {
     case STATUS_OPEN:
       text = now && d.expiresTs <= now ? "Challenge expired" : `Open challenge · closes in ${now ? clock(d.expiresTs - now) : "--"}`;
-      tone = "text-gold";
+      tone = "text-ink";
       break;
     case STATUS_ACCEPTED:
       text = "Fight on · locking the starting prices";
-      tone = "text-gold";
+      tone = "text-ink";
       break;
     case STATUS_LIVE:
       text = now && d.endTs > now ? "Round live" : "Bell rung · settling";
@@ -204,7 +204,7 @@ function Corner({
       </span>
       <span className="font-mono text-xs text-dim">{who ? shortAddress(who, 5) : "waiting for a taker"}</span>
       {move !== null ? <Move value={move} className="mt-3 text-4xl" /> : null}
-      {winner ? <span className="display mt-2 text-2xl text-gold">Winner takes both</span> : null}
+      {winner ? <span className="display mt-2 text-2xl text-up">Winner takes both</span> : null}
       {cooked ? (
         <span
           className={`stamp-cooked pointer-events-none absolute top-10 text-5xl sm:text-6xl ${right ? "right-3" : "left-3"}`}
@@ -226,7 +226,7 @@ function Center({ d, now, m1, m2 }: { d: DuelView; now: number; m1: number | nul
           <HealthBars p1Move={m1} p2Move={m2} roundSecs={Math.max(60, d.endTs - d.startTs)} />
         </div>
       ) : (
-        <span className="display text-6xl text-gold">VS</span>
+        <span className="display text-6xl text-ink">VS</span>
       )}
       {live ? (
         <>
@@ -341,7 +341,7 @@ function Actions({ d, now, t1, t2 }: { d: DuelView; now: number; t1: string; t2:
   }
   if (settleDue) {
     buttons.push(
-      <button key="settle" type="button" disabled={!publicKey || !!busy} onClick={() => crank("settle")} className="btn btn-gold">
+      <button key="settle" type="button" disabled={!publicKey || !!busy} onClick={() => crank("settle")} className="btn btn-light">
         {busy === "settle" ? "Settling..." : "Settle it yourself"}
       </button>,
     );
@@ -353,7 +353,7 @@ function Actions({ d, now, t1, t2 }: { d: DuelView; now: number; t1: string; t2:
         type="button"
         disabled={!publicKey || !!busy}
         onClick={() => run("refund", () => send([buildRefundDuel(d, publicKey!)]))}
-        className="btn btn-gold"
+        className="btn btn-light"
       >
         {busy === "refund" ? "Signing..." : "Send both stakes home"}
       </button>,
@@ -412,7 +412,7 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
   )}${CLUSTER === "mainnet-beta" ? "" : "&cluster=devnet"}`;
 
   return (
-    <section className={`card mx-auto mt-6 max-w-2xl p-5 ${fresh && d.status === STATUS_OPEN ? "ring-2 ring-gold" : ""}`}>
+    <section className={`card mx-auto mt-6 max-w-2xl p-5 ${fresh && d.status === STATUS_OPEN ? "ring-2 ring-p1" : ""}`}>
       <p className="label">
         {d.status === STATUS_OPEN
           ? fresh
@@ -435,7 +435,7 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
         >
           {copied ? "Copied" : "Copy link"}
         </button>
-        <a href={intent} target="_blank" rel="noreferrer" className="btn btn-sm btn-gold shrink-0">
+        <a href={intent} target="_blank" rel="noreferrer" className="btn btn-sm btn-light shrink-0">
           Post on X
         </a>
       </div>

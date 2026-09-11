@@ -69,7 +69,7 @@ export default function Home() {
       <section className="grid gap-4 md:grid-cols-3">
         {STEPS.map((s) => (
           <div key={s.n} className="card p-6">
-            <span className="display text-5xl text-gold">{s.n}</span>
+            <span className="display text-5xl text-p2">{s.n}</span>
             <h2 className="display mt-3 text-4xl">{s.title}</h2>
             <p className="mt-2 text-dim">{s.body}</p>
           </div>

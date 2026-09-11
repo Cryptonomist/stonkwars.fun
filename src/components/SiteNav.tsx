@@ -28,7 +28,7 @@ export function SiteNav() {
               key={l.href}
               href={l.href}
               className={`px-3 py-1.5 font-display text-base font-extrabold uppercase tracking-wide ${
-                path?.startsWith(l.href) ? "text-gold" : "text-dim hover:text-ink"
+                path?.startsWith(l.href) ? "text-ink" : "text-dim hover:text-ink"
               }`}
             >
               {l.label}
@@ -50,7 +50,7 @@ export function SiteNav() {
             key={l.href}
             href={l.href}
             className={`flex-1 px-2 py-1 text-center font-display text-sm font-extrabold uppercase ${
-              path?.startsWith(l.href) ? "text-gold" : "text-dim"
+              path?.startsWith(l.href) ? "text-ink" : "text-dim"
             }`}
           >
             {l.label}
