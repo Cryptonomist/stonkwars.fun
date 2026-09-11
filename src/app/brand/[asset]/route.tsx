@@ -64,10 +64,9 @@ async function pfp() {
 
 async function banner() {
   const rows = wall(7, 9);
-  const tickerText = ROSTER.map((s) => s.ticker).join(" ");
-  const f = await fonts(
-    `STONKWARS YOUR STOCK VS THEIRS. LOSER GETS COOKED. ${BRAND.domain} STAKE REAL SHARES · PYTH DECIDES · SOLANA ${tickerText} +-.%0123456789`,
-  );
+  const tickerText = rows.flat().map((c) => c.ticker).join(" ");
+  const tagline = `Stake real shares · ${ROSTER.length.toLocaleString("en-US")} stocks · Solana · ${BRAND.domain}`;
+  const f = await fonts(`STONKWARS YOUR STOCK VS THEIRS. LOSER GETS COOKED. ${tagline} ${tickerText} +-.%0123456789`);
 
   return new ImageResponse(
     (
@@ -143,7 +142,7 @@ async function banner() {
             <span style={{ color: C.cooked, marginLeft: 14 }}>Loser gets cooked.</span>
           </div>
           <div style={{ display: "flex", justifyContent: "center", fontSize: 26, color: C.dim, marginTop: 16 }}>
-            {`Stake real shares · Pyth decides · Solana · ${BRAND.domain}`}
+            {tagline}
           </div>
         </div>
       </div>
