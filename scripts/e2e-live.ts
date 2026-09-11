@@ -52,7 +52,13 @@ import { quoteAt } from "../src/lib/oracle";
 
 const ROOT = path.resolve(__dirname, "..");
 const RPC = process.env.RPC ?? "http://127.0.0.1:8899";
-if (!/localhost|127\.0\.0\.1/.test(RPC)) throw new Error("e2e-live only runs against a local validator");
+const LOCAL = /localhost|127\.0\.0\.1/.test(RPC);
+/* Devnet is allowed on purpose (DEVNET=1): the same fights are the quickest
+ * proof that a fresh deployment works, at an hour when no stock market does.
+ * Mainnet never: these register throwaway assets and stake real tokens. */
+if (!LOCAL && !(process.env.DEVNET === "1" && /devnet/.test(RPC))) {
+  throw new Error("e2e-live runs against a local validator, or devnet with DEVNET=1");
+}
 
 for (const line of fs.existsSync(path.join(ROOT, ".env.local")) ? fs.readFileSync(path.join(ROOT, ".env.local"), "utf8").split("\n") : []) {
   const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
@@ -60,10 +66,11 @@ for (const line of fs.existsSync(path.join(ROOT, ".env.local")) ? fs.readFileSyn
 }
 
 const load = (file: string) => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(file, "utf8")) as number[]));
+const cluster = LOCAL ? "localnet" : "devnet";
 const conn = new Connection(RPC, "confirmed");
 const admin = load(path.join(os.homedir(), ".config/solana/id.json"));
-const faucet = load(path.join(ROOT, "keys/faucet-localnet.json"));
-const oracle = load(path.join(ROOT, "keys/oracle-localnet.json"));
+const faucet = load(path.join(ROOT, `keys/faucet-${cluster}.json`));
+const oracle = load(path.join(ROOT, `keys/oracle-${cluster}.json`));
 const hermes = new HermesClient(process.env.HERMES_URL || "https://pyth.dourolabs.app/hermes", {
   accessToken: process.env.PYTH_API_KEY,
   timeout: 10_000,
@@ -113,7 +120,8 @@ async function register(c: Coin) {
 
 async function player(): Promise<Keypair> {
   const p = Keypair.generate();
-  await send([SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: p.publicKey, lamports: LAMPORTS_PER_SOL })], [admin]);
+  // Enough for three token accounts and the fees; devnet SOL is not free.
+  await send([SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: p.publicKey, lamports: LAMPORTS_PER_SOL / 20 })], [admin]);
   for (const c of Object.values(COINS)) {
     const ata = await getOrCreateAssociatedTokenAccount(conn, admin, c.mint!, p.publicKey, false, "confirmed", undefined, TOKEN_2022_PROGRAM_ID);
     await mintTo(conn, admin, c.mint!, ata.address, faucet, 10n * 10n ** 8n, [], { commitment: "confirmed" }, TOKEN_2022_PROGRAM_ID);
