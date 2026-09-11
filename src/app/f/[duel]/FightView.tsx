@@ -206,7 +206,9 @@ function Corner({
       {move !== null ? <Move value={move} className="mt-3 text-4xl" /> : null}
       {winner ? <span className="display mt-2 text-2xl text-gold">Winner takes both</span> : null}
       {cooked ? (
-        <span className={`stamp-cooked pointer-events-none absolute top-6 text-5xl sm:text-6xl ${right ? "right-0" : "left-0"}`}>
+        <span
+          className={`stamp-cooked pointer-events-none absolute top-10 text-5xl sm:text-6xl ${right ? "right-3" : "left-3"}`}
+        >
           Cooked
         </span>
       ) : null}

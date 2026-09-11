@@ -49,7 +49,9 @@ export function Leaderboard() {
     <div className="py-10">
       <p className="label">Settled on chain</p>
       <h1 className="display mt-2 text-6xl sm:text-7xl">Leaderboard</h1>
-      <p className="mt-3 text-dim">{settled.length} fights settled so far.</p>
+      <p className="mt-3 text-dim">
+        {settled.length} {settled.length === 1 ? "fight" : "fights"} settled so far.
+      </p>
 
       <div className="mt-8 overflow-x-auto">
         {duels.isLoading ? (

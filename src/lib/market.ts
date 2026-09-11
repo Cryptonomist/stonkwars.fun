@@ -17,7 +17,13 @@ const HOLIDAYS = new Set([
   "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
 ]);
 
+/* Half days: the market shuts at 1:00 PM, so the bell there is 12:59:30. A
+ * "Friday bell" on the day after Thanksgiving that ignored this would end an
+ * hour and a half into the after-hours session. */
+const EARLY_CLOSE = new Set(["2026-11-27", "2026-12-24", "2027-11-26"]);
+
 export const BELL = { hour: 15, minute: 59, second: 30 };
+const EARLY_BELL = { hour: 12, minute: 59, second: 30 };
 const OPEN = { hour: 9, minute: 30 };
 
 type Parts = { y: number; m: number; d: number; hh: number; mm: number; ss: number; wd: number };
@@ -77,16 +83,18 @@ export function session(ms = Date.now()): Session {
   if (!isTradingDay(ms)) return "closed";
   const p = nyParts(ms);
   const minutes = p.hh * 60 + p.mm;
-  if (minutes >= 9 * 60 + 30 && minutes < 16 * 60) return "open";
+  const close = EARLY_CLOSE.has(ymd(p)) ? 13 * 60 : 16 * 60;
+  if (minutes >= 9 * 60 + 30 && minutes < close) return "open";
   if (minutes >= 4 * 60 && minutes < 9 * 60 + 30) return "pre";
-  if (minutes >= 16 * 60 && minutes < 20 * 60) return "after";
+  if (minutes >= close && minutes < (close === 16 * 60 ? 20 * 60 : 17 * 60)) return "after";
   return "closed";
 }
 
 /** The bell on the trading day containing `ms`, as unix seconds. */
 function bellOn(ms: number): number {
   const p = nyParts(ms);
-  return Math.floor(nyToMs(p.y, p.m, p.d, BELL.hour, BELL.minute, BELL.second) / 1000);
+  const b = EARLY_CLOSE.has(ymd(p)) ? EARLY_BELL : BELL;
+  return Math.floor(nyToMs(p.y, p.m, p.d, b.hour, b.minute, b.second) / 1000);
 }
 
 /** The next bell at least `minLeadSecs` away. */
