@@ -58,4 +58,12 @@ pub enum DuelError {
     UnsupportedMint,
     #[msg("The escrow did not receive the full stake")]
     ShortTransfer,
+    #[msg("Unknown price source")]
+    BadSource,
+    #[msg("No oracle is configured for signed prices")]
+    NoOracle,
+    #[msg("No valid signed quote for this stock at this boundary")]
+    NoSignedQuote,
+    #[msg("That is not the instructions sysvar")]
+    NotInstructionsSysvar,
 }

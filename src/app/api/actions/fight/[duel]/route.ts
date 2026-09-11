@@ -61,7 +61,7 @@ export async function GET(_req: Request, { params }: Params) {
     title: `${t1} vs ${t2}`,
     description: [
       d.taunt ? `"${d.taunt}"` : null,
-      `${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)} staked on ${t1}. Stake ${stake} on ${t2}, ${round}. Bigger move takes both stakes, settled by Pyth.`,
+      `${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)} staked on ${t1}. Stake ${stake} on ${t2}, ${round}. Bigger move takes both stakes, settled on Solana.`,
       isInviteOnly(d) ? "This one is addressed to a single wallet." : null,
     ]
       .filter(Boolean)
@@ -111,6 +111,6 @@ export async function POST(req: Request, { params }: Params) {
   return actionJson({
     type: "transaction",
     transaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
-    message: `You're in. The round starts at the first Pyth price after this lands. Watch it at ${SITE_URL}/f/${duel}`,
+    message: `You're in. The round starts at the first prices after this lands. Watch it at ${SITE_URL}/f/${duel}`,
   });
 }

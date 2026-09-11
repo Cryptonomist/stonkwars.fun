@@ -9,10 +9,22 @@
 //!
 //! ## The one idea
 //!
-//! Nobody decides who won. The start and end prices are Pyth prices, posted by
-//! anyone and accepted only if they are the unique first price at or after the
-//! boundary (see `pyth.rs`). The comparison is exact integer arithmetic (see
-//! `outcome.rs`). A settler can choose when to settle, never how.
+//! Nobody decides who won. Each side's start and end price is the first price
+//! of its stock at or after the boundary, and the comparison is exact integer
+//! arithmetic (see `outcome.rs`). A settler can choose when to settle, never
+//! how.
+//!
+//! A stock's price comes from one of two sources, fixed per stock when it is
+//! registered and copied onto each duel:
+//!
+//! * Pyth, where the deployment has the feed: a price update anyone can post,
+//!   accepted only if it is provably the unique first price at or after the
+//!   boundary (see `pyth.rs`). Nobody has to be trusted.
+//! * A signed quote, for every other stock: the same statement, signed by the
+//!   oracle key in the config and checked by Solana's Ed25519 program (see
+//!   `quote.rs`). Here the oracle is trusted to tell the truth about the
+//!   market, and every quote it signs is public in the transaction that used
+//!   it.
 //!
 //! ## Where the shares can go
 //!
@@ -27,8 +39,9 @@
 //!   stalled for a week.
 //!
 //! There is no admin withdrawal and no sweep. The admin can register stocks,
-//! switch one off for new duels and pause new duels. Nothing it can do touches
-//! a stake in escrow.
+//! switch one off for new duels, pause new duels and name the oracle for new
+//! duels. Nothing it can do touches a stake in escrow, and a duel whose prices
+//! never come is refunded in full a week late rather than held.
 
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
@@ -43,6 +56,7 @@ pub mod events;
 pub mod mint_check;
 pub mod outcome;
 pub mod pyth;
+pub mod quote;
 pub mod state;
 
 use constants::*;
@@ -66,6 +80,7 @@ pub mod duel {
         c.admin = ctx.accounts.admin.key();
         c.paused = false;
         c.bump = ctx.bumps.config;
+        c.oracle = Pubkey::default();
         Ok(())
     }
 
@@ -74,12 +89,22 @@ pub mod duel {
         Ok(())
     }
 
+    /// Name the key whose signed quotes price SOURCE_SIGNED stocks. Duels
+    /// copy it at creation, so this reaches only duels created afterwards.
+    pub fn set_oracle(ctx: Context<SetOracle>, oracle: Pubkey) -> Result<()> {
+        ctx.accounts.config.oracle = oracle;
+        emit!(OracleSet { oracle });
+        Ok(())
+    }
+
     pub fn register_asset(
         ctx: Context<RegisterAsset>,
         feed_id: [u8; 32],
         symbol: String,
+        source: u8,
     ) -> Result<()> {
         require!(symbol.len() <= MAX_SYMBOL_LEN, DuelError::SymbolTooLong);
+        require!(is_source(source), DuelError::BadSource);
         mint_check::assert_escrowable(&ctx.accounts.mint.to_account_info())?;
 
         let a = &mut ctx.accounts.asset;
@@ -90,25 +115,35 @@ pub mod duel {
         a.decimals = ctx.accounts.mint.decimals;
         a.enabled = true;
         a.bump = ctx.bumps.asset;
+        a.source = source;
 
         emit!(AssetRegistered {
             mint: a.mint,
             feed_id,
             symbol,
+            source,
         });
         Ok(())
     }
 
-    /// Re-point an asset's feed or switch it off. Duels already created keep
-    /// the feed they copied; this only changes what new duels get.
-    pub fn set_asset(ctx: Context<SetAsset>, feed_id: [u8; 32], enabled: bool) -> Result<()> {
+    /// Re-point an asset's feed or source, or switch it off. Duels already
+    /// created keep what they copied; this only changes what new duels get.
+    pub fn set_asset(
+        ctx: Context<SetAsset>,
+        feed_id: [u8; 32],
+        enabled: bool,
+        source: u8,
+    ) -> Result<()> {
+        require!(is_source(source), DuelError::BadSource);
         let a = &mut ctx.accounts.asset;
         a.feed_id = feed_id;
         a.enabled = enabled;
+        a.source = source;
         emit!(AssetUpdated {
             mint: a.mint,
             feed_id,
             enabled,
+            source,
         });
         Ok(())
     }
@@ -138,6 +173,23 @@ pub mod duel {
         require!(!ctx.accounts.config.paused, DuelError::Paused);
         require!(creator_amount > 0 && opponent_amount > 0, DuelError::ZeroStake);
         require!(taunt.len() <= MAX_TAUNT_LEN, DuelError::TauntTooLong);
+        // Two issuers' tokens of one stock always tie; that is not a duel.
+        require!(
+            ctx.accounts.creator_asset.feed_id != ctx.accounts.opponent_asset.feed_id,
+            DuelError::SameAsset
+        );
+        let creator_source = ctx.accounts.creator_asset.source;
+        let opponent_source = ctx.accounts.opponent_asset.source;
+        let oracle = if creator_source == SOURCE_SIGNED || opponent_source == SOURCE_SIGNED {
+            // A signed duel with nobody to sign for it could never start.
+            require!(
+                ctx.accounts.config.oracle != Pubkey::default(),
+                DuelError::NoOracle
+            );
+            ctx.accounts.config.oracle
+        } else {
+            Pubkey::default()
+        };
         require!((duration_secs > 0) != (end_ts > 0), DuelError::BadEndRule);
         require!(
             expires_ts > now && expires_ts - now <= MAX_OPEN_SECS,
@@ -180,6 +232,9 @@ pub mod duel {
         d.opponent_token_program = ctx.accounts.opponent_token_program.key();
         d.creator_feed = ctx.accounts.creator_asset.feed_id;
         d.opponent_feed = ctx.accounts.opponent_asset.feed_id;
+        d.creator_source = creator_source;
+        d.opponent_source = opponent_source;
+        d.oracle = oracle;
         d.creator_amount = creator_amount;
         d.opponent_amount = opponent_amount;
         d.duration_secs = duration_secs;
@@ -285,9 +340,23 @@ pub mod duel {
             .accepted_ts
             .checked_add(START_DELAY_SECS)
             .ok_or(DuelError::MathOverflow)?;
-        let c = pyth::read_boundary_price(&ctx.accounts.creator_price, &d.creator_feed, boundary)?;
-        let o =
-            pyth::read_boundary_price(&ctx.accounts.opponent_price, &d.opponent_feed, boundary)?;
+        let instructions = ctx.accounts.instructions.to_account_info();
+        let c = side_price(
+            d.creator_source,
+            &d.creator_feed,
+            boundary,
+            ctx.accounts.creator_price.as_deref(),
+            &instructions,
+            &d.oracle,
+        )?;
+        let o = side_price(
+            d.opponent_source,
+            &d.opponent_feed,
+            boundary,
+            ctx.accounts.opponent_price.as_deref(),
+            &instructions,
+            &d.oracle,
+        )?;
 
         let start_ts = c.publish_time.max(o.publish_time);
         if d.duration_secs > 0 {
@@ -296,16 +365,8 @@ pub mod duel {
                 .ok_or(DuelError::MathOverflow)?;
         }
         d.start_ts = start_ts;
-        d.creator_start = PricePoint {
-            price: c.price,
-            expo: c.expo,
-            publish_time: c.publish_time,
-        };
-        d.opponent_start = PricePoint {
-            price: o.price,
-            expo: o.expo,
-            publish_time: o.publish_time,
-        };
+        d.creator_start = c;
+        d.opponent_start = o;
 
         /* A duel can be accepted while the market is shut, and then its first
          * price is whenever the market reopens. That is fine for a duel to
@@ -350,8 +411,23 @@ pub mod duel {
         let d = &ctx.accounts.duel;
         require_eq!(d.status, STATUS_LIVE, DuelError::NotLive);
 
-        let c = pyth::read_boundary_price(&ctx.accounts.creator_price, &d.creator_feed, d.end_ts)?;
-        let o = pyth::read_boundary_price(&ctx.accounts.opponent_price, &d.opponent_feed, d.end_ts)?;
+        let instructions = ctx.accounts.instructions.to_account_info();
+        let c = side_price(
+            d.creator_source,
+            &d.creator_feed,
+            d.end_ts,
+            ctx.accounts.creator_price.as_deref(),
+            &instructions,
+            &d.oracle,
+        )?;
+        let o = side_price(
+            d.opponent_source,
+            &d.opponent_feed,
+            d.end_ts,
+            ctx.accounts.opponent_price.as_deref(),
+            &instructions,
+            &d.oracle,
+        )?;
         let c_end = Px {
             price: c.price,
             expo: c.expo,
@@ -394,16 +470,8 @@ pub mod duel {
 
         {
             let d = &mut ctx.accounts.duel;
-            d.creator_end = PricePoint {
-                price: c.price,
-                expo: c.expo,
-                publish_time: c.publish_time,
-            };
-            d.opponent_end = PricePoint {
-                price: o.price,
-                expo: o.expo,
-                publish_time: o.publish_time,
-            };
+            d.creator_end = c;
+            d.opponent_end = o;
             d.outcome = outcome_code;
             d.winner = winner_key;
             d.status = if winner == Winner::Tie {
@@ -507,6 +575,36 @@ pub mod duel {
     }
 }
 
+fn is_source(source: u8) -> bool {
+    source == SOURCE_PYTH || source == SOURCE_SIGNED
+}
+
+/// One side's price for `boundary`, from wherever its stock is priced: a Pyth
+/// update account passed for that side, or a quote from `oracle` in an Ed25519
+/// instruction in this transaction.
+fn side_price(
+    source: u8,
+    feed: &[u8; 32],
+    boundary: i64,
+    pyth_update: Option<&AccountInfo>,
+    instructions: &AccountInfo,
+    oracle: &Pubkey,
+) -> Result<PricePoint> {
+    match source {
+        SOURCE_PYTH => {
+            let account = pyth_update.ok_or(DuelError::NotPythAccount)?;
+            let o = pyth::read_boundary_price(account, feed, boundary)?;
+            Ok(PricePoint {
+                price: o.price,
+                expo: o.expo,
+                publish_time: o.publish_time,
+            })
+        }
+        SOURCE_SIGNED => quote::read_signed_price(instructions, oracle, feed, boundary),
+        _ => err!(DuelError::BadSource),
+    }
+}
+
 /// Move a stake into escrow and check the escrow received all of it. The check
 /// is on the escrow's balance delta, so it holds whether or not somebody sent
 /// tokens to the escrow address first, and it is what turns a fee-on-transfer
@@ -602,6 +700,13 @@ pub struct InitConfig<'info> {
 
 #[derive(Accounts)]
 pub struct SetPaused<'info> {
+    #[account(mut, seeds = [SEED_CONFIG], bump = config.bump, has_one = admin)]
+    pub config: Account<'info, Config>,
+    pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetOracle<'info> {
     #[account(mut, seeds = [SEED_CONFIG], bump = config.bump, has_one = admin)]
     pub config: Account<'info, Config>,
     pub admin: Signer<'info>,
@@ -799,12 +904,15 @@ pub struct StartDuel<'info> {
         bump = duel.bump
     )]
     pub duel: Box<Account<'info, Duel>>,
-    /// CHECK: verified in `pyth::read_boundary_price`: receiver-owned, a fully
-    /// verified PriceUpdateV2, the creator's feed, the first price at or after
-    /// the start boundary.
-    pub creator_price: UncheckedAccount<'info>,
-    /// CHECK: as `creator_price`, for the opponent's feed.
-    pub opponent_price: UncheckedAccount<'info>,
+    /// CHECK: for a Pyth side, verified in `pyth::read_boundary_price`:
+    /// receiver-owned, a fully verified PriceUpdateV2, the creator's feed, the
+    /// first price at or after the start boundary. Omitted for a signed side.
+    pub creator_price: Option<UncheckedAccount<'info>>,
+    /// CHECK: as `creator_price`, for the opponent's side.
+    pub opponent_price: Option<UncheckedAccount<'info>>,
+    /// CHECK: the instructions sysvar, where a signed side's quote is found.
+    #[account(address = INSTRUCTIONS_SYSVAR @ DuelError::NotInstructionsSysvar)]
+    pub instructions: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -878,10 +986,14 @@ pub struct SettleDuel<'info> {
         associated_token::token_program = opponent_token_program
     )]
     pub opponent_opponent_ata: Box<InterfaceAccount<'info, TokenAccount>>,
-    /// CHECK: verified in `pyth::read_boundary_price` against the end boundary.
-    pub creator_price: UncheckedAccount<'info>,
-    /// CHECK: as `creator_price`, for the opponent's feed.
-    pub opponent_price: UncheckedAccount<'info>,
+    /// CHECK: for a Pyth side, verified in `pyth::read_boundary_price` against
+    /// the end boundary. Omitted for a signed side.
+    pub creator_price: Option<UncheckedAccount<'info>>,
+    /// CHECK: as `creator_price`, for the opponent's side.
+    pub opponent_price: Option<UncheckedAccount<'info>>,
+    /// CHECK: the instructions sysvar, where a signed side's quote is found.
+    #[account(address = INSTRUCTIONS_SYSVAR @ DuelError::NotInstructionsSysvar)]
+    pub instructions: UncheckedAccount<'info>,
     #[account(address = duel.creator_token_program)]
     pub creator_token_program: Interface<'info, TokenInterface>,
     #[account(address = duel.opponent_token_program)]

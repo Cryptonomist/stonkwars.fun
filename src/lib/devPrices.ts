@@ -6,15 +6,20 @@
 
 export const DEV_BASE: Record<string, number> = {
   NVDA: 211.02, TSLA: 364.11, AAPL: 305.92, MSFT: 512.4, GOOGL: 238.7, AMZN: 241.3, META: 781.2,
-  AMD: 188.4, PLTR: 176.9, COIN: 331.5, HOOD: 128.2, MSTR: 402.6, SPY: 765.48, QQQ: 612.3,
+  AMD: 188.4, PLTR: 176.9, COIN: 331.5, HOOD: 128.2, MSTR: 402.6, SPY: 765.48, QQQ: 715.9, VOO: 703.1,
 };
 
-const ORDER = Object.keys(DEV_BASE);
+/** A small number that differs by ticker, so no two stocks wobble in step. */
+function seed(ticker: string): number {
+  let h = 7;
+  for (const c of ticker) h = (h * 31 + c.charCodeAt(0)) % 10_007;
+  return h;
+}
 
 /** Mantissa at expo -5 for `ticker` at unix second `t`. */
 export function devPrice(ticker: string, t: number): bigint {
-  const i = Math.max(0, ORDER.indexOf(ticker));
-  const base = DEV_BASE[ticker] ?? 100;
+  const i = seed(ticker) % 97;
+  const base = DEV_BASE[ticker] ?? 20 + (seed(ticker) % 480);
   const wobble = 1 + 0.006 * Math.sin(t / 97 + i) + 0.003 * Math.sin(t / 13 + 2 * i);
   return BigInt(Math.round(base * wobble * 1e5));
 }

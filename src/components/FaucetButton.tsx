@@ -7,7 +7,18 @@ import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-export function FaucetButton({ className = "", compact = false }: { className?: string; compact?: boolean }) {
+export function FaucetButton({
+  className = "",
+  compact = false,
+  tickers,
+  label,
+}: {
+  className?: string;
+  compact?: boolean;
+  /** The stocks to top up; the server's starter set when absent. */
+  tickers?: string[];
+  label?: string;
+}) {
   const { publicKey } = useWallet();
   const qc = useQueryClient();
   const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
@@ -25,7 +36,7 @@ export function FaucetButton({ className = "", compact = false }: { className?: 
       const r = await fetch("/api/faucet", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ wallet: publicKey.toBase58() }),
+        body: JSON.stringify({ wallet: publicKey.toBase58(), tickers }),
       });
       const body = (await r.json()) as { ok?: boolean; message?: string; error?: string };
       if (!r.ok) throw new Error(body.error ?? `HTTP ${r.status}`);
@@ -41,7 +52,7 @@ export function FaucetButton({ className = "", compact = false }: { className?: 
   return (
     <div className={`relative ${className}`}>
       <button type="button" onClick={drip} disabled={state === "busy"} className={`btn btn-sm btn-ghost ${compact ? "px-2" : ""}`}>
-        {state === "busy" ? "Minting..." : compact ? "Faucet" : "Get test stocks"}
+        {state === "busy" ? "Minting..." : label ?? (compact ? "Faucet" : "Get test stocks")}
       </button>
       {msg ? (
         <p className={`card absolute right-0 z-30 mt-2 w-64 p-3 text-xs ${state === "error" ? "text-down" : "text-up"}`}>

@@ -5,18 +5,28 @@
  *   LIVE, past the bell                -> post the end prices, settle_duel
  *   VOID                               -> refund_duel
  *
- * IT DECIDES NOTHING, AND IT HOLDS NOTHING. The prices it posts are Pyth's,
- * signed, and the program accepts only the first price at or after each
- * boundary, so a crank chooses when a fight settles and never how. Its key pays
- * fees and the rent of the temporary price accounts, which come back when the
- * accounts close. No "server-only" import: scripts run this from Node too.
+ * IT DECIDES NOTHING, AND IT HOLDS NOTHING. A Pyth side's price is Pyth's,
+ * signed by Pyth, and the program accepts only the first price at or after
+ * each boundary. A signed side's price is the oracle's answer to the same
+ * question, from completed minute bars (see oracle.ts). Either way a crank
+ * chooses when a fight settles and never how. Its key pays fees and the rent
+ * of the temporary price accounts, which come back when the accounts close.
+ * No "server-only" import: scripts run this from Node too.
  */
 
-import { Transaction, sendAndConfirmTransaction, type Connection, type Keypair } from "@solana/web3.js";
+import {
+  ComputeBudgetProgram,
+  Transaction,
+  sendAndConfirmTransaction,
+  type Connection,
+  type Keypair,
+  type TransactionInstruction,
+} from "@solana/web3.js";
 import { Wallet } from "@coral-xyz/anchor";
 import type { HermesClient } from "@pythnetwork/hermes-client";
 import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 
+import { boundaryOf, crankTransactions, fightUnits, pythFeedsOf, sendInOrder } from "./crankTx";
 import {
   buildRefundDuel,
   buildSettleDuel,
@@ -24,12 +34,24 @@ import {
   decodeDuel,
   duelsWithStatus,
   PROGRAM_ID,
+  readableProgramError,
+  SOURCE_SIGNED,
   START_DELAY_SECS,
   STATUS_ACCEPTED,
   STATUS_LIVE,
   STATUS_VOID,
   type DuelView,
 } from "./duel";
+import { quoteAt, signedQuoteInstruction } from "./oracle";
+
+export { boundaryOf, crankTransactions, pythFeedsOf, type SignedTx } from "./crankTx";
+
+/** Where the oracle finds a signed stock's minute bars, by feed id, and the
+ * currency they are in. */
+export type QuoteSymbol = (feed: string) => { symbol: string; currency: string } | undefined;
+
+/** A job that cannot run yet and should be retried, not reported as broken. */
+export class NotYet extends Error {}
 
 /** Seconds past a boundary before trying: Pyth has to print, Hermes to index. */
 export const GRACE_SECS = 3;
@@ -56,24 +78,46 @@ export async function pendingJobs(conn: Connection, now: number): Promise<CrankJ
   ];
 }
 
-/** Post the boundary's signed prices and run start_duel or settle_duel. */
-export async function postAndRun(opts: {
-  conn: Connection;
-  payer: Keypair;
-  hermes: HermesClient;
+/** The Ed25519 instructions carrying the oracle's quotes for a duel's signed
+ * sides at a boundary. Throws NotYet while a minute bar is still forming. */
+export async function signedQuotes(opts: {
   duel: DuelView;
-  which: "start" | "settle";
-  priorityMicroLamports?: number;
-}): Promise<string[]> {
-  const { conn, payer, hermes, duel: d, which } = opts;
-  const boundary = which === "start" ? d.acceptedTs + START_DELAY_SECS : d.endTs;
-  const update = await hermes.getPriceUpdatesAtTimestamp(boundary, [d.creatorFeed, d.opponentFeed], {
-    encoding: "base64",
-    parsed: true,
-  });
+  boundary: number;
+  oracle?: Keypair;
+  quoteSymbol: QuoteSymbol;
+}): Promise<TransactionInstruction[]> {
+  const { duel: d, boundary } = opts;
+  const feeds = [
+    d.creatorSource === SOURCE_SIGNED ? d.creatorFeed : null,
+    d.opponentSource === SOURCE_SIGNED ? d.opponentFeed : null,
+  ].filter((f): f is string => f !== null);
+  if (feeds.length === 0) return [];
 
+  const oracle = opts.oracle;
+  if (!oracle) throw new Error("This fight has a signed side and this crank holds no oracle key");
+  if (!oracle.publicKey.equals(d.oracle)) {
+    throw new Error(`This fight trusts oracle ${d.oracle.toBase58()}; this crank holds ${oracle.publicKey.toBase58()}`);
+  }
+  const out: TransactionInstruction[] = [];
+  for (const feed of feeds) {
+    const market = opts.quoteSymbol(feed);
+    if (!market) throw new Error(`No market symbol for feed ${feed.slice(0, 8)}`);
+    const q = await quoteAt({ feed, symbol: market.symbol, currency: market.currency, boundary });
+    if (!q) throw new NotYet(`${market.symbol}: waiting for the minute after ${boundary} to close`);
+    out.push(signedQuoteInstruction(oracle, q));
+  }
+  return out;
+}
+
+/** Hermes' update data for the fight's Pyth sides at a boundary, checked to be
+ * the unique first price after it (the program would refuse anything else). */
+export async function pythUpdateAt(hermes: HermesClient | undefined, d: DuelView, boundary: number): Promise<string[]> {
+  const feeds = pythFeedsOf(d);
+  if (!feeds.length) return [];
+  if (!hermes) throw new Error("This fight has a Pyth side and this crank has no Pyth key");
+  const update = await hermes.getPriceUpdatesAtTimestamp(boundary, feeds, { encoding: "base64", parsed: true });
   const parsed = update.parsed ?? [];
-  if (parsed.length < 2) throw new Error(`Hermes has ${parsed.length}/2 prices after ${boundary}`);
+  if (parsed.length < feeds.length) throw new NotYet(`Hermes has ${parsed.length}/${feeds.length} prices after ${boundary}`);
   for (const p of parsed) {
     const prev = p.metadata?.prev_publish_time;
     if (!(typeof prev === "number" && prev < boundary && boundary <= p.price.publish_time)) {
@@ -82,28 +126,50 @@ export async function postAndRun(opts: {
       );
     }
   }
+  return update.binary.data;
+}
+
+/** Post the boundary's prices and run start_duel or settle_duel: Pyth updates
+ * for Pyth sides, the oracle's signed quotes for signed sides. */
+export async function postAndRun(opts: {
+  conn: Connection;
+  payer: Keypair;
+  hermes?: HermesClient;
+  oracle?: Keypair;
+  quoteSymbol: QuoteSymbol;
+  duel: DuelView;
+  which: "start" | "settle";
+  priorityMicroLamports?: number;
+}): Promise<string[]> {
+  const { conn, payer, duel: d, which } = opts;
+  const boundary = boundaryOf(d, which);
+  const quotes = await signedQuotes({ ...opts, boundary });
+  const pythUpdate = await pythUpdateAt(opts.hermes, d, boundary);
+
+  // Both sides signed: one ordinary transaction, no Pyth at all.
+  if (!pythUpdate.length) {
+    const tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: fightUnits(which, quotes.length) }),
+      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: opts.priorityMicroLamports ?? 20_000 }),
+      ...quotes,
+      which === "start" ? buildStartDuel(d, null, null) : buildSettleDuel(d, payer.publicKey, null, null),
+    );
+    return [await sendAndConfirmTransaction(conn, tx, [payer], { commitment: "confirmed" })];
+  }
 
   const receiver = new PythSolanaReceiver({ connection: conn, wallet: new Wallet(payer) });
-  const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: true });
-  await builder.addPostPriceUpdates(update.binary.data);
-  await builder.addPriceConsumerInstructions(async (get) => {
-    const account = (feed: string) => {
-      try {
-        return get(`0x${feed}`);
-      } catch {
-        return get(feed);
-      }
-    };
-    const c = account(d.creatorFeed);
-    const o = account(d.opponentFeed);
-    const instruction = which === "start" ? buildStartDuel(d, c, o) : buildSettleDuel(d, payer.publicKey, c, o);
-    return [{ instruction, signers: [], computeUnits: which === "start" ? 60_000 : 300_000 }];
+  const txs = await crankTransactions({
+    conn,
+    receiver,
+    payer: payer.publicKey,
+    duel: d,
+    which,
+    pythUpdate,
+    quotes,
+    priorityMicroLamports: opts.priorityMicroLamports,
   });
-  const txs = await builder.buildVersionedTransactions({
-    computeUnitPriceMicroLamports: opts.priorityMicroLamports ?? 20_000,
-    tightComputeBudget: true,
-  });
-  return receiver.provider.sendAll(txs, { skipPreflight: true });
+  for (const { tx, signers } of txs) tx.sign([payer, ...signers]);
+  return sendInOrder(conn, txs.map((t) => t.tx));
 }
 
 export async function refund(conn: Connection, payer: Keypair, d: DuelView): Promise<string> {
@@ -115,7 +181,9 @@ export async function refund(conn: Connection, payer: Keypair, d: DuelView): Pro
 export async function crankOnce(opts: {
   conn: Connection;
   payer: Keypair;
-  hermes: HermesClient;
+  hermes?: HermesClient;
+  oracle?: Keypair;
+  quoteSymbol: QuoteSymbol;
   now?: number;
   limit?: number;
   skip?: (key: string) => boolean;
@@ -132,7 +200,11 @@ export async function crankOnce(opts: {
           : (await postAndRun({ ...opts, duel: job.duel, which: job.kind })).slice(-1)[0] ?? "";
       results.push({ duel: key, kind: job.kind, ok: true, detail });
     } catch (e) {
-      results.push({ duel: key, kind: job.kind, ok: false, detail: e instanceof Error ? e.message.split("\n")[0] : String(e) });
+      /* A failed send can arrive as web3.js's "Unknown action 'undefined'"
+       * with the program's logs attached; the logs say what actually went
+       * wrong. */
+      const detail = readableProgramError(e);
+      results.push({ duel: key, kind: job.kind, ok: false, detail: e instanceof NotYet ? `not yet: ${detail}` : detail });
     }
   }
   return results;

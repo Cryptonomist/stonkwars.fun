@@ -6,8 +6,12 @@
  * verification level, the feed and the boundary, so every one of those is
  * something a test here can get wrong on purpose.
  *
+ * Signed quotes are not faked at all: they are signed with a real Ed25519 key
+ * and checked by the real Ed25519 program in the same transaction.
+ *
  * Stocks: NVDA and TSLA are Token-2022 mints (as real tokenized stocks are),
- * AAPL is a classic SPL mint, so the mixed-program path is covered too. */
+ * AAPL is a classic SPL mint, so the mixed-program path is covered too. AMD
+ * and PLTR are priced by the oracle's signed quotes. */
 
 import { LiteSVM, FailedTransactionMetadata } from "litesvm";
 import * as anchor from "@coral-xyz/anchor";
@@ -22,7 +26,8 @@ import {
   lamports,
   createTransactionMessage,
   setTransactionMessageFeePayerSigner,
-  appendTransactionMessageInstruction,
+  appendTransactionMessageInstructions,
+  signBytes,
   signTransactionMessageWithSigners,
 } from "@solana/kit";
 import type { Address, Instruction, InstructionWithSigners, KeyPairSigner } from "@solana/kit";
@@ -36,7 +41,18 @@ type Stock = {
   program: Address;
   feed: Uint8Array;
   decimals: number;
+  source: number;
 };
+
+type QuoteTerms = {
+  feed: Uint8Array;
+  boundary: number;
+  price: bigint;
+  expo: number;
+  publishTime: number;
+};
+
+type SignedQuote = { key: Address; msg: Uint8Array; sig: Uint8Array };
 
 describe("duel - LiteSVM", () => {
   const idl = JSON.parse(
@@ -52,7 +68,11 @@ describe("duel - LiteSVM", () => {
   const TOKEN_2022 = address("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
   const ATA_PROGRAM = address("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
   const PYTH_RECEIVER = address("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
+  const ED25519 = address("Ed25519SigVerify111111111111111111111111111");
+  const INSTRUCTIONS_SYSVAR = address("Sysvar1nstructions1111111111111111111111111");
   const PRICE_UPDATE_DISC = [34, 241, 35, 99, 157, 126, 244, 205];
+  const PYTH = 0;
+  const SIGNED = 1;
 
   const START_DELAY = 2;
   const MIN_DUEL = 60;
@@ -81,11 +101,16 @@ describe("duel - LiteSVM", () => {
   let svm: LiteSVM;
   let admin: KeyPairSigner;
   let cranker: KeyPairSigner;
+  let oracle: KeyPairSigner;
   let configPda: Address;
   let NVDA: Stock;
   let TSLA: Stock;
   let AAPL: Stock;
   let OFF: Stock;
+  let AMD: Stock;
+  let PLTR: Stock;
+  /** Another issuer's NVDA: its own mint, NVDA's feed. */
+  let NVDA_B: Stock;
   let seedCounter = 1n;
 
   // ── encoding ──────────────────────────────────────────────────────────────
@@ -167,6 +192,49 @@ describe("duel - LiteSVM", () => {
     return d;
   }
 
+  /** The 78-byte message the oracle signs; see programs/duel/src/quote.rs. */
+  function quoteMsg(q: QuoteTerms): Uint8Array {
+    const m = new Uint8Array(78);
+    const v = new DataView(m.buffer);
+    m.set(enc("STONKWARS:PRICE:v1"), 0);
+    m.set(q.feed, 18);
+    v.setBigInt64(50, BigInt(q.boundary), true);
+    v.setBigInt64(58, q.price, true);
+    v.setInt32(66, q.expo, true);
+    v.setBigInt64(70, BigInt(q.publishTime), true);
+    return m;
+  }
+
+  async function signedQuote(signer: KeyPairSigner, q: QuoteTerms): Promise<SignedQuote> {
+    const msg = quoteMsg(q);
+    return { key: signer.address, msg, sig: await signBytes(signer.keyPair.privateKey, msg) };
+  }
+
+  /** An Ed25519 program instruction verifying `quotes`. Each entry's key,
+   * signature and message sit in this instruction's data, and `index` names
+   * the instruction the Ed25519 program should read them from (0xffff: this
+   * one). */
+  function ed25519Ix(quotes: SignedQuote[], index = 0xffff) {
+    const head = 2 + 14 * quotes.length;
+    const size = quotes.reduce((n, q) => n + 32 + 64 + q.msg.length, head);
+    const data = new Uint8Array(size);
+    const v = new DataView(data.buffer);
+    data[0] = quotes.length;
+    let at = head;
+    quotes.forEach((q, i) => {
+      const keyAt = at;
+      const sigAt = keyAt + 32;
+      const msgAt = sigAt + 64;
+      const fields = [sigAt, index, keyAt, index, msgAt, q.msg.length, index];
+      fields.forEach((f, j) => v.setUint16(2 + i * 14 + j * 2, f, true));
+      data.set(codec.encode(q.key), keyAt);
+      data.set(q.sig, sigAt);
+      data.set(q.msg, msgAt);
+      at = msgAt + q.msg.length;
+    });
+    return { programAddress: ED25519, accounts: [], data };
+  }
+
   // ── svm plumbing ──────────────────────────────────────────────────────────
 
   function put(addr: Address, data: Uint8Array, owner: Address, lamportsAmount = 3_000_000n) {
@@ -234,17 +302,20 @@ describe("duel - LiteSVM", () => {
     return { programAddress, accounts, data: coder.instruction.encode(name, args) };
   }
 
-  async function buildTx(instruction: any, feePayer: KeyPairSigner) {
-    const msg = appendTransactionMessageInstruction(
-      instruction as Instruction & InstructionWithSigners,
+  /** One instruction, or several in order (an Ed25519 check, then ours). */
+  async function buildTx(instructions: any, feePayer: KeyPairSigner) {
+    const list = (Array.isArray(instructions) ? instructions : [instructions]) as (Instruction &
+      InstructionWithSigners)[];
+    const msg = appendTransactionMessageInstructions(
+      list,
       setTransactionMessageFeePayerSigner(feePayer, createTransactionMessage({ version: 0 })),
     );
     const withLifetime = svm.setTransactionMessageLifetimeUsingLatestBlockhash(msg);
     return signTransactionMessageWithSigners(withLifetime, { abortSignal: undefined });
   }
 
-  async function send(instruction: any, feePayer: KeyPairSigner) {
-    const res = svm.sendTransaction(await buildTx(instruction, feePayer));
+  async function send(instructions: any, feePayer: KeyPairSigner) {
+    const res = svm.sendTransaction(await buildTx(instructions, feePayer));
     if (res instanceof FailedTransactionMetadata) {
       throw new Error(res.meta().prettyLogs());
     }
@@ -280,17 +351,25 @@ describe("duel - LiteSVM", () => {
     program: Address,
     decimals: number,
     feedByte: number,
+    source = PYTH,
   ): Promise<Stock> {
     const mint = (await generateKeyPairSigner()).address;
     put(mint, encodeMint(decimals, admin.address), program, 1_461_600n);
-    return { symbol, mint, program, feed: feedOf(feedByte), decimals };
+    return { symbol, mint, program, feed: feedOf(feedByte), decimals, source };
+  }
+
+  function setOracleIx(key: Address, signer = admin) {
+    return ix("set_oracle", { oracle: new PublicKey(key) }, [
+      acct(configPda, W),
+      acct(signer.address, RS, signer),
+    ]);
   }
 
   function registerIx(stock: Stock, signer = admin) {
     return (async () =>
       ix(
         "register_asset",
-        { feed_id: Array.from(stock.feed), symbol: stock.symbol },
+        { feed_id: Array.from(stock.feed), symbol: stock.symbol, source: stock.source },
         [
           acct(configPda, R),
           acct(await assetPda(stock.mint), W),
@@ -431,8 +510,17 @@ describe("duel - LiteSVM", () => {
     ]);
   }
 
-  function startIx(duel: Address, cPrice: Address, xPrice: Address) {
-    return ix("start_duel", {}, [acct(duel, W), acct(cPrice, R), acct(xPrice, R)]);
+  /** A side priced by a signed quote passes no price account: `null`, which
+   * Anchor reads as None when the program id stands in the slot. */
+  const priceSlot = (a: Address | null) => acct(a ?? programAddress, R);
+
+  function startIx(duel: Address, cPrice: Address | null, xPrice: Address | null) {
+    return ix("start_duel", {}, [
+      acct(duel, W),
+      priceSlot(cPrice),
+      priceSlot(xPrice),
+      acct(INSTRUCTIONS_SYSVAR, R),
+    ]);
   }
 
   async function payoutAccounts(duel: Address, full: boolean) {
@@ -459,15 +547,21 @@ describe("duel - LiteSVM", () => {
     return { head, cross, tailAta: acct(await ata(opponent, xMint, xProg), W), cProg, xProg };
   }
 
-  async function settleIx(duel: Address, cPrice: Address, xPrice: Address, payer = cranker) {
+  async function settleIx(
+    duel: Address,
+    cPrice: Address | null,
+    xPrice: Address | null,
+    payer = cranker,
+  ) {
     const a = await payoutAccounts(duel, true);
     return ix("settle_duel", {}, [
       acct(payer.address, WS, payer),
       ...a.head,
       ...a.cross,
       a.tailAta,
-      acct(cPrice, R),
-      acct(xPrice, R),
+      priceSlot(cPrice),
+      priceSlot(xPrice),
+      acct(INSTRUCTIONS_SYSVAR, R),
       acct(a.cProg, R),
       acct(a.xProg, R),
       acct(ATA_PROGRAM, R),
@@ -520,6 +614,7 @@ describe("duel - LiteSVM", () => {
     svm = new LiteSVM()
       .withSysvars()
       .withBuiltins()
+      .withPrecompiles()
       .withDefaultPrograms()
       .withTransactionHistory(0n)
       .withLogBytesLimit(256n * 1024n);
@@ -528,6 +623,7 @@ describe("duel - LiteSVM", () => {
 
     admin = await generateKeyPairSigner();
     cranker = await generateKeyPairSigner();
+    oracle = await generateKeyPairSigner();
     svm.airdrop(admin.address, lamports(100n * SOL));
     svm.airdrop(cranker.address, lamports(100n * SOL));
 
@@ -541,10 +637,13 @@ describe("duel - LiteSVM", () => {
     TSLA = await newStock("TSLAx", TOKEN_2022, 8, 2);
     AAPL = await newStock("AAPLx", TOKEN, 6, 3);
     OFF = await newStock("OFFx", TOKEN_2022, 8, 4);
-    for (const s of [NVDA, TSLA, AAPL, OFF]) await send(await registerIx(s), admin);
+    AMD = await newStock("AMDx", TOKEN_2022, 8, 5, SIGNED);
+    PLTR = await newStock("PLTRx", TOKEN_2022, 8, 6, SIGNED);
+    NVDA_B = await newStock("NVDAb", TOKEN_2022, 8, 1);
+    for (const s of [NVDA, TSLA, AAPL, OFF, AMD, PLTR, NVDA_B]) await send(await registerIx(s), admin);
 
     await send(
-      ix("set_asset", { feed_id: Array.from(OFF.feed), enabled: false }, [
+      ix("set_asset", { feed_id: Array.from(OFF.feed), enabled: false, source: PYTH }, [
         acct(configPda, R),
         acct(await assetPda(OFF.mint), W),
         acct(admin.address, RS, admin),
@@ -565,6 +664,8 @@ describe("duel - LiteSVM", () => {
     expect(a.symbol).to.equal("NVDAx");
     expect(a.decimals).to.equal(8);
     expect(a.enabled).to.be.true;
+    expect(a.source).to.equal(PYTH);
+    expect(decode("Asset", await assetPda(AMD.mint)).source).to.equal(SIGNED);
 
     const classic = decode("Asset", await assetPda(AAPL.mint));
     expect(b58(classic.token_program)).to.equal(TOKEN);
@@ -575,7 +676,14 @@ describe("duel - LiteSVM", () => {
     const hooked = (await generateKeyPairSigner()).address;
     const hookProgram = (await generateKeyPairSigner()).address;
     put(hooked, encodeHookMint(8, admin.address, hookProgram), TOKEN_2022, 2_000_000n);
-    const stock: Stock = { symbol: "HOOKx", mint: hooked, program: TOKEN_2022, feed: feedOf(9), decimals: 8 };
+    const stock: Stock = {
+      symbol: "HOOKx",
+      mint: hooked,
+      program: TOKEN_2022,
+      feed: feedOf(9),
+      decimals: 8,
+      source: PYTH,
+    };
     await expectFailure(await registerIx(stock), admin, "That mint cannot be held in escrow");
 
     const stranger = await player();
@@ -986,6 +1094,184 @@ describe("duel - LiteSVM", () => {
     expect(tokenAmount(aliceNvda)).to.equal(14_000_000n);
     expect(tokenAmount(await ata(alice.address, TSLA.mint, TOKEN_2022))).to.equal(7_200_000n);
     expect(tokenAmount(loose)).to.equal(36_000_000n);
+  });
+
+  // ── signed prices ─────────────────────────────────────────────────────────
+
+  it("a signed stock cannot be duelled until the admin names an oracle, and only the admin can", async () => {
+    const alice = await player([[AMD, 100_000_000n]]);
+    await expectFailure(
+      (await createIx({ creator: alice, c: AMD, x: NVDA })).instruction,
+      alice,
+      "No oracle is configured for signed prices",
+    );
+
+    const stranger = await player();
+    await expectFailure(setOracleIx(stranger.address, stranger), stranger, "ConstraintHasOne");
+    await send(setOracleIx(oracle.address), admin);
+    expect(b58(decode("Config", configPda).oracle)).to.equal(oracle.address);
+
+    const { duel } = await createDuel({ creator: alice, c: AMD, x: NVDA });
+    const d = decode("Duel", duel);
+    expect(d.creator_source).to.equal(SIGNED);
+    expect(d.opponent_source).to.equal(PYTH);
+    expect(b58(d.oracle)).to.equal(oracle.address);
+
+    // A duel with no signed side trusts no oracle, and records none.
+    const bob = await player([[NVDA, 100_000_000n]]);
+    const pythOnly = await createDuel({ creator: bob, c: NVDA, x: TSLA });
+    expect(b58(decode("Duel", pythOnly.duel).oracle)).to.equal(DEFAULT_PUBKEY);
+  });
+
+  it("a Pyth stock against a signed stock starts and settles, on the oracle's quotes for its side", async () => {
+    const d = await acceptedDuel({ c: AMD, x: NVDA, duration: 3_600 });
+    const boundary = d.acceptedTs + START_DELAY;
+    const amdStart = await signedQuote(oracle, {
+      feed: AMD.feed,
+      boundary,
+      price: 150_00n,
+      expo: -2,
+      publishTime: boundary + 58,
+    });
+    const nvdaStart = await putPrice({ feed: NVDA.feed, price: 180_00000000n, publishTime: boundary, prev: boundary - 1 });
+    await send([ed25519Ix([amdStart]), startIx(d.duel, null, nvdaStart)], cranker);
+
+    let s = decode("Duel", d.duel);
+    expect(s.status).to.equal(STATUS_LIVE);
+    expect(s.creator_start.price.toString()).to.equal("15000");
+    expect(s.creator_start.expo).to.equal(-2);
+    expect(Number(s.creator_start.publish_time)).to.equal(boundary + 58);
+    // The duel starts at the later of its two start prices.
+    expect(Number(s.start_ts)).to.equal(boundary + 58);
+    const end = Number(s.end_ts);
+    expect(end).to.equal(boundary + 58 + 3_600);
+
+    // AMD +4%, NVDA +3%: the creator's AMD wins.
+    setClock(end + 90);
+    const amdEnd = await signedQuote(oracle, { feed: AMD.feed, boundary: end, price: 156_00n, expo: -2, publishTime: end + 30 });
+    const nvdaEnd = await putPrice({ feed: NVDA.feed, price: 185_40000000n, publishTime: end, prev: end - 1 });
+    await send([ed25519Ix([amdEnd]), await settleIx(d.duel, null, nvdaEnd)], cranker);
+
+    s = decode("Duel", d.duel);
+    expect(s.status).to.equal(STATUS_SETTLED);
+    expect(s.outcome).to.equal(OUTCOME_CREATOR);
+    expect(s.creator_end.price.toString()).to.equal("15600");
+    expect(tokenAmount(await ata(d.creator.address, AMD.mint, TOKEN_2022))).to.equal(1_000_000_000n);
+    expect(tokenAmount(await ata(d.creator.address, NVDA.mint, TOKEN_2022))).to.equal(1_007_200_000n);
+  });
+
+  it("two signed sides can share one Ed25519 instruction, in either order", async () => {
+    const d = await acceptedDuel({ c: AMD, x: PLTR, duration: 3_600 });
+    const boundary = d.acceptedTs + START_DELAY;
+    const at = (feed: Uint8Array, b: number, price: bigint) =>
+      signedQuote(oracle, { feed, boundary: b, price, expo: -2, publishTime: b + 10 });
+    await send(
+      [ed25519Ix([await at(AMD.feed, boundary, 150_00n), await at(PLTR.feed, boundary, 30_00n)]), startIx(d.duel, null, null)],
+      cranker,
+    );
+    const end = Number(decode("Duel", d.duel).end_ts);
+
+    // AMD -1%, PLTR -2%: AMD lost less.
+    setClock(end + 60);
+    await send(
+      [ed25519Ix([await at(PLTR.feed, end, 29_40n), await at(AMD.feed, end, 148_50n)]), await settleIx(d.duel, null, null)],
+      cranker,
+    );
+    expect(decode("Duel", d.duel).outcome).to.equal(OUTCOME_CREATOR);
+    expect(tokenAmount(await ata(d.creator.address, PLTR.mint, TOKEN_2022))).to.equal(1_007_200_000n);
+  });
+
+  it("start_duel refuses a quote from another key, for another moment or stock, or read from elsewhere", async () => {
+    const d = await acceptedDuel({ c: AMD, x: NVDA, duration: 3_600 });
+    const boundary = d.acceptedTs + START_DELAY;
+    const nvda = await putPrice({ feed: NVDA.feed, price: 180_00000000n, publishTime: boundary, prev: boundary - 1 });
+    const good: QuoteTerms = { feed: AMD.feed, boundary, price: 150_00n, expo: -2, publishTime: boundary + 40 };
+    const stranger = await generateKeyPairSigner();
+    const none = "No valid signed quote for this stock at this boundary";
+
+    const cases: [any, string][] = [
+      [ed25519Ix([await signedQuote(stranger, good)]), none],
+      [ed25519Ix([await signedQuote(oracle, { ...good, boundary: boundary + 1 })]), none],
+      [ed25519Ix([await signedQuote(oracle, { ...good, feed: PLTR.feed })]), none],
+      /* A valid signature whose entry says "read me from instruction 0". The
+       * Ed25519 program is instruction 0 here, so it verifies; the program
+       * still refuses to read it, because in general such an entry points at
+       * bytes somewhere other than where they appear to be. */
+      [ed25519Ix([await signedQuote(oracle, good)], 0), none],
+      [ed25519Ix([await signedQuote(oracle, { ...good, publishTime: boundary - 1 })]), "That price was published before the boundary"],
+      [ed25519Ix([await signedQuote(oracle, { ...good, price: 0n })]), "The price is not positive"],
+    ];
+    for (const [check, message] of cases) {
+      await expectFailure([check, startIx(d.duel, null, nvda)], cranker, message);
+    }
+
+    // No quote at all; and a Pyth side with no price account.
+    await expectFailure(startIx(d.duel, null, nvda), cranker, none);
+    await expectFailure(
+      [ed25519Ix([await signedQuote(oracle, good)]), startIx(d.duel, null, null)],
+      cranker,
+      "Not an account owned by the Pyth receiver",
+    );
+
+    // A quote altered after signing fails the whole transaction in the
+    // Ed25519 program, before the duel program could read it.
+    const forged = await signedQuote(oracle, good);
+    forged.msg = quoteMsg({ ...good, price: 999_99n });
+    const res = svm.simulateTransaction(await buildTx([ed25519Ix([forged]), startIx(d.duel, null, nvda)], cranker));
+    expect(res).to.be.instanceOf(FailedTransactionMetadata);
+    const logs = (res as FailedTransactionMetadata).meta().logs().join("\n");
+    expect(logs).to.not.include("Program log: Instruction: StartDuel");
+
+    expect(decode("Duel", d.duel).status).to.equal(STATUS_ACCEPTED);
+    await send([ed25519Ix([await signedQuote(oracle, good)]), startIx(d.duel, null, nvda)], cranker);
+    expect(decode("Duel", d.duel).status).to.equal(STATUS_LIVE);
+  });
+
+  it("a new oracle key prices only duels created after it was named", async () => {
+    const alice = await player([[AMD, 100_000_000n]]);
+    const bob = await player([[NVDA, 100_000_000n]]);
+    const { duel } = await createDuel({ creator: alice, c: AMD, x: NVDA });
+    await send(await acceptIx(duel, bob, AMD, NVDA), bob);
+    const boundary = nowTs() + START_DELAY;
+    const nvda = await putPrice({ feed: NVDA.feed, price: 180_00000000n, publishTime: boundary, prev: boundary - 1 });
+    const q: QuoteTerms = { feed: AMD.feed, boundary, price: 150_00n, expo: -2, publishTime: boundary + 5 };
+
+    const next = await generateKeyPairSigner();
+    await send(setOracleIx(next.address), admin);
+    try {
+      await expectFailure(
+        [ed25519Ix([await signedQuote(next, q)]), startIx(duel, null, nvda)],
+        cranker,
+        "No valid signed quote for this stock at this boundary",
+      );
+      await send([ed25519Ix([await signedQuote(oracle, q)]), startIx(duel, null, nvda)], cranker);
+      expect(decode("Duel", duel).status).to.equal(STATUS_LIVE);
+    } finally {
+      await send(setOracleIx(oracle.address), admin);
+    }
+  });
+
+  it("two issuers' tokens of one stock cannot be duelled against each other", async () => {
+    const alice = await player([[NVDA, 100_000_000n]]);
+    await expectFailure(
+      (await createIx({ creator: alice, c: NVDA, x: NVDA_B })).instruction,
+      alice,
+      "A duel needs two different stocks",
+    );
+  });
+
+  it("register_asset and set_asset refuse an unknown price source", async () => {
+    const odd = { ...(await newStock("ODDx", TOKEN_2022, 8, 11)), source: 2 };
+    await expectFailure(await registerIx(odd), admin, "Unknown price source");
+    await expectFailure(
+      ix("set_asset", { feed_id: Array.from(NVDA.feed), enabled: true, source: 7 }, [
+        acct(configPda, R),
+        acct(await assetPda(NVDA.mint), W),
+        acct(admin.address, RS, admin),
+      ]),
+      admin,
+      "Unknown price source",
+    );
   });
 
   // ── admin ─────────────────────────────────────────────────────────────────

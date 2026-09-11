@@ -10,13 +10,13 @@ export function SampleFight() {
       <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-4">
         <div>
           <span className="label">Challenger</span>
-          <p className="display text-6xl text-p1 sm:text-7xl">NVDA</p>
+          <p className="display text-6xl text-p1 sm:text-7xl">TSLA</p>
           <p className="font-mono text-3xl text-up">+3.12%</p>
         </div>
         <span className="display pb-2 text-3xl text-ink">VS</span>
         <div className="relative text-right">
           <span className="label">Answered</span>
-          <p className="display text-6xl text-p2 opacity-40 sm:text-7xl">TSLA</p>
+          <p className="display text-6xl text-p2 opacity-40 sm:text-7xl">NVDA</p>
           <p className="font-mono text-3xl text-down">-0.85%</p>
           <span className="stamp-cooked absolute -top-2 right-0 text-4xl sm:text-5xl">Cooked</span>
         </div>
@@ -27,7 +27,7 @@ export function SampleFight() {
       <div className="mt-6 grid grid-cols-2 gap-3 font-mono text-sm">
         <div className="bg-panel-2 px-3 py-2">
           <span className="label block">Pot</span>
-          0.118 NVDAx + 0.069 TSLAx
+          0.069 TSLAx + 0.114 NVDAx
         </div>
         <div className="bg-panel-2 px-3 py-2 text-right">
           <span className="label block">To the winner</span>

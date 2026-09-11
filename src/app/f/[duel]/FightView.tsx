@@ -10,8 +10,9 @@
  *   REFUNDED  a dead heat, or a void that has been refunded
  *
  * Nothing here decides anything. The live moves are for watching; the result
- * is whatever the program computed from the two Pyth prices it accepted, and
- * the proof section shows exactly which prices those were. */
+ * is whatever the program computed from the prices it accepted (Pyth's, or the
+ * oracle's signed quotes, per side), and the proof section shows exactly which
+ * prices those were and who vouched for each. */
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -19,6 +20,7 @@ import { useSearchParams } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 
+import { FaucetButton } from "@/components/FaucetButton";
 import { HealthBars } from "@/components/HealthBars";
 import { Move } from "@/components/Ticker";
 import {
@@ -32,6 +34,7 @@ import {
   OUTCOME_OPPONENT,
   OUTCOME_TIE,
   readableProgramError,
+  SOURCE_PYTH,
   START_DELAY_SECS,
   STALL_REFUND_SECS,
   STATUS_ACCEPTED,
@@ -59,7 +62,9 @@ export function FightView({ address }: { address: string }) {
   }, [address]);
 
   const duel = useDuel(key);
-  const prices = usePrices();
+  const prices = usePrices(
+    duel.data ? [tickerForMint(duel.data.creatorMint), tickerForMint(duel.data.opponentMint)] : [],
+  );
   const now = useNow();
   const params = useSearchParams();
 
@@ -284,8 +289,8 @@ function Actions({ d, now, t1, t2 }: { d: DuelView; now: number; t1: string; t2:
       if (!publicKey || !signTransaction || !signAllTransactions) {
         throw new Error("Connect a wallet to post the prices yourself.");
       }
-      const { crankWithPyth } = await import("@/lib/pythCrank");
-      const sigs = await crankWithPyth({
+      const { crankFromBrowser } = await import("@/lib/pythCrank");
+      const sigs = await crankFromBrowser({
         connection,
         wallet: { publicKey, signTransaction, signAllTransactions },
         which,
@@ -360,13 +365,21 @@ function Actions({ d, now, t1, t2 }: { d: DuelView; now: number; t1: string; t2:
     );
   }
 
+  const testCluster = CLUSTER !== "mainnet-beta";
+  if (canTake && publicKey && short && testCluster) {
+    buttons.push(<FaucetButton key="faucet" tickers={[t2]} label={`Get test ${tokenSymbol(t2)}`} />);
+  }
+
   const hints: string[] = [];
   if (canTake && !publicKey) hints.push("Connect a wallet to take this fight.");
   if (canTake && publicKey && short)
-    hints.push(`You need ${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)}. Hit Get test stocks up top.`);
+    hints.push(
+      `You need ${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)}.${testCluster ? " The faucet has test shares." : ""}`,
+    );
   if (d.status === STATUS_OPEN && !canTake && !isCreator && isInviteOnly(d) && !expired)
     hints.push(`This one is for ${shortAddress(d.invitee.toBase58())}. Only that wallet can take it.`);
-  if (d.status === STATUS_ACCEPTED && !startDue) hints.push("The start is the first Pyth price at least two seconds after the accept. Posting it now.");
+  if (d.status === STATUS_ACCEPTED && !startDue)
+    hints.push("The start is each stock's first price at least two seconds after the accept. Posting it now.");
   if (d.status === STATUS_LIVE && now < d.endTs) hints.push(`${t1} vs ${t2}: whichever moves more, in percent, by the bell takes both stakes.`);
   if ((startDue || settleDue) && !busy) hints.push("The settler normally does this within a minute. Anyone can, and the result is the same whoever does.");
 
@@ -393,11 +406,12 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
   let text = "";
   if (d.status === STATUS_OPEN) {
     text = d.taunt
-      ? `${d.taunt}\n\n${t1} vs ${t2}. I staked ${shares(d.creatorAmount, STAKE_DECIMALS)} ${t1}x. Take the other side:`
-      : `I'm staking ${shares(d.creatorAmount, STAKE_DECIMALS)} ${t1}x that ${t1} beats ${t2}. Take the other side:`;
+      ? `${d.taunt}\n\n${t1} vs ${t2}. I staked ${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)}. Take the other side:`
+      : `I'm staking ${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)} that ${t1} beats ${t2}. Take the other side:`;
   } else if (d.status === STATUS_SETTLED && m1 !== null && m2 !== null) {
     const [win, lose, mw, ml] = d.outcome === OUTCOME_CREATOR ? [t1, t2, m1, m2] : [t2, t1, m2, m1];
-    text = `${lose} got cooked. ${win} ${mw >= 0 ? "+" : ""}${mw.toFixed(2)}% vs ${lose} ${ml >= 0 ? "+" : ""}${ml.toFixed(2)}%, settled by Pyth on Solana.`;
+    const by = d.creatorSource === SOURCE_PYTH && d.opponentSource === SOURCE_PYTH ? "by Pyth " : "";
+    text = `${lose} got cooked. ${win} ${mw >= 0 ? "+" : ""}${mw.toFixed(2)}% vs ${lose} ${ml >= 0 ? "+" : ""}${ml.toFixed(2)}%, settled ${by}on Solana.`;
   } else if (d.status === STATUS_LIVE) {
     text = `${t1} vs ${t2} is live on ${BRAND.name}. Watch it:`;
   } else {
@@ -462,31 +476,45 @@ function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
       </p>
     );
   }
-  const row = (label: string, ticker: string, feed: string, p: DuelView["creatorStart"]) =>
+  const row = (label: string, ticker: string, feed: string, source: number, p: DuelView["creatorStart"]) =>
     p.price > BigInt(0) ? (
       <tr key={label + ticker} className="border-t border-line">
         <td className="py-2 pr-3 text-dim">{label}</td>
         <td className="py-2 pr-3 font-display text-lg font-extrabold">{ticker}</td>
         <td className="py-2 pr-3 font-mono">{usd(pythToNumber(p.price, p.expo))}</td>
         <td className="py-2 pr-3 font-mono text-dim">{new Date(p.publishTime * 1000).toISOString().replace(".000Z", "Z")}</td>
+        <td className="py-2 pr-3 text-xs">{source === SOURCE_PYTH ? "Pyth" : "Oracle"}</td>
         <td className="py-2 font-mono text-xs text-dim">{feed.slice(0, 8)}...</td>
       </tr>
     ) : null;
+  const pyth = d.creatorSource === SOURCE_PYTH || d.opponentSource === SOURCE_PYTH;
+  const signed = d.creatorSource !== SOURCE_PYTH || d.opponentSource !== SOURCE_PYTH;
   return (
     <section className="mx-auto mt-10 max-w-3xl">
       <p className="label">The prices that decided it</p>
       <p className="mt-2 text-sm text-dim">
-        Each is the first Pyth price published at or after its boundary. Every Pyth price records when the one before it
-        came out, so exactly one qualifies, and the program refuses any other. Signed by Pyth, verified on Solana, checked
-        by the program.
+        Each is its stock&apos;s first price at or after the boundary.{" "}
+        {pyth
+          ? "A Pyth price records when the one before it came out, so exactly one qualifies; it is signed by Pyth, verified on Solana and checked by the program, which refuses any other. "
+          : ""}
+        {signed ? (
+          <>
+            An oracle price is the close of the first one-minute bar at or after the boundary, signed by oracle{" "}
+            <a className="underline" href={explorerAddress(d.oracle.toBase58(), CLUSTER)} target="_blank" rel="noreferrer">
+              {shortAddress(d.oracle.toBase58(), 4)}
+            </a>{" "}
+            and checked by Solana&apos;s Ed25519 program in the same transaction. The quote is public in that transaction,
+            so anyone can hold it against the market&apos;s record.
+          </>
+        ) : null}
       </p>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
           <tbody>
-            {row("Start", t1, d.creatorFeed, d.creatorStart)}
-            {row("Start", t2, d.opponentFeed, d.opponentStart)}
-            {row("End", t1, d.creatorFeed, d.creatorEnd)}
-            {row("End", t2, d.opponentFeed, d.opponentEnd)}
+            {row("Start", t1, d.creatorFeed, d.creatorSource, d.creatorStart)}
+            {row("Start", t2, d.opponentFeed, d.opponentSource, d.opponentStart)}
+            {row("End", t1, d.creatorFeed, d.creatorSource, d.creatorEnd)}
+            {row("End", t2, d.opponentFeed, d.opponentSource, d.opponentEnd)}
           </tbody>
         </table>
       </div>

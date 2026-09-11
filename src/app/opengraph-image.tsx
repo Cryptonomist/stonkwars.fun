@@ -14,7 +14,7 @@ export const contentType = "image/png";
 
 export default async function Image() {
   const tickers = ROSTER.map((s) => s.ticker).join(" ");
-  const raw = `STONKWARS YOUR STOCK VS THEIRS. LOSER GETS COOKED. ${BRAND.domain} STAKE REAL SHARES · PYTH DECIDES · SOLANA ${tickers} +-.%0123456789`;
+  const raw = `STONKWARS YOUR STOCK VS THEIRS. LOSER GETS COOKED. ${BRAND.domain} STAKE REAL SHARES · STOCKS · SOLANA ${tickers} +-.%0123456789`;
   const display = await loadGoogleFont("Big Shoulders", 900, `${raw}${raw.toLowerCase()}`);
   const face = display ? "Display" : "sans-serif";
   const mark = `data:image/svg+xml;base64,${Buffer.from(markSvg(3.4)).toString("base64")}`;
@@ -93,7 +93,7 @@ export default async function Image() {
             <span style={{ color: C.cooked }}>Loser gets cooked.</span>
           </div>
           <div style={{ display: "flex", fontSize: 28, color: C.dim, marginTop: 20 }}>
-            {`Stake real shares · Pyth decides · ${BRAND.domain}`}
+            {`Stake real shares · ${ROSTER.length} stocks · ${BRAND.domain}`}
           </div>
         </div>
       </div>

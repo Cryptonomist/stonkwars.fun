@@ -14,7 +14,8 @@ export function SiteFooter() {
         <div className="flex items-center gap-3">
           <Mark size={20} />
           <span>
-            Prices by <a className="text-ink underline decoration-line underline-offset-4" href="https://pyth.network" target="_blank" rel="noreferrer">Pyth</a>.
+            Prices by <a className="text-ink underline decoration-line underline-offset-4" href="https://pyth.network" target="_blank" rel="noreferrer">Pyth</a>{" "}
+            and the <Link href="/how" className="text-ink underline decoration-line underline-offset-4">Stonk Wars oracle</Link>.
             Settled on Solana. No one holds the stakes but the program.
           </span>
         </div>

@@ -31,8 +31,12 @@ export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
   "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
 );
 export const PYTH_RECEIVER_ID = new PublicKey("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJv5LtFJ");
+export const INSTRUCTIONS_SYSVAR_ID = new PublicKey("Sysvar1nstructions1111111111111111111111111");
 
 // Mirrors of programs/duel/src/{constants,state}.rs.
+export const SOURCE_PYTH = 0;
+export const SOURCE_SIGNED = 1;
+
 export const STATUS_OPEN = 0;
 export const STATUS_ACCEPTED = 1;
 export const STATUS_LIVE = 2;
@@ -113,6 +117,10 @@ export type DuelView = {
   opponentTokenProgram: PublicKey;
   creatorFeed: string;
   opponentFeed: string;
+  creatorSource: number;
+  opponentSource: number;
+  /** The key a signed side's quotes must come from; default when none is. */
+  oracle: PublicKey;
   creatorAmount: bigint;
   opponentAmount: bigint;
   durationSecs: number;
@@ -158,6 +166,9 @@ export function decodeDuel(address: PublicKey, data: Uint8Array): DuelView {
     opponentTokenProgram: pk("opponent_token_program"),
     creatorFeed: toHex(r["creator_feed"]),
     opponentFeed: toHex(r["opponent_feed"]),
+    creatorSource: num("creator_source"),
+    opponentSource: num("opponent_source"),
+    oracle: pk("oracle"),
     creatorAmount: big("creator_amount"),
     opponentAmount: big("opponent_amount"),
     durationSecs: num("duration_secs"),
@@ -306,14 +317,30 @@ export function buildCancelDuel(d: DuelView, caller: PublicKey) {
   });
 }
 
-/** No signer: the prices prove themselves. The fee payer is whoever sends it. */
-export function buildStartDuel(d: DuelView, creatorPrice: PublicKey, opponentPrice: PublicKey) {
+/* A side priced by a signed quote passes no price account. Anchor reads an
+ * optional account as absent when the program's own id fills its slot. */
+const priceKey = (account: PublicKey | null) => ({
+  pubkey: account ?? PROGRAM_ID,
+  isSigner: false,
+  isWritable: false,
+});
+const INSTRUCTIONS_KEY = { pubkey: INSTRUCTIONS_SYSVAR_ID, isSigner: false, isWritable: false };
+
+/** No signer: the prices prove themselves. The fee payer is whoever sends it.
+ * Pass the Pyth update account for a Pyth side and null for a signed side,
+ * whose quote travels in an Ed25519 instruction in the same transaction. */
+export function buildStartDuel(
+  d: DuelView,
+  creatorPrice: PublicKey | null,
+  opponentPrice: PublicKey | null,
+) {
   return new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [
       { pubkey: d.address, isSigner: false, isWritable: true },
-      { pubkey: creatorPrice, isSigner: false, isWritable: false },
-      { pubkey: opponentPrice, isSigner: false, isWritable: false },
+      priceKey(creatorPrice),
+      priceKey(opponentPrice),
+      INSTRUCTIONS_KEY,
     ],
     data: coder.instruction.encode("start_duel", {}),
   });
@@ -345,15 +372,16 @@ function payoutKeys(d: DuelView, payer: PublicKey, full: boolean) {
 export function buildSettleDuel(
   d: DuelView,
   payer: PublicKey,
-  creatorPrice: PublicKey,
-  opponentPrice: PublicKey,
+  creatorPrice: PublicKey | null,
+  opponentPrice: PublicKey | null,
 ) {
   return new TransactionInstruction({
     programId: PROGRAM_ID,
     keys: [
       ...payoutKeys(d, payer, true),
-      { pubkey: creatorPrice, isSigner: false, isWritable: false },
-      { pubkey: opponentPrice, isSigner: false, isWritable: false },
+      priceKey(creatorPrice),
+      priceKey(opponentPrice),
+      INSTRUCTIONS_KEY,
       { pubkey: d.creatorTokenProgram, isSigner: false, isWritable: false },
       { pubkey: d.opponentTokenProgram, isSigner: false, isWritable: false },
       { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },

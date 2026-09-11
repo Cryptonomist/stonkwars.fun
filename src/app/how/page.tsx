@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ROSTER } from "@/lib/stocks";
+
 export const metadata: Metadata = { title: "How it works" };
+
+const PYTH = ROSTER.filter((s) => s.source === "pyth").map((s) => s.ticker);
 
 const RULES: { q: string; a: React.ReactNode }[] = [
   {
@@ -9,20 +13,32 @@ const RULES: { q: string; a: React.ReactNode }[] = [
     a: "Tokenized shares of the stock you back. On mainnet that means an issuer's tokenized stock, such as an xStock; on devnet, test tokens that stand in for them, which the faucet hands out. The winner receives both stakes as shares, not as cash.",
   },
   {
+    q: "Which stocks?",
+    a: `Every tokenized stock and ETF on Solana: ${ROSTER.length} today, from Apple to Hong Kong listings. Lookalike tokens that borrow a real one's name are left out; only the issuer's own mints can be staked.`,
+  },
+  {
     q: "How is the winner decided?",
     a: "By percentage move. Each stock's end price is divided by its start price, and the larger ratio wins. The program compares the two by cross-multiplying the integer prices, so there is no rounding anywhere in the decision. A $900 stock that rises $18 (+2%) loses to a $100 stock that rises $3 (+3%).",
   },
   {
-    q: "Which prices? Pyth prints several times a second.",
-    a: "For every boundary, exactly one: the first Pyth price published at or after it. Each Pyth update carries the publish time of the update before it, so the program demands previous < boundary <= this one, and only one update in existence satisfies that. It is the same rule Pyth's own EVM contract enforces as parsePriceFeedUpdatesUnique. Nobody can shop for a better print.",
+    q: "Which prices?",
+    a: `For every boundary, exactly one per stock, from one of two sources. ${PYTH.join(" and ")} are priced by Pyth: the first Pyth update published at or after the boundary. Each update carries the publish time of the one before it, so the program demands previous < boundary <= this one, and only one update in existence satisfies that (the same rule as Pyth's own parsePriceFeedUpdatesUnique). Every other stock is priced by the Stonk Wars oracle: the close of its first one-minute bar at or after the boundary, signed by the oracle key and checked on chain by Solana's Ed25519 program. That is a fact about the past, so there is one answer and nothing to shop for.`,
+  },
+  {
+    q: "Why not Pyth for everything?",
+    a: "This deployment's Pyth plan covers only a couple of equity feeds. Rather than lock out the rest of the market, the program takes a second source for the others and says so on every fight. When a stock gets a Pyth feed, one admin call switches it for new fights; fights already running keep the source they started with.",
+  },
+  {
+    q: "Why not the price of the token itself?",
+    a: "Because most tokenized stocks barely trade on Solana, and a thin pool can be pushed with one trade right at the bell. Fights settle on the stock's real market price, which nobody can move with a swap.",
   },
   {
     q: "When does a round start?",
-    a: "At the first Pyth price at least two seconds after the fight is taken, which is a price that did not exist when the taker signed. The two seconds cover the gap between the cluster's clock and wall time.",
+    a: "At each stock's first price at least two seconds after the fight is taken, which is a price that did not exist when the taker signed. The two seconds cover the gap between the cluster's clock and wall time.",
   },
   {
     q: "Who settles it?",
-    a: "Anyone. Our settler posts the prices within a minute of the bell, but any wallet can do the same from the fight page, and the result is identical whoever does it. No admin key and no oracle key exist in the program.",
+    a: "Anyone. Our settler posts the prices within a minute of the bell, but any wallet can do the same from the fight page, and the result is identical whoever does it. Pyth prices need no key at all; the oracle's quotes are handed to anyone who asks, already signed.",
   },
   {
     q: "What if the market is closed?",
@@ -38,11 +54,11 @@ const RULES: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Can anyone take the stakes?",
-    a: "No. Stakes sit in token accounts owned by the fight's own address. The program has exactly three ways to move them: back to the challenger before the fight starts, to the winner, or home to both. There is no admin withdrawal. The admin can register stocks and pause new fights, and cannot touch a stake.",
+    a: "No. Stakes sit in token accounts owned by the fight's own address. The program has exactly three ways to move them: back to the challenger before the fight starts, to the winner, or home to both. There is no admin withdrawal. The admin can register stocks, pause new fights and name the oracle for new fights, and cannot touch a stake. A fight whose prices never come is refunded in full.",
   },
   {
     q: "Is this real money?",
-    a: "The live demo runs on Solana devnet with test shares and real Pyth prices. Tokenized stocks are generally offered only to non-US persons; know the rules where you live.",
+    a: "The live demo runs on Solana devnet with test shares and real market prices. Tokenized stocks are generally offered only to non-US persons; know the rules where you live.",
   },
 ];
 

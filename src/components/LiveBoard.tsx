@@ -8,11 +8,11 @@ import { FightRow } from "@/components/FightRow";
 import { allDuels, STATUS_ACCEPTED, STATUS_LIVE, STATUS_OPEN } from "@/lib/duel";
 import { useDuels } from "@/lib/hooks";
 import { usePrices } from "@/lib/prices";
+import { tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 
 export function LiveBoard({ limit = 12 }: { limit?: number }) {
   const duels = useDuels("all", allDuels());
-  const prices = usePrices();
   const now = useNow();
 
   const active = (duels.data ?? [])
@@ -24,6 +24,7 @@ export function LiveBoard({ limit = 12 }: { limit?: number }) {
     )
     .sort((a, b) => (a.status === STATUS_LIVE ? -1 : 0) - (b.status === STATUS_LIVE ? -1 : 0))
     .slice(0, limit);
+  const prices = usePrices(active.flatMap((d) => [tickerForMint(d.creatorMint), tickerForMint(d.opponentMint)]));
 
   if (duels.isLoading) return <p className="text-dim">Checking the ring...</p>;
   if (duels.error) return <p className="text-down">Could not read the chain: {String(duels.error)}</p>;

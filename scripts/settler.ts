@@ -4,7 +4,10 @@
  *
  * The deployed app runs the same code at /api/crank when an external cron pings
  * it; this is for running it anywhere else, or beside `npm run dev`. Anyone can
- * run a settler. The result of every fight is the same whoever cranks it. */
+ * run a settler. The result of every fight is the same whoever cranks it.
+ *
+ * Fights with a Pyth side need PYTH_API_KEY; fights with a signed side need the
+ * oracle key, from ORACLE_SECRET_KEY or keys/oracle-<CLUSTER>.json. */
 
 import fs from "fs";
 import os from "os";
@@ -13,6 +16,7 @@ import { Connection, Keypair } from "@solana/web3.js";
 import { HermesClient } from "@pythnetwork/hermes-client";
 
 import { crankOnce } from "../src/lib/crank";
+import { quoteSymbolFor } from "../src/lib/stocks";
 
 loadEnvLocal();
 
@@ -32,21 +36,34 @@ function log(...args: unknown[]) {
   console.log(new Date().toISOString().slice(11, 19), ...args);
 }
 
+function oracleKey(): Keypair | undefined {
+  const cluster = process.env.CLUSTER ?? (/localhost|127\.0\.0\.1/.test(RPC) ? "localnet" : "devnet");
+  const file = path.resolve(__dirname, `../keys/oracle-${cluster}.json`);
+  const raw =
+    cluster !== "localnet" && process.env.ORACLE_SECRET_KEY
+      ? process.env.ORACLE_SECRET_KEY
+      : fs.existsSync(file)
+        ? fs.readFileSync(file, "utf8")
+        : undefined;
+  return raw ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(raw) as number[])) : undefined;
+}
+
 async function main() {
-  if (!process.env.PYTH_API_KEY) {
-    console.error("PYTH_API_KEY is not set (env or .env.local). Hermes refuses price requests without one.");
-    process.exit(1);
-  }
   const conn = new Connection(RPC, "confirmed");
   const payer = process.env.CRANK_SECRET_KEY
     ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(process.env.CRANK_SECRET_KEY)))
     : Keypair.fromSecretKey(
         Uint8Array.from(JSON.parse(fs.readFileSync(process.env.WALLET ?? path.join(os.homedir(), ".config/solana/id.json"), "utf8"))),
       );
-  const hermes = new HermesClient(process.env.HERMES_URL || "https://pyth.dourolabs.app/hermes", {
-    accessToken: process.env.PYTH_API_KEY,
-    timeout: 10_000,
-  });
+  const hermes = process.env.PYTH_API_KEY
+    ? new HermesClient(process.env.HERMES_URL || "https://pyth.dourolabs.app/hermes", {
+        accessToken: process.env.PYTH_API_KEY,
+        timeout: 10_000,
+      })
+    : undefined;
+  const oracle = oracleKey();
+  if (!hermes) console.warn("No PYTH_API_KEY: fights with a Pyth side will wait.");
+  if (!oracle) console.warn("No oracle key: fights with a signed side will wait.");
 
   /* A fight that fails is retried soon if the failure is routine (the market
    * is shut, Hermes has not indexed the print yet), later otherwise. */
@@ -55,13 +72,20 @@ async function main() {
 
   for (;;) {
     try {
-      const results = await crankOnce({ conn, payer, hermes, skip: (k) => (backoff.get(k) ?? 0) > Date.now() });
+      const results = await crankOnce({
+        conn,
+        payer,
+        hermes,
+        oracle,
+        quoteSymbol: quoteSymbolFor,
+        skip: (k) => (backoff.get(k) ?? 0) > Date.now(),
+      });
       for (const r of results) {
         if (r.ok) {
           backoff.delete(r.duel);
           log(`${r.kind.padEnd(6)} ${r.duel.slice(0, 8)} ${r.detail.slice(0, 20)}...`);
         } else {
-          const routine = /404|not the first|Hermes has/i.test(r.detail);
+          const routine = /404|not the first|Hermes has|not yet/i.test(r.detail);
           backoff.set(r.duel, Date.now() + (routine ? 15_000 : 60_000));
           log(`skip   ${r.duel.slice(0, 8)} ${r.detail}`);
         }

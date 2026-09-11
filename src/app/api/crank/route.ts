@@ -3,6 +3,8 @@ import { Connection, Keypair } from "@solana/web3.js";
 
 import { crankOnce } from "@/lib/crank";
 import { hermes } from "@/lib/hermes.server";
+import { oracleKeypair } from "@/lib/oracleKey.server";
+import { quoteSymbolFor } from "@/lib/stocks";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -27,7 +29,14 @@ export async function GET(req: NextRequest) {
   try {
     const conn = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", "confirmed");
     const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(key) as number[]));
-    const results = await crankOnce({ conn, payer, hermes: hermes(), limit: JOBS_PER_CALL });
+    const results = await crankOnce({
+      conn,
+      payer,
+      hermes: process.env.PYTH_API_KEY ? hermes() : undefined,
+      oracle: oracleKeypair(),
+      quoteSymbol: quoteSymbolFor,
+      limit: JOBS_PER_CALL,
+    });
     return NextResponse.json({ at: Math.floor(Date.now() / 1000), results });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "crank failed" }, { status: 500 });

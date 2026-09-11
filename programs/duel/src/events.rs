@@ -1,10 +1,16 @@
 use anchor_lang::prelude::*;
 
 #[event]
+pub struct OracleSet {
+    pub oracle: Pubkey,
+}
+
+#[event]
 pub struct AssetRegistered {
     pub mint: Pubkey,
     pub feed_id: [u8; 32],
     pub symbol: String,
+    pub source: u8,
 }
 
 #[event]
@@ -12,6 +18,7 @@ pub struct AssetUpdated {
     pub mint: Pubkey,
     pub feed_id: [u8; 32],
     pub enabled: bool,
+    pub source: u8,
 }
 
 #[event]

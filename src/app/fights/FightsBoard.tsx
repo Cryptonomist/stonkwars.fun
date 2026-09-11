@@ -17,6 +17,7 @@ import {
 } from "@/lib/duel";
 import { useDuels } from "@/lib/hooks";
 import { usePrices } from "@/lib/prices";
+import { tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 
 type Tab = "open" | "live" | "final" | "mine";
@@ -24,7 +25,6 @@ type Tab = "open" | "live" | "final" | "mine";
 export function FightsBoard() {
   const [tab, setTab] = useState<Tab>("open");
   const duels = useDuels("all", allDuels());
-  const prices = usePrices();
   const now = useNow();
   const { publicKey } = useWallet();
   const me = publicKey?.toBase58();
@@ -47,6 +47,9 @@ export function FightsBoard() {
   ];
 
   const list = lists[tab];
+  // Live moves and stake values need prices; a finished fight shows its own.
+  const priced = list.slice(0, 30).filter((d) => d.status === STATUS_OPEN || d.status === STATUS_LIVE);
+  const prices = usePrices(priced.flatMap((d) => [tickerForMint(d.creatorMint), tickerForMint(d.opponentMint)]));
 
   return (
     <div className="py-10">

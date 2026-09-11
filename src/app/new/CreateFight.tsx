@@ -3,7 +3,7 @@
 /* Pick a fight: your stock, theirs, the stake, the round.
  *
  * Both stakes are fixed here and sized to the same dollar value at the live
- * Pyth price, in integers (see `stakeForDollars`). Whoever accepts takes these
+ * price, in integers (see `stakeForDollars`). Whoever accepts takes these
  * exact terms or leaves them. */
 
 import { useMemo, useState } from "react";
@@ -11,13 +11,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 
+import { FaucetButton } from "@/components/FaucetButton";
 import { StockPicker } from "@/components/StockPicker";
 import { useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, MAX_TAUNT_LEN, randomSeed, readableProgramError } from "@/lib/duel";
 import { etTime, shares, span, usd } from "@/lib/format";
 import { nextBell, session, weekBell } from "@/lib/market";
 import { quoteValue, stakeForDollars, stakeValue, usePrices } from "@/lib/prices";
-import { byTicker, STAKE_DECIMALS, stakeAssetFor, tokenSymbol } from "@/lib/stocks";
+import { byTicker, CLUSTER, sourceLabel, STAKE_DECIMALS, stakeAssetFor, tokenSymbol } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 
 type Round = "5m" | "15m" | "1h" | "bell" | "week";
@@ -37,11 +38,11 @@ export function CreateFight() {
   const router = useRouter();
   const { publicKey } = useWallet();
   const send = useSend();
-  const prices = usePrices();
   const now = useNow(5_000);
 
-  const [p1, setP1] = useState<string | null>(params.get("p1") ?? "NVDA");
-  const [p2, setP2] = useState<string | null>(params.get("p2") ?? "TSLA");
+  const [p1, setP1] = useState<string | null>(byTicker(params.get("p1") ?? "")?.ticker ?? "TSLA");
+  const [p2, setP2] = useState<string | null>(byTicker(params.get("p2") ?? "")?.ticker ?? "NVDA");
+  const prices = usePrices([p1, p2]);
   const [dollars, setDollars] = useState<number>(Number(params.get("usd")) || 25);
   const [round, setRound] = useState<Round>("15m");
   const [taunt, setTaunt] = useState("");
@@ -130,7 +131,7 @@ export function CreateFight() {
           <span className="text-p1">Your fighter</span>
         </h2>
         <div className="mt-3">
-          <StockPicker side="p1" value={p1} taken={p2} onChange={setP1} quotes={prices.data} />
+          <StockPicker side="p1" value={p1} taken={p2} onChange={setP1} />
         </div>
       </section>
 
@@ -139,7 +140,7 @@ export function CreateFight() {
           <span className="text-p2">Their fighter</span>
         </h2>
         <div className="mt-3">
-          <StockPicker side="p2" value={p2} taken={p1} onChange={setP2} quotes={prices.data} />
+          <StockPicker side="p2" value={p2} taken={p1} onChange={setP2} />
         </div>
       </section>
 
@@ -187,9 +188,9 @@ export function CreateFight() {
           </div>
           <p className="mt-2 text-sm text-dim">
             {roundDef.secs
-              ? `Runs ${span(roundDef.secs)} from the first Pyth price after they accept.`
+              ? `Runs ${span(roundDef.secs)} from the first prices after they accept.`
               : endTs
-                ? `Ends at the first Pyth price after ${etTime(endTs)}.`
+                ? `Ends at the first prices after ${etTime(endTs)}.`
                 : ""}
             {roundDef.secs && marketNow !== "open"
               ? " The market is shut right now, so a round accepted now starts when trading resumes."
@@ -234,15 +235,24 @@ export function CreateFight() {
         <p className="mt-5 text-center text-sm text-dim">
           Winner takes both stakes, paid in shares. An exact tie gives each side its own stake back.
         </p>
+        {p1 && p2 ? (
+          <p className="mt-1 text-center text-xs text-dim">
+            Prices: {[p1, p2].map((t) => `${t} by ${sourceLabel(byTicker(t)!)}`).join(" · ")}
+          </p>
+        ) : null}
 
         <div className="mt-6 flex flex-col items-center gap-3">
           {!publicKey ? (
             <p className="text-sm text-ink">Connect a wallet to pick this fight.</p>
           ) : noAccount || short ? (
-            <p className="text-sm text-ink">
-              You need {shares(amount1, STAKE_DECIMALS)} {p1 ? tokenSymbol(p1) : ""} to stake. Hit{" "}
-              <b>Get test stocks</b> up top.
-            </p>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm text-ink">
+                You need {shares(amount1, STAKE_DECIMALS)} {p1 ? tokenSymbol(p1) : ""} to stake.
+              </p>
+              {CLUSTER !== "mainnet-beta" && p1 ? (
+                <FaucetButton tickers={[p1]} label={`Get test ${tokenSymbol(p1)}`} />
+              ) : null}
+            </div>
           ) : null}
           {prices.data?.error ? (
             <p className="text-sm text-down">Prices are unavailable: {prices.data.error}</p>

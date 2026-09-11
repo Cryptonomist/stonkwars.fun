@@ -1,6 +1,6 @@
 import { expect } from "chai";
 
-import { movePct, stakeForDollars, stakeValue } from "../src/lib/prices";
+import { movePct, stakeForDollars, stakeValue } from "../src/lib/pricemath";
 import { healthFor, koGap } from "../src/lib/health";
 
 const NVDA = { price: "21101503", expo: -5 }; // $211.01503

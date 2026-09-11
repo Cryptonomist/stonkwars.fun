@@ -66,7 +66,7 @@ export default async function Image({ params }: { params: Promise<{ duel: string
       : d.status === STATUS_ACCEPTED || d.status === STATUS_LIVE
         ? "Round live"
         : d.status === STATUS_SETTLED
-          ? "Final · settled by Pyth on Solana"
+          ? "Final · settled on Solana"
           : d.outcome === OUTCOME_TIE
             ? "Dead heat"
             : "Void";

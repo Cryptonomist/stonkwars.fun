@@ -1179,14 +1179,18 @@
         {
           "name": "symbol",
           "type": "string"
+        },
+        {
+          "name": "source",
+          "type": "u8"
         }
       ]
     },
     {
       "name": "set_asset",
       "docs": [
-        "Re-point an asset's feed or switch it off. Duels already created keep",
-        "the feed they copied; this only changes what new duels get."
+        "Re-point an asset's feed or source, or switch it off. Duels already",
+        "created keep what they copied; this only changes what new duels get."
       ],
       "discriminator": [
         243,
@@ -1261,6 +1265,61 @@
         {
           "name": "enabled",
           "type": "bool"
+        },
+        {
+          "name": "source",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "set_oracle",
+      "docs": [
+        "Name the key whose signed quotes price SOURCE_SIGNED stocks. Duels",
+        "copy it at creation, so this reaches only duels created afterwards."
+      ],
+      "discriminator": [
+        186,
+        128,
+        81,
+        104,
+        74,
+        79,
+        18,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "oracle",
+          "type": "pubkey"
         }
       ]
     },
@@ -1719,10 +1778,19 @@
           }
         },
         {
-          "name": "creator_price"
+          "name": "creator_price",
+          "docs": [
+            "the end boundary. Omitted for a signed side."
+          ],
+          "optional": true
         },
         {
-          "name": "opponent_price"
+          "name": "opponent_price",
+          "optional": true
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         },
         {
           "name": "creator_token_program"
@@ -1786,12 +1854,18 @@
         {
           "name": "creator_price",
           "docs": [
-            "verified PriceUpdateV2, the creator's feed, the first price at or after",
-            "the start boundary."
-          ]
+            "receiver-owned, a fully verified PriceUpdateV2, the creator's feed, the",
+            "first price at or after the start boundary. Omitted for a signed side."
+          ],
+          "optional": true
         },
         {
-          "name": "opponent_price"
+          "name": "opponent_price",
+          "optional": true
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": []
@@ -1955,6 +2029,19 @@
         118,
         245
       ]
+    },
+    {
+      "name": "OracleSet",
+      "discriminator": [
+        115,
+        135,
+        7,
+        243,
+        213,
+        60,
+        174,
+        119
+      ]
     }
   ],
   "errors": [
@@ -2097,6 +2184,26 @@
       "code": 6027,
       "name": "ShortTransfer",
       "msg": "The escrow did not receive the full stake"
+    },
+    {
+      "code": 6028,
+      "name": "BadSource",
+      "msg": "Unknown price source"
+    },
+    {
+      "code": 6029,
+      "name": "NoOracle",
+      "msg": "No oracle is configured for signed prices"
+    },
+    {
+      "code": 6030,
+      "name": "NoSignedQuote",
+      "msg": "No valid signed quote for this stock at this boundary"
+    },
+    {
+      "code": 6031,
+      "name": "NotInstructionsSysvar",
+      "msg": "That is not the instructions sysvar"
     }
   ],
   "types": [
@@ -2116,7 +2223,10 @@
           {
             "name": "feed_id",
             "docs": [
-              "Pyth price feed id, e.g. Equity.US.NVDA/USD."
+              "Which stock this token is a share of, as a 32-byte id: the Pyth feed",
+              "id for the stock where Pyth lists one, whichever source prices it. Two",
+              "issuers' tokens of the same stock share an id, which is how a duel",
+              "between them is refused."
             ],
             "type": {
               "array": [
@@ -2139,6 +2249,10 @@
           },
           {
             "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "source",
             "type": "u8"
           }
         ]
@@ -2165,6 +2279,10 @@
           {
             "name": "symbol",
             "type": "string"
+          },
+          {
+            "name": "source",
+            "type": "u8"
           }
         ]
       }
@@ -2190,6 +2308,10 @@
           {
             "name": "enabled",
             "type": "bool"
+          },
+          {
+            "name": "source",
+            "type": "u8"
           }
         ]
       }
@@ -2214,6 +2336,14 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "oracle",
+            "docs": [
+              "The key whose Ed25519-signed quotes price the stocks registered with",
+              "SOURCE_SIGNED. Default (all zeros) means no signed source is usable."
+            ],
+            "type": "pubkey"
           }
         ]
       }
@@ -2290,6 +2420,23 @@
                 32
               ]
             }
+          },
+          {
+            "name": "creator_source",
+            "type": "u8"
+          },
+          {
+            "name": "opponent_source",
+            "type": "u8"
+          },
+          {
+            "name": "oracle",
+            "docs": [
+              "The oracle key a signed side's prices must come from, copied from the",
+              "config at creation so rotating the key cannot reach a duel in flight.",
+              "Default when both sides are Pyth."
+            ],
+            "type": "pubkey"
           },
           {
             "name": "creator_amount",
@@ -2547,9 +2694,21 @@
       }
     },
     {
+      "name": "OracleSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
       "name": "PricePoint",
       "docs": [
-        "One Pyth observation, as recorded on a duel."
+        "One observation, as recorded on a duel."
       ],
       "type": {
         "kind": "struct",

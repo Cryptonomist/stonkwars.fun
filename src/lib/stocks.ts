@@ -1,86 +1,119 @@
-/* The roster: which stocks can fight, their Pyth feeds, and (per cluster) the
- * token each one is staked as.
+/* The roster: every tokenized stock that can fight, where its price comes from,
+ * and (per cluster) the tokens it can be staked as.
  *
- * Feed ids are Pyth's, identical on every chain: Equity.US.<TICKER>/USD. The
- * mints are not. On devnet they are test mints the setup script creates and
- * registers (src/data/stocks.devnet.json); on mainnet they would be the issuer's
- * tokenized shares. A stock with no mint on this cluster is shown with its
- * price but cannot be staked.
+ * src/data/roster.json is built by scripts/build-roster.ts from live data: the
+ * issuers' token lists, Pyth's feed list, and the market data source. Each
+ * stock has one feed id, the same on every cluster and for every issuer: the
+ * Pyth feed id where Pyth lists the stock, or a derived one where it does not.
+ *
+ * `source` says who prices it on this deployment. "pyth": Pyth updates, checked
+ * on chain, trusting nobody. "signed": the oracle's quotes, from the stock's
+ * one-minute bars (lib/oracle.ts). The registry on chain records the same
+ * choice; setup reads it from here.
+ *
+ * Tokens are per cluster. On devnet and localnet they are test mints the setup
+ * script creates, one per stock; on mainnet they are the issuers' tokenized
+ * shares, sometimes several issuers for one stock.
  */
 
 import { PublicKey } from "@solana/web3.js";
 
-import devnet from "@/data/stocks.devnet.json";
-import localnet from "@/data/stocks.localnet.json";
-import mainnet from "@/data/stocks.mainnet-beta.json";
-import { TOKEN_2022_PROGRAM_ID, type StakeAsset } from "@/lib/duel";
+import rosterJson from "@/data/roster.json";
+import { type StakeAsset } from "@/lib/duel";
 
 export type Stock = {
   ticker: string;
   name: string;
-  /** Pyth feed id, hex, no 0x. */
+  kind: "stock" | "etf";
+  market: string;
+  currency: string;
+  /** Feed id, hex, no 0x. */
   feed: string;
+  /** True when `feed` is a real Pyth feed id. */
+  pyth: boolean;
+  source: "pyth" | "signed";
+  /** The stock's symbol at the market data source. */
+  quote: string;
   /** Accent for the ticker badge. */
   color: string;
+  /** Who tokenizes it on Solana mainnet. */
+  issuers: string[];
 };
 
-export const ROSTER: Stock[] = [
-  { ticker: "NVDA", name: "NVIDIA", feed: "b1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593", color: "#76B900" },
-  { ticker: "TSLA", name: "Tesla", feed: "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1", color: "#E82127" },
-  { ticker: "AAPL", name: "Apple", feed: "49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688", color: "#A2AAAD" },
-  { ticker: "MSFT", name: "Microsoft", feed: "d0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1", color: "#00A4EF" },
-  { ticker: "GOOGL", name: "Alphabet", feed: "5a48c03e9b9cb337801073ed9d166817473697efff0d138874e0f6a33d6d5aa6", color: "#4285F4" },
-  { ticker: "AMZN", name: "Amazon", feed: "b5d0e0fa58a1f8b81498ae670ce93c872d14434b72c364885d4fa1b257cbb07a", color: "#FF9900" },
-  { ticker: "META", name: "Meta", feed: "78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe", color: "#0866FF" },
-  { ticker: "AMD", name: "AMD", feed: "3622e381dbca2efd1859253763b1adc63f7f9abb8e76da1aa8e638a57ccde93e", color: "#ED1C24" },
-  { ticker: "PLTR", name: "Palantir", feed: "11a70634863ddffb71f2b11f2cff29f73f3db8f6d0b78c49f2b5f4ad36e885f0", color: "#C9CBCC" },
-  { ticker: "COIN", name: "Coinbase", feed: "fee33f2a978bf32dd6b662b65ba8083c6773b494f8401194ec1870c640860245", color: "#0052FF" },
-  { ticker: "HOOD", name: "Robinhood", feed: "306736a4035846ba15a3496eed57225b64cc19230a50d14f3ed20fd7219b7849", color: "#CCFF00" },
-  { ticker: "MSTR", name: "Strategy", feed: "e1e80251e5f5184f2195008382538e847fafc36f751896889dd3d1b1f6111f09", color: "#F7931A" },
-  { ticker: "SPY", name: "S&P 500 ETF", feed: "19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5", color: "#E6E6E6" },
-  { ticker: "QQQ", name: "Nasdaq-100 ETF", feed: "9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d", color: "#8C3FFF" },
-];
+export type Token = {
+  ticker: string;
+  symbol: string;
+  issuer: string;
+  mint: string;
+  decimals: number;
+  tokenProgram: string;
+};
+
+/* Test clusters list their mints compactly, since every test token is the
+ * setup script's: 8 decimals, Token-2022. */
+const TEST_TOKEN = { issuer: "test", decimals: 8, tokenProgram: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" };
+
+export const ROSTER = rosterJson as Stock[];
 
 export const CLUSTER = (process.env.NEXT_PUBLIC_CLUSTER ?? "devnet") as "devnet" | "localnet" | "mainnet-beta";
 
-type Deployment = {
-  tokenProgram: string;
-  decimals: number;
-  mints: Record<string, string>;
-};
+/* Only this cluster's token list goes into the bundle. NEXT_PUBLIC_CLUSTER is
+ * a literal at build time, so the bundler drops the other branches, and with
+ * them a thousand-odd mints nobody on this cluster can use. */
+/* eslint-disable @typescript-eslint/no-require-imports */
+const deployment: { tokens?: (Pick<Token, "ticker" | "symbol" | "mint"> & Partial<Token>)[] } =
+  process.env.NEXT_PUBLIC_CLUSTER === "mainnet-beta"
+    ? require("@/data/stocks.mainnet-beta.json")
+    : process.env.NEXT_PUBLIC_CLUSTER === "localnet"
+      ? require("@/data/stocks.localnet.json")
+      : require("@/data/stocks.devnet.json");
+/* eslint-enable @typescript-eslint/no-require-imports */
 
-/* Mainnet lists the issuer's real tokenized shares (xStocks, from Jupiter's
- * verified list). scripts/xstocks-probe.ts checks each passes the program's
- * escrow screen. The program is not deployed there; before it is, the app must
- * also apply each mint's ScaledUiAmount multiplier when it sizes stakes. */
-const DEPLOYMENTS: Record<string, Deployment> = {
-  devnet: devnet as Deployment,
-  localnet: localnet as Deployment,
-  "mainnet-beta": mainnet as Deployment,
-};
+/** Every token that can be staked on this cluster. */
+export const TOKENS: Token[] = (deployment.tokens ?? []).map((t) => ({ ...TEST_TOKEN, ...t }));
 
-const deployment: Deployment | undefined = DEPLOYMENTS[CLUSTER];
+const tokensByTicker = new Map<string, Token[]>();
+for (const t of TOKENS) tokensByTicker.set(t.ticker, [...(tokensByTicker.get(t.ticker) ?? []), t]);
+const tokenByMint = new Map(TOKENS.map((t) => [t.mint, t]));
 
-export const STAKE_DECIMALS = deployment?.decimals ?? 8;
+/** Stocks with at least one stakeable token here, in roster order. */
+export const STAKEABLE = ROSTER.filter((s) => tokensByTicker.has(s.ticker));
+
+/* Tokenized shares carry 8 decimals across the board (xStocks, and the test
+ * mints). Anything that shows an amount for a specific mint should still ask
+ * decimalsForMint. */
+export const STAKE_DECIMALS = TOKENS[0]?.decimals ?? 8;
 
 export const byTicker = (ticker: string) => ROSTER.find((s) => s.ticker === ticker);
 export const byFeed = (feed: string) =>
   ROSTER.find((s) => s.feed === feed.replace(/^0x/, "").toLowerCase());
 
-/** The token a stock is staked as on this cluster, or null if it has none. */
+/** Where the oracle reads a stock's minute bars, by feed id, and in what
+ * currency. */
+export function quoteSymbolFor(feed: string) {
+  const s = byFeed(feed);
+  return s ? { symbol: s.quote, currency: s.currency } : undefined;
+}
+
+export const tokensFor = (ticker: string) => tokensByTicker.get(ticker) ?? [];
+
+/** The token a stock is staked as on this cluster (its first issuer's), or
+ * null if it has none. */
 export function stakeAssetFor(ticker: string): StakeAsset | null {
-  const mint = deployment?.mints[ticker];
-  if (!mint) return null;
-  return {
-    mint: new PublicKey(mint),
-    tokenProgram: new PublicKey(deployment?.tokenProgram ?? TOKEN_2022_PROGRAM_ID.toBase58()),
-  };
+  const t = tokensFor(ticker)[0];
+  return t ? { mint: new PublicKey(t.mint), tokenProgram: new PublicKey(t.tokenProgram) } : null;
 }
 
-export function tickerForMint(mint: PublicKey | string): string | undefined {
-  const m = typeof mint === "string" ? mint : mint.toBase58();
-  return Object.entries(deployment?.mints ?? {}).find(([, v]) => v === m)?.[0];
+export function tokenForMint(mint: PublicKey | string): Token | undefined {
+  return tokenByMint.get(typeof mint === "string" ? mint : mint.toBase58());
 }
 
-/** "NVDAx": the tokenized share's symbol. */
-export const tokenSymbol = (ticker: string) => `${ticker}x`;
+export const tickerForMint = (mint: PublicKey | string) => tokenForMint(mint)?.ticker;
+export const decimalsForMint = (mint: PublicKey | string) => tokenForMint(mint)?.decimals ?? STAKE_DECIMALS;
+
+/** "NVDAx": the symbol of the token a stock is staked as here. */
+export const tokenSymbol = (ticker: string) => tokensFor(ticker)[0]?.symbol ?? `${ticker}x`;
+
+/** How a stock is priced, in the words the page uses. */
+export const sourceLabel = (s: Pick<Stock, "source">) =>
+  s.source === "pyth" ? "Pyth" : "Stonk Wars oracle";

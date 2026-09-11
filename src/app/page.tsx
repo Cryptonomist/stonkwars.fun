@@ -3,12 +3,13 @@ import Link from "next/link";
 import { LiveBoard } from "@/components/LiveBoard";
 import { SampleFight } from "@/components/SampleFight";
 import { BRAND } from "@/lib/brand";
+import { ROSTER } from "@/lib/stocks";
 
 const STEPS = [
   {
     n: "01",
     title: "Call it",
-    body: "Pick your stock and the one it beats. Stake real shares of yours, set the round: five minutes, an hour, or to Friday's bell.",
+    body: `Pick your stock from all ${ROSTER.length} tokenized on Solana, and the one it beats. Stake real shares of yours, set the round: five minutes, an hour, or to Friday's bell.`,
   },
   {
     n: "02",
@@ -18,22 +19,22 @@ const STEPS = [
   {
     n: "03",
     title: "The bell decides",
-    body: "Pyth's signed prices at the start and the bell. Bigger percentage move takes both stakes, paid in shares. The other side is cooked.",
+    body: "Signed prices at the start and the bell. Bigger percentage move takes both stakes, paid in shares. The other side is cooked.",
   },
 ];
 
 const TRUST = [
   {
     title: "Signed prices",
-    body: "Start and end prices are Pyth updates, checked against Wormhole guardian signatures on Solana before the program reads a digit.",
+    body: "Pyth-priced stocks settle on Pyth updates, checked against Wormhole guardian signatures on Solana. Every other stock settles on the oracle's signed quote, checked by Solana's Ed25519 program in the same transaction.",
   },
   {
     title: "One price counts",
-    body: "Pyth prints several times a second. Every update records the time of the one before it, so exactly one is the first at or after the bell. The program takes that one and refuses the rest.",
+    body: "Each boundary has exactly one price: Pyth's first update at or after it (every update records the time of the one before), or the close of the stock's first one-minute bar at or after it. The program takes that one and refuses the rest.",
   },
   {
     title: "Anyone can settle",
-    body: "No admin, no oracle key, no judge. Any wallet can post the prices and settle, and the result is identical whoever does it.",
+    body: "No admin, no judge. Any wallet can post the prices and settle, and the result is identical whoever does it. Every quote is public in the transaction that used it.",
   },
   {
     title: "Stakes go to players",
@@ -46,7 +47,7 @@ export default function Home() {
     <div>
       <section className="grid items-center gap-10 py-14 lg:grid-cols-[1.1fr_1fr] lg:py-20">
         <div>
-          <p className="label">Stock wars · on Solana</p>
+          <p className="label">{ROSTER.length} tokenized stocks · on Solana</p>
           <h1 className="display mt-4 text-7xl sm:text-8xl lg:text-9xl">
             Your stock
             <br />

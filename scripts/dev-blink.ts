@@ -35,8 +35,9 @@ async function main() {
   const faucet = Keypair.fromSecretKey(
     Uint8Array.from(JSON.parse(fs.readFileSync(path.resolve(__dirname, "../keys/faucet-localnet.json"), "utf8"))),
   );
-  const nvda = stakeAssetFor("NVDA")!;
-  const aapl = stakeAssetFor("AAPL")!;
+  // C and X pick the two stocks; the defaults are the two the free Pyth plan grants.
+  const nvda = stakeAssetFor(process.env.C ?? "TSLA")!;
+  const aapl = stakeAssetFor(process.env.X ?? "QQQ")!;
   void stocks;
 
   async function fund(kp: Keypair, asset: typeof nvda, amount: bigint) {

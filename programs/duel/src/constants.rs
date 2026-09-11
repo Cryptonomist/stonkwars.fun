@@ -12,6 +12,20 @@ pub const PYTH_RECEIVER: Pubkey = pubkey!("rec5EKMGg6MxZYaMdyBfgwp4d5rB9T1VQH5pJ
 
 pub const TOKEN_2022: Pubkey = pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
+/// Solana's native Ed25519 signature-verification program, and the sysvar
+/// through which a program can read the other instructions in its transaction.
+pub const ED25519_PROGRAM: Pubkey = pubkey!("Ed25519SigVerify111111111111111111111111111");
+pub const INSTRUCTIONS_SYSVAR: Pubkey = pubkey!("Sysvar1nstructions1111111111111111111111111");
+
+/// What a signed quote's message starts with, so a signature over anything
+/// else, by the same key, can never be read as a price.
+pub const QUOTE_PREFIX: &[u8; 18] = b"STONKWARS:PRICE:v1";
+
+/// How long after a boundary a signed quote may have been observed. The
+/// oracle samples the market when the crank runs; a minute-a-minute cron can
+/// be up to a minute late, and this leaves room for one retry.
+pub const MAX_QUOTE_LAG_SECS: i64 = 120;
+
 /// Shortest duel, measured from the start price to the end boundary. A minute
 /// is enough to play a round in a demo and short enough to be a real risk.
 pub const MIN_DUEL_SECS: i64 = 60;
