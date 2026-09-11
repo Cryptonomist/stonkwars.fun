@@ -6,6 +6,9 @@ resolver = "2"
 overflow-checks = true
 lto = "fat"
 codegen-units = 1
+# Optimise for size. Deploy rent is paid per byte of program (twice at the
+# peak, buffer plus program data), and nothing here is compute-bound.
+opt-level = "z"
 
 [profile.release.build-override]
 opt-level = 3
