@@ -25,16 +25,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import {
-  Connection,
-  Keypair,
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-  TransactionInstruction,
-  sendAndConfirmTransaction,
-} from "@solana/web3.js";
+import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import {
   ExtensionType,
   LENGTH_SIZE,
@@ -55,8 +46,8 @@ const CLUSTER = process.env.CLUSTER ?? (RPC.includes("localhost") || RPC.include
 const FAUCET_SOL = Number(process.env.FAUCET_SOL ?? "2");
 const SITE = process.env.SITE ?? "https://stonkwars.fun";
 const DECIMALS = 8;
-/** Stocks set up at once. */
-const CONCURRENCY = Number(process.env.CONCURRENCY ?? "8");
+/** Stocks set up at once. Public RPCs throttle above a handful. */
+const CONCURRENCY = Number(process.env.CONCURRENCY ?? "3");
 /** How many of the roster's first stocks get wallet-visible metadata. */
 const METADATA_FOR = Number(process.env.METADATA_FOR ?? "60");
 const ROOT = path.resolve(__dirname, "..");
@@ -93,9 +84,47 @@ for (const t of (mainnet as { tokens: Token[] }).tokens) {
   if (!MAINNET_SYMBOL.has(t.ticker)) MAINNET_SYMBOL.set(t.ticker, t.symbol);
 }
 
-async function send(conn: Connection, ixs: TransactionInstruction[], signers: Keypair[]) {
-  const tx = new Transaction().add(...ixs);
-  return sendAndConfirmTransaction(conn, tx, signers, { commitment: "confirmed" });
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/* A THOUSAND STOCKS THROUGH A PUBLIC RPC.
+ *
+ * The public devnet endpoint rate-limits hard, and its websocket refuses
+ * connections long before the transactions run out, which is what sinks the
+ * usual sendAndConfirmTransaction. So: one blockhash reused for a few seconds,
+ * no preflight, no subscriptions, confirmation by polling, and a few retries
+ * with a widening wait. */
+let recent: { hash: string; at: number } | null = null;
+
+async function blockhash(conn: Connection): Promise<string> {
+  if (!recent || Date.now() - recent.at > 15_000) {
+    recent = { hash: (await conn.getLatestBlockhash("confirmed")).blockhash, at: Date.now() };
+  }
+  return recent.hash;
+}
+
+async function send(conn: Connection, ixs: TransactionInstruction[], signers: Keypair[]): Promise<string> {
+  let last: unknown;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const tx = new Transaction().add(...ixs);
+      tx.recentBlockhash = await blockhash(conn);
+      tx.feePayer = signers[0].publicKey;
+      tx.sign(...signers);
+      const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 5 });
+      for (let i = 0; i < 45; i++) {
+        await sleep(800);
+        const status = (await conn.getSignatureStatuses([sig])).value[0];
+        if (status?.err) throw new Error(`transaction failed: ${JSON.stringify(status.err)}`);
+        if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") return sig;
+      }
+      throw new Error("confirmation timed out");
+    } catch (e) {
+      last = e;
+      recent = null;
+      await sleep(1_200 * (attempt + 1));
+    }
+  }
+  throw last instanceof Error ? last : new Error(String(last));
 }
 
 async function main() {

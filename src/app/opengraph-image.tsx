@@ -17,7 +17,7 @@ export default async function Image() {
   const raw = `STONKWARS YOUR STOCK VS THEIRS. LOSER GETS COOKED. ${BRAND.domain} STAKE REAL SHARES · STOCKS · SOLANA ${tickers} +-.%0123456789`;
   const display = await loadGoogleFont("Big Shoulders", 900, `${raw}${raw.toLowerCase()}`);
   const face = display ? "Display" : "sans-serif";
-  const mark = `data:image/svg+xml;base64,${Buffer.from(markSvg(3.4)).toString("base64")}`;
+  const mark = `data:image/svg+xml;base64,${Buffer.from(markSvg()).toString("base64")}`;
 
   let seed = 7;
   const rand = () => {
