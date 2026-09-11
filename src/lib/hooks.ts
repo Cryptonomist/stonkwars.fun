@@ -1,0 +1,100 @@
+"use client";
+
+/* Reading the chain, and writing to it, from components. */
+
+import { useCallback } from "react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ComputeBudgetProgram,
+  PublicKey,
+  Transaction,
+  type GetProgramAccountsFilter,
+  type TransactionInstruction,
+} from "@solana/web3.js";
+
+import { decodeDuel, PROGRAM_ID, type DuelView } from "@/lib/duel";
+import { sendAndConfirm } from "@/lib/send";
+
+/** One duel, polled. `null` means the account does not exist (never did, or
+ *  was cancelled and closed). */
+export function useDuel(address: PublicKey | null, refetchMs = 3_000) {
+  const { connection } = useConnection();
+  return useQuery<DuelView | null>({
+    queryKey: ["duel", address?.toBase58()],
+    enabled: !!address,
+    queryFn: async () => {
+      const info = await connection.getAccountInfo(address!, "confirmed");
+      if (!info || !info.owner.equals(PROGRAM_ID)) return null;
+      return decodeDuel(address!, info.data);
+    },
+    refetchInterval: refetchMs,
+  });
+}
+
+/** Many duels, by memcmp filter. Newest first. */
+export function useDuels(key: string, filters: GetProgramAccountsFilter[] | null, refetchMs = 10_000) {
+  const { connection } = useConnection();
+  return useQuery<DuelView[]>({
+    queryKey: ["duels", key],
+    enabled: !!filters,
+    queryFn: async () => {
+      const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
+        commitment: "confirmed",
+        filters: filters!,
+      });
+      const out: DuelView[] = [];
+      for (const a of accounts) {
+        try {
+          out.push(decodeDuel(a.pubkey, a.account.data));
+        } catch {
+          /* An account that does not decode is not a duel this client knows. */
+        }
+      }
+      return out.sort((x, y) => y.createdTs - x.createdTs);
+    },
+    refetchInterval: refetchMs,
+  });
+}
+
+/** Raw token balance of an owner's account, or null if it does not exist. */
+export function useTokenBalance(account: PublicKey | null) {
+  const { connection } = useConnection();
+  return useQuery<bigint | null>({
+    queryKey: ["balance", account?.toBase58()],
+    enabled: !!account,
+    queryFn: async () => {
+      const info = await connection.getTokenAccountBalance(account!, "confirmed").catch(() => null);
+      return info ? BigInt(info.value.amount) : null;
+    },
+    refetchInterval: 8_000,
+  });
+}
+
+/** Sign and send one transaction made of `ixs`, and confirm it honestly. */
+export function useSend() {
+  const { connection } = useConnection();
+  const { publicKey, signTransaction } = useWallet();
+  const qc = useQueryClient();
+
+  return useCallback(
+    async (ixs: TransactionInstruction[], onSent?: (sig: string) => void) => {
+      if (!publicKey || !signTransaction) throw new Error("Connect a wallet first.");
+      const latest = await connection.getLatestBlockhash("confirmed");
+      const tx = new Transaction({ feePayer: publicKey, ...latest });
+      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+      tx.add(...ixs);
+      const signed = await signTransaction(tx);
+      const sig = await sendAndConfirm(connection, signed, latest, onSent);
+      void qc.invalidateQueries();
+      return sig;
+    },
+    [connection, publicKey, signTransaction, qc],
+  );
+}
+
+export const explorerTx = (sig: string, cluster: string) =>
+  `https://explorer.solana.com/tx/${sig}${cluster === "devnet" ? "?cluster=devnet" : ""}`;
+
+export const explorerAddress = (addr: string, cluster: string) =>
+  `https://explorer.solana.com/address/${addr}${cluster === "devnet" ? "?cluster=devnet" : ""}`;

@@ -1,0 +1,2573 @@
+{
+  "address": "Hxr3N4cSJXTzPqiaUrdnKKyYSzMrAPkrGk5MzJhazc3D",
+  "metadata": {
+    "name": "duel",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Stock-vs-stock duels: tokenized shares in escrow, settled by Pyth prices"
+  },
+  "instructions": [
+    {
+      "name": "accept_duel",
+      "docs": [
+        "Take the other side: escrow the opponent's stake on the creator's terms."
+      ],
+      "discriminator": [
+        80,
+        52,
+        90,
+        135,
+        172,
+        221,
+        175,
+        102
+      ],
+      "accounts": [
+        {
+          "name": "opponent",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "duel",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "duel.creator",
+                "account": "Duel"
+              },
+              {
+                "kind": "account",
+                "path": "duel"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_mint"
+        },
+        {
+          "name": "opponent_mint"
+        },
+        {
+          "name": "opponent_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "duel"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "opponent_source",
+          "writable": true
+        },
+        {
+          "name": "opponent_winnings",
+          "docs": [
+            "Where the opponent would receive the creator's stake."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "opponent"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_token_program"
+        },
+        {
+          "name": "opponent_token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_duel",
+      "docs": [
+        "Take a challenge back. The creator can do it any time before someone",
+        "accepts; after the challenge expires anyone can, and the stake still",
+        "goes to the creator."
+      ],
+      "discriminator": [
+        83,
+        124,
+        224,
+        237,
+        235,
+        44,
+        38,
+        57
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "duel",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "duel.creator",
+                "account": "Duel"
+              },
+              {
+                "kind": "account",
+                "path": "duel"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator",
+          "writable": true
+        },
+        {
+          "name": "creator_mint"
+        },
+        {
+          "name": "creator_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "duel"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_refund",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_duel",
+      "docs": [
+        "Reclaim a finished duel's rent. The record goes with it, which is the",
+        "creator's call to make."
+      ],
+      "discriminator": [
+        206,
+        171,
+        112,
+        150,
+        214,
+        78,
+        213,
+        196
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "duel"
+          ]
+        },
+        {
+          "name": "duel",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "duel.creator",
+                "account": "Duel"
+              },
+              {
+                "kind": "account",
+                "path": "duel"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_duel",
+      "docs": [
+        "Open a challenge and escrow the creator's stake.",
+        "",
+        "The terms are all fixed here, both stakes included: the page sizes them",
+        "to equal dollars, and whoever accepts takes exactly these terms or",
+        "leaves them. `duration_secs` and `end_ts` are the two ways to end a",
+        "duel; exactly one must be set."
+      ],
+      "discriminator": [
+        49,
+        28,
+        93,
+        11,
+        75,
+        242,
+        69,
+        165
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_asset",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "opponent_asset",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "opponent_mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_mint"
+        },
+        {
+          "name": "opponent_mint"
+        },
+        {
+          "name": "duel",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "arg",
+                "path": "seed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "duel"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_source",
+          "writable": true
+        },
+        {
+          "name": "creator_winnings",
+          "docs": [
+            "Where the creator would receive the other stake. Made now, on the",
+            "creator's rent, so a settlement never has to pay for it."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_token_program"
+        },
+        {
+          "name": "opponent_token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "seed",
+          "type": "u64"
+        },
+        {
+          "name": "creator_amount",
+          "type": "u64"
+        },
+        {
+          "name": "opponent_amount",
+          "type": "u64"
+        },
+        {
+          "name": "duration_secs",
+          "type": "i64"
+        },
+        {
+          "name": "end_ts",
+          "type": "i64"
+        },
+        {
+          "name": "expires_ts",
+          "type": "i64"
+        },
+        {
+          "name": "invitee",
+          "type": "pubkey"
+        },
+        {
+          "name": "taunt",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "init_config",
+      "discriminator": [
+        23,
+        235,
+        115,
+        232,
+        168,
+        96,
+        1,
+        231
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "refund_duel",
+      "docs": [
+        "Both stakes back to their owners: for a void duel at once, and for a",
+        "duel stuck waiting on a price a week after it should have moved."
+      ],
+      "discriminator": [
+        102,
+        85,
+        18,
+        136,
+        100,
+        103,
+        76,
+        189
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "duel",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "duel.creator",
+                "account": "Duel"
+              },
+              {
+                "kind": "account",
+                "path": "duel"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator",
+          "writable": true
+        },
+        {
+          "name": "opponent",
+          "writable": true
+        },
+        {
+          "name": "creator_mint"
+        },
+        {
+          "name": "opponent_mint"
+        },
+        {
+          "name": "creator_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "duel"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "opponent_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "duel"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_creator_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "opponent_opponent_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "opponent"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_token_program"
+        },
+        {
+          "name": "opponent_token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_asset",
+      "discriminator": [
+        21,
+        80,
+        155,
+        149,
+        117,
+        207,
+        235,
+        16
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "feed_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "symbol",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "set_asset",
+      "docs": [
+        "Re-point an asset's feed or switch it off. Duels already created keep",
+        "the feed they copied; this only changes what new duels get."
+      ],
+      "discriminator": [
+        243,
+        216,
+        48,
+        30,
+        63,
+        58,
+        91,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  115,
+                  115,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset.mint",
+                "account": "Asset"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "feed_id",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_paused",
+      "discriminator": [
+        91,
+        60,
+        125,
+        192,
+        176,
+        225,
+        166,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "settle_duel",
+      "docs": [
+        "Post the end prices and pay the winner. Permissionless."
+      ],
+      "discriminator": [
+        148,
+        90,
+        251,
+        130,
+        217,
+        144,
+        190,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Anyone. Pays the transaction, and the rent of any payout account a",
+            "player has closed since the duel began."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "duel",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "duel.creator",
+                "account": "Duel"
+              },
+              {
+                "kind": "account",
+                "path": "duel"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator",
+          "writable": true
+        },
+        {
+          "name": "opponent",
+          "writable": true
+        },
+        {
+          "name": "creator_mint"
+        },
+        {
+          "name": "opponent_mint"
+        },
+        {
+          "name": "creator_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "duel"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "opponent_escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "duel"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_creator_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_opponent_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "creator"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "opponent_creator_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "opponent"
+              },
+              {
+                "kind": "account",
+                "path": "creator_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "creator_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "opponent_opponent_ata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "opponent"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_token_program"
+              },
+              {
+                "kind": "account",
+                "path": "opponent_mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "creator_price"
+        },
+        {
+          "name": "opponent_price"
+        },
+        {
+          "name": "creator_token_program"
+        },
+        {
+          "name": "opponent_token_program"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "start_duel",
+      "docs": [
+        "Lock the start prices. Permissionless: the prices prove themselves."
+      ],
+      "discriminator": [
+        188,
+        143,
+        206,
+        111,
+        77,
+        207,
+        62,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "duel",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  117,
+                  101,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "duel.creator",
+                "account": "Duel"
+              },
+              {
+                "kind": "account",
+                "path": "duel"
+              }
+            ]
+          }
+        },
+        {
+          "name": "creator_price",
+          "docs": [
+            "verified PriceUpdateV2, the creator's feed, the first price at or after",
+            "the start boundary."
+          ]
+        },
+        {
+          "name": "opponent_price"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Asset",
+      "discriminator": [
+        234,
+        180,
+        241,
+        252,
+        139,
+        224,
+        160,
+        8
+      ]
+    },
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Duel",
+      "discriminator": [
+        126,
+        229,
+        210,
+        60,
+        177,
+        135,
+        124,
+        224
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AssetRegistered",
+      "discriminator": [
+        252,
+        56,
+        47,
+        89,
+        8,
+        180,
+        249,
+        254
+      ]
+    },
+    {
+      "name": "AssetUpdated",
+      "discriminator": [
+        205,
+        81,
+        132,
+        139,
+        249,
+        35,
+        249,
+        127
+      ]
+    },
+    {
+      "name": "DuelAccepted",
+      "discriminator": [
+        237,
+        234,
+        86,
+        197,
+        103,
+        136,
+        209,
+        66
+      ]
+    },
+    {
+      "name": "DuelCancelled",
+      "discriminator": [
+        138,
+        79,
+        20,
+        163,
+        207,
+        11,
+        111,
+        213
+      ]
+    },
+    {
+      "name": "DuelCreated",
+      "discriminator": [
+        137,
+        77,
+        22,
+        196,
+        90,
+        147,
+        23,
+        37
+      ]
+    },
+    {
+      "name": "DuelRefunded",
+      "discriminator": [
+        164,
+        4,
+        2,
+        26,
+        73,
+        234,
+        56,
+        64
+      ]
+    },
+    {
+      "name": "DuelSettled",
+      "discriminator": [
+        254,
+        160,
+        50,
+        193,
+        155,
+        112,
+        122,
+        64
+      ]
+    },
+    {
+      "name": "DuelStarted",
+      "discriminator": [
+        208,
+        108,
+        140,
+        40,
+        155,
+        133,
+        112,
+        94
+      ]
+    },
+    {
+      "name": "DuelVoided",
+      "discriminator": [
+        170,
+        243,
+        124,
+        162,
+        205,
+        34,
+        118,
+        245
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Paused",
+      "msg": "New duels are paused"
+    },
+    {
+      "code": 6001,
+      "name": "SameAsset",
+      "msg": "A duel needs two different stocks"
+    },
+    {
+      "code": 6002,
+      "name": "AssetDisabled",
+      "msg": "That stock is not enabled for duels"
+    },
+    {
+      "code": 6003,
+      "name": "ZeroStake",
+      "msg": "Both stakes must be more than zero"
+    },
+    {
+      "code": 6004,
+      "name": "BadEndRule",
+      "msg": "Give a duration or an end time, not both"
+    },
+    {
+      "code": 6005,
+      "name": "BadDuration",
+      "msg": "That duel length is out of range"
+    },
+    {
+      "code": 6006,
+      "name": "BadExpiry",
+      "msg": "The challenge must close before the duel could end"
+    },
+    {
+      "code": 6007,
+      "name": "TauntTooLong",
+      "msg": "The taunt is too long"
+    },
+    {
+      "code": 6008,
+      "name": "SymbolTooLong",
+      "msg": "The symbol is too long"
+    },
+    {
+      "code": 6009,
+      "name": "NotOpen",
+      "msg": "This duel is not open"
+    },
+    {
+      "code": 6010,
+      "name": "Expired",
+      "msg": "This challenge has expired"
+    },
+    {
+      "code": 6011,
+      "name": "NotCreator",
+      "msg": "Only the creator can cancel before the challenge expires"
+    },
+    {
+      "code": 6012,
+      "name": "SelfDuel",
+      "msg": "You cannot accept your own duel"
+    },
+    {
+      "code": 6013,
+      "name": "NotInvitee",
+      "msg": "This challenge is for someone else"
+    },
+    {
+      "code": 6014,
+      "name": "NotAccepted",
+      "msg": "This duel is not waiting for its start prices"
+    },
+    {
+      "code": 6015,
+      "name": "NotLive",
+      "msg": "This duel is not live"
+    },
+    {
+      "code": 6016,
+      "name": "NotRefundable",
+      "msg": "This duel cannot be refunded yet"
+    },
+    {
+      "code": 6017,
+      "name": "NotFinished",
+      "msg": "This duel is not finished"
+    },
+    {
+      "code": 6018,
+      "name": "NotPythAccount",
+      "msg": "Not an account owned by the Pyth receiver"
+    },
+    {
+      "code": 6019,
+      "name": "NotPriceUpdate",
+      "msg": "Not a Pyth PriceUpdateV2 account"
+    },
+    {
+      "code": 6020,
+      "name": "PartiallyVerified",
+      "msg": "The price update is only partially verified"
+    },
+    {
+      "code": 6021,
+      "name": "WrongFeed",
+      "msg": "The price update is for a different feed"
+    },
+    {
+      "code": 6022,
+      "name": "PriceTooEarly",
+      "msg": "That price was published before the boundary"
+    },
+    {
+      "code": 6023,
+      "name": "NotFirstPrice",
+      "msg": "That is not the first price at or after the boundary"
+    },
+    {
+      "code": 6024,
+      "name": "BadPrice",
+      "msg": "The price is not positive"
+    },
+    {
+      "code": 6025,
+      "name": "MathOverflow",
+      "msg": "Math overflow"
+    },
+    {
+      "code": 6026,
+      "name": "UnsupportedMint",
+      "msg": "That mint cannot be held in escrow"
+    },
+    {
+      "code": 6027,
+      "name": "ShortTransfer",
+      "msg": "The escrow did not receive the full stake"
+    }
+  ],
+  "types": [
+    {
+      "name": "Asset",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "feed_id",
+            "docs": [
+              "Pyth price feed id, e.g. Equity.US.NVDA/USD."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "symbol",
+            "type": "string"
+          },
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AssetRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "symbol",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AssetUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "feed_id",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "docs": [
+              "Blocks new duels and new accepts. Never blocks a cancel, a settlement",
+              "or a refund: an admin who could freeze payouts would be a custodian."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Duel",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "opponent",
+            "docs": [
+              "Default until someone accepts."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "outcome",
+            "type": "u8"
+          },
+          {
+            "name": "seed",
+            "type": "u64"
+          },
+          {
+            "name": "invitee",
+            "docs": [
+              "Default means anyone holding the link may accept."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "opponent_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator_token_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "opponent_token_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator_feed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "opponent_feed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "creator_amount",
+            "type": "u64"
+          },
+          {
+            "name": "opponent_amount",
+            "type": "u64"
+          },
+          {
+            "name": "duration_secs",
+            "docs": [
+              "Non-zero: the duel runs this long from its start price. Zero: it ends",
+              "at the fixed `end_ts` chosen at creation."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "end_ts",
+            "type": "i64"
+          },
+          {
+            "name": "expires_ts",
+            "type": "i64"
+          },
+          {
+            "name": "created_ts",
+            "type": "i64"
+          },
+          {
+            "name": "accepted_ts",
+            "type": "i64"
+          },
+          {
+            "name": "start_ts",
+            "type": "i64"
+          },
+          {
+            "name": "creator_start",
+            "type": {
+              "defined": {
+                "name": "PricePoint"
+              }
+            }
+          },
+          {
+            "name": "opponent_start",
+            "type": {
+              "defined": {
+                "name": "PricePoint"
+              }
+            }
+          },
+          {
+            "name": "creator_end",
+            "type": {
+              "defined": {
+                "name": "PricePoint"
+              }
+            }
+          },
+          {
+            "name": "opponent_end",
+            "type": {
+              "defined": {
+                "name": "PricePoint"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "taunt",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DuelAccepted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "duel",
+            "type": "pubkey"
+          },
+          {
+            "name": "opponent",
+            "type": "pubkey"
+          },
+          {
+            "name": "accepted_ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DuelCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "duel",
+            "type": "pubkey"
+          },
+          {
+            "name": "by",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DuelCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "duel",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "opponent_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator_amount",
+            "type": "u64"
+          },
+          {
+            "name": "opponent_amount",
+            "type": "u64"
+          },
+          {
+            "name": "duration_secs",
+            "type": "i64"
+          },
+          {
+            "name": "end_ts",
+            "type": "i64"
+          },
+          {
+            "name": "expires_ts",
+            "type": "i64"
+          },
+          {
+            "name": "invitee",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DuelRefunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "duel",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DuelSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "duel",
+            "type": "pubkey"
+          },
+          {
+            "name": "outcome",
+            "type": "u8"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator_return_bps",
+            "type": "i64"
+          },
+          {
+            "name": "opponent_return_bps",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DuelStarted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "duel",
+            "type": "pubkey"
+          },
+          {
+            "name": "start_ts",
+            "type": "i64"
+          },
+          {
+            "name": "end_ts",
+            "type": "i64"
+          },
+          {
+            "name": "creator_price",
+            "type": "i64"
+          },
+          {
+            "name": "creator_expo",
+            "type": "i32"
+          },
+          {
+            "name": "opponent_price",
+            "type": "i64"
+          },
+          {
+            "name": "opponent_expo",
+            "type": "i32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DuelVoided",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "duel",
+            "type": "pubkey"
+          },
+          {
+            "name": "reason",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PricePoint",
+      "docs": [
+        "One Pyth observation, as recorded on a duel."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "price",
+            "type": "i64"
+          },
+          {
+            "name": "expo",
+            "type": "i32"
+          },
+          {
+            "name": "publish_time",
+            "type": "i64"
+          }
+        ]
+      }
+    }
+  ]
+}

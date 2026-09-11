@@ -26,6 +26,11 @@
     "react-dom": "19.1.0",
     "server-only": "^0.0.1"
   },
+  "overrides": {
+    "jito-ts": {
+      "@solana/web3.js": "$@solana/web3.js"
+    }
+  },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@solana/kit": "^8.2.0",
