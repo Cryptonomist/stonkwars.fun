@@ -28,9 +28,15 @@ import {
   SystemProgram,
   Transaction,
   TransactionInstruction,
-  sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import { TOKEN_2022_PROGRAM_ID, createMint, getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
+import {
+  TOKEN_2022_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
+  createInitializeMintInstruction,
+  createMintToInstruction,
+  getAssociatedTokenAddressSync,
+  getMintLen,
+} from "@solana/spl-token";
 import { HermesClient } from "@pythnetwork/hermes-client";
 
 import { boundaryOf, crankOnce } from "../src/lib/crank";
@@ -89,13 +95,61 @@ const quoteSymbol = (feed: string) => {
 };
 
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
-const send = (ixs: TransactionInstruction[], signers: Keypair[]) =>
-  sendAndConfirmTransaction(conn, new Transaction().add(...ixs), signers, { commitment: "confirmed" });
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/* Devnet is a public road: a blockhash the node just handed out can be
+ * unknown to the node that simulates the next call, and everything is rate
+ * limited. So: finalized blockhashes, no preflight, confirmation by polling,
+ * and a few retries. */
+async function send(ixs: TransactionInstruction[], signers: Keypair[]): Promise<string> {
+  let last: unknown;
+  const sent: string[] = [];
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      /* A retry after a tx quietly landed would create the same account twice,
+       * so look at what we already sent before sending anything again. */
+      for (const old of sent) {
+        const status = (await conn.getSignatureStatuses([old])).value[0];
+        if (status && !status.err && status.confirmationStatus !== "processed") return old;
+      }
+      const tx = new Transaction().add(...ixs);
+      tx.recentBlockhash = (await conn.getLatestBlockhash("finalized")).blockhash;
+      tx.feePayer = signers[0].publicKey;
+      tx.sign(...signers);
+      const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 5 });
+      sent.push(sig);
+      for (let i = 0; i < 40; i++) {
+        await sleep(800);
+        const status = (await conn.getSignatureStatuses([sig])).value[0];
+        if (status?.err) throw new Error(`transaction failed: ${JSON.stringify(status.err)}`);
+        if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") return sig;
+      }
+      throw new Error("confirmation timed out");
+    } catch (e) {
+      last = e;
+      await sleep(1_200 * (attempt + 1));
+    }
+  }
+  throw last instanceof Error ? last : new Error(String(last));
+}
 
 async function register(c: Coin) {
-  c.mint = await createMint(conn, admin, faucet.publicKey, null, 8, Keypair.generate(), { commitment: "confirmed" }, TOKEN_2022_PROGRAM_ID);
+  // The mint and its registration in one transaction, sent the careful way:
+  // the SPL helpers read an account back the moment they make it, which a
+  // public RPC has not always caught up with.
+  const kp = Keypair.generate();
+  c.mint = kp.publicKey;
+  const space = getMintLen([]);
   await send(
     [
+      SystemProgram.createAccount({
+        fromPubkey: admin.publicKey,
+        newAccountPubkey: c.mint,
+        space,
+        lamports: await conn.getMinimumBalanceForRentExemption(space),
+        programId: TOKEN_2022_PROGRAM_ID,
+      }),
+      createInitializeMintInstruction(c.mint, 8, faucet.publicKey, null, TOKEN_2022_PROGRAM_ID),
       new TransactionInstruction({
         programId: (await import("../src/lib/duel")).PROGRAM_ID,
         keys: [
@@ -113,7 +167,7 @@ async function register(c: Coin) {
         }),
       }),
     ],
-    [admin],
+    [admin, kp],
   );
   log(`registered ${c.symbol} (${c.source === SOURCE_PYTH ? "Pyth" : "signed"}) ${c.mint.toBase58()}`);
 }
@@ -122,10 +176,14 @@ async function player(): Promise<Keypair> {
   const p = Keypair.generate();
   // Enough for three token accounts and the fees; devnet SOL is not free.
   await send([SystemProgram.transfer({ fromPubkey: admin.publicKey, toPubkey: p.publicKey, lamports: LAMPORTS_PER_SOL / 20 })], [admin]);
+  // One transaction for all three: fewer round trips for a public RPC to drop.
+  const ix: TransactionInstruction[] = [];
   for (const c of Object.values(COINS)) {
-    const ata = await getOrCreateAssociatedTokenAccount(conn, admin, c.mint!, p.publicKey, false, "confirmed", undefined, TOKEN_2022_PROGRAM_ID);
-    await mintTo(conn, admin, c.mint!, ata.address, faucet, 10n * 10n ** 8n, [], { commitment: "confirmed" }, TOKEN_2022_PROGRAM_ID);
+    const ata = getAssociatedTokenAddressSync(c.mint!, p.publicKey, false, TOKEN_2022_PROGRAM_ID);
+    ix.push(createAssociatedTokenAccountIdempotentInstruction(admin.publicKey, ata, p.publicKey, c.mint!, TOKEN_2022_PROGRAM_ID));
+    ix.push(createMintToInstruction(c.mint!, ata, faucet.publicKey, 10n * 10n ** 8n, [], TOKEN_2022_PROGRAM_ID));
   }
+  await send(ix, [admin, faucet]);
   return p;
 }
 
