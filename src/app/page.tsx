@@ -19,7 +19,7 @@ const STEPS = [
   {
     n: "03",
     title: "The bell decides",
-    body: "Signed prices at the start and the bell. Bigger percentage move takes both stakes, paid in shares. The other side is cooked.",
+    body: "Signed prices at the start and at the bell. The bigger percentage move takes both stakes: your shares back, plus theirs. The other side is cooked.",
   },
 ];
 
@@ -49,9 +49,9 @@ export default function Home() {
         <div>
           <p className="label">{ROSTER.length} tokenized stocks · on Solana</p>
           <h1 className="display mt-4 text-7xl sm:text-8xl lg:text-9xl">
-            Your stock
+            Win, and you
             <br />
-            vs theirs.
+            own their stock.
           </h1>
           <p className="display mt-3 text-5xl text-cooked sm:text-6xl">Loser gets cooked.</p>
           <p className="mt-6 max-w-xl text-lg text-dim">{BRAND.pitch}</p>

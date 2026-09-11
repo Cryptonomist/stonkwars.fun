@@ -24,14 +24,17 @@ export function SampleFight() {
       <div className="mt-6">
         <HealthBars p1Move={3.12} p2Move={-0.85} roundSecs={7 * 86_400} />
       </div>
+      {/* Say the payout in shares, not dollars: winning somebody's stock is the
+        * part people do not expect. */}
       <div className="mt-6 grid grid-cols-2 gap-3 font-mono text-sm">
         <div className="bg-panel-2 px-3 py-2">
-          <span className="label block">Pot</span>
+          <span className="label block">On the table</span>
           0.069 TSLAx + 0.114 NVDAx
         </div>
         <div className="bg-panel-2 px-3 py-2 text-right">
-          <span className="label block">To the winner</span>
-          <span className="text-up">$50.57 in shares</span>
+          <span className="label block">TSLA walks away with</span>
+          <span className="text-up">0.114 NVDAx</span>
+          <span className="text-dim"> · $50.57</span>
         </div>
       </div>
     </div>

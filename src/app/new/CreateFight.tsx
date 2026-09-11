@@ -13,6 +13,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import { FaucetButton } from "@/components/FaucetButton";
 import { StockPicker } from "@/components/StockPicker";
+import { TaleOfTheTape } from "@/components/TaleOfTheTape";
 import { useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, MAX_TAUNT_LEN, randomSeed, readableProgramError } from "@/lib/duel";
 import { etTime, shares, span, usd } from "@/lib/format";
@@ -143,6 +144,8 @@ export function CreateFight() {
           <StockPicker side="p2" value={p2} taken={p1} onChange={setP2} />
         </div>
       </section>
+
+      <TaleOfTheTape p1={p1} p2={p2} />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         <section>
