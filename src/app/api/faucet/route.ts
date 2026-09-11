@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   Connection,
@@ -15,9 +17,16 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
-import devnet from "@/data/stocks.devnet.json";
+import devnetStocks from "@/data/stocks.devnet.json";
+import localnetStocks from "@/data/stocks.localnet.json";
 import { hermes } from "@/lib/hermes.server";
 import { byTicker } from "@/lib/stocks";
+
+const devnet = (process.env.NEXT_PUBLIC_CLUSTER === "localnet" ? localnetStocks : devnetStocks) as {
+  tokenProgram: string;
+  decimals: number;
+  mints: Record<string, string>;
+};
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +44,22 @@ const STOCKS_PER_TX = 4;
 const COOLDOWN_MS = 30_000;
 const recent = new Map<string, number>();
 
+const CLUSTER_NAME = process.env.NEXT_PUBLIC_CLUSTER ?? "devnet";
+
+/** The env var in a deployment; the key file from the setup script in local
+ *  development, so a local validator's faucet never lands in .env.local. */
+function faucetSecret(): string | null {
+  if (process.env.FAUCET_SECRET_KEY && CLUSTER_NAME === "devnet") return process.env.FAUCET_SECRET_KEY;
+  if (process.env.NODE_ENV === "production") return null;
+  const file = path.join(process.cwd(), "keys", `faucet-${CLUSTER_NAME}.json`);
+  return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
+}
+
 export async function POST(req: NextRequest) {
-  if ((process.env.NEXT_PUBLIC_CLUSTER ?? "devnet") !== "devnet") {
-    return NextResponse.json({ error: "The faucet only runs on devnet." }, { status: 403 });
+  if (CLUSTER_NAME !== "devnet" && CLUSTER_NAME !== "localnet") {
+    return NextResponse.json({ error: "The faucet only runs on test clusters." }, { status: 403 });
   }
-  const secret = process.env.FAUCET_SECRET_KEY;
+  const secret = faucetSecret();
   if (!secret) return NextResponse.json({ error: "The faucet is not configured on this server." }, { status: 503 });
 
   let owner: PublicKey;
@@ -111,9 +131,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error }, { status: 502 });
   }
 
+  const priced = Object.keys(prices).length > 0;
   const parts: string[] = [];
-  if (minted) parts.push(`Topped up ${minted} test stocks to about $${TARGET_USD} each`);
-  if (topUp) parts.push(`sent ${(topUp / LAMPORTS_PER_SOL).toFixed(3)} devnet SOL`);
+  if (minted) {
+    parts.push(`Topped up ${minted} test stocks ${priced ? `to about $${TARGET_USD} each` : "to one share each"}`);
+  }
+  if (topUp) parts.push(`sent ${(topUp / LAMPORTS_PER_SOL).toFixed(3)} test SOL`);
   return NextResponse.json({
     ok: true,
     message: parts.length ? `${parts.join(" and ")}.` : "You are already stocked. Go pick a fight.",

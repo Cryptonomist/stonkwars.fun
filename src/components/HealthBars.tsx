@@ -2,22 +2,40 @@
  *
  * Both fighters start full. Whoever is behind loses health in proportion to
  * the gap between the two moves, so the bars show the only number that
- * decides the round: not how each stock did, but how far apart they are. A
- * five-point gap empties the trailing bar. Display only; the program decides
- * on exact integers, never on this. */
+ * decides the round: not how each stock did, but how far apart they are.
+ *
+ * The gap that empties a bar scales with the round. Two stocks rarely drift
+ * more than a few tenths of a point apart in five minutes and routinely drift
+ * several points in a week, so one fixed scale would leave short rounds
+ * looking still and long ones permanently knocked out. Display only; the
+ * program decides on exact integers, never on this. */
 
-const KO_GAP = 5;
+export function koGap(roundSecs: number): number {
+  if (roundSecs <= 15 * 60) return 0.5;
+  if (roundSecs <= 3_600) return 1;
+  if (roundSecs <= 86_400) return 2;
+  return 4;
+}
 
-export function healthFor(p1Move: number, p2Move: number): [number, number] {
+export function healthFor(p1Move: number, p2Move: number, ko = 2): [number, number] {
   const gap = p1Move - p2Move;
-  const hit = Math.min(100, (Math.abs(gap) / KO_GAP) * 100);
+  const hit = Math.min(100, (Math.abs(gap) / ko) * 100);
   if (gap > 0) return [100, 100 - hit];
   if (gap < 0) return [100 - hit, 100];
   return [100, 100];
 }
 
-export function HealthBars({ p1Move, p2Move }: { p1Move: number | null; p2Move: number | null }) {
-  const [h1, h2] = p1Move === null || p2Move === null ? [100, 100] : healthFor(p1Move, p2Move);
+export function HealthBars({
+  p1Move,
+  p2Move,
+  roundSecs = 86_400,
+}: {
+  p1Move: number | null;
+  p2Move: number | null;
+  roundSecs?: number;
+}) {
+  const [h1, h2] =
+    p1Move === null || p2Move === null ? [100, 100] : healthFor(p1Move, p2Move, koGap(roundSecs));
   return (
     <div className="flex items-center gap-3">
       <Bar health={h1} side="p1" />

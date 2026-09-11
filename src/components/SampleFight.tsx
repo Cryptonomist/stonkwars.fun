@@ -5,8 +5,8 @@ import { HealthBars } from "@/components/HealthBars";
 
 export function SampleFight() {
   return (
-    <div className="card relative overflow-hidden p-6 sm:p-8" aria-label="A sample fight">
-      <span className="label absolute right-4 top-4">Sample</span>
+    <div className="card relative overflow-hidden p-6 pt-10 sm:p-8 sm:pt-12" aria-label="A sample fight">
+      <span className="label absolute left-1/2 top-3 -translate-x-1/2 bg-panel-2 px-2 py-0.5">Sample fight</span>
       <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-4">
         <div>
           <span className="label">Challenger</span>
@@ -22,7 +22,7 @@ export function SampleFight() {
         </div>
       </div>
       <div className="mt-6">
-        <HealthBars p1Move={3.12} p2Move={-0.85} />
+        <HealthBars p1Move={3.12} p2Move={-0.85} roundSecs={7 * 86_400} />
       </div>
       <div className="mt-6 grid grid-cols-2 gap-3 font-mono text-sm">
         <div className="bg-panel-2 px-3 py-2">

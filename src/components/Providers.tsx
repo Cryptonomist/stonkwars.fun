@@ -8,9 +8,11 @@
  * for React 18 and fail silently under React 19: the button sticks on
  * "Connecting", nothing throws. `WalletButton` talks to `useWallet` directly.
  *
- * WALLETS ARE EMPTY ON PURPOSE. Phantom, Solflare, Backpack and the rest
- * register through the Wallet Standard, so the adapter discovers them without
- * us importing adapters or deciding which wallets people may use.
+ * WALLETS ARE ALMOST EMPTY ON PURPOSE. Phantom, Solflare, Backpack and the
+ * rest register through the Wallet Standard, so the adapter discovers them
+ * without us importing adapters or deciding which wallets people may use. The
+ * one explicit adapter is the guest wallet, which is not a Standard wallet and
+ * is offered on test clusters only: it keeps its key in localStorage.
  *
  * NEXT_PUBLIC_RPC_URL ships in the bundle. It must never carry a credential.
  */
@@ -20,11 +22,16 @@ import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react
 import { clusterApiUrl } from "@solana/web3.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { GuestWalletAdapter } from "@/lib/guestWallet";
+import { CLUSTER } from "@/lib/stocks";
+
 export function Providers({ children }: { children: ReactNode }) {
   const endpoint = useMemo(
     () => process.env.NEXT_PUBLIC_RPC_URL || clusterApiUrl("devnet"),
     [],
   );
+
+  const wallets = useMemo(() => (CLUSTER === "mainnet-beta" ? [] : [new GuestWalletAdapter()]), []);
 
   const queryClient = useMemo(
     () =>
@@ -39,7 +46,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ConnectionProvider endpoint={endpoint} config={{ commitment: "confirmed" }}>
-        <WalletProvider wallets={[]} autoConnect>
+        <WalletProvider wallets={wallets} autoConnect>
           {children}
         </WalletProvider>
       </ConnectionProvider>

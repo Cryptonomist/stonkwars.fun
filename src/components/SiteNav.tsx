@@ -37,7 +37,7 @@ export function SiteNav() {
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <MarketBadge className="hidden md:flex" />
-          {CLUSTER === "devnet" ? <FaucetButton className="hidden sm:block" /> : null}
+          {CLUSTER !== "mainnet-beta" ? <FaucetButton className="hidden sm:block" /> : null}
           <Link href="/new" className="btn btn-sm btn-p1 hidden sm:inline-flex">
             Pick a fight
           </Link>
@@ -56,7 +56,7 @@ export function SiteNav() {
             {l.label}
           </Link>
         ))}
-        {CLUSTER === "devnet" ? <FaucetButton compact /> : null}
+        {CLUSTER !== "mainnet-beta" ? <FaucetButton compact /> : null}
       </nav>
     </header>
   );

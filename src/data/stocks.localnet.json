@@ -1,0 +1,20 @@
+{
+  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "decimals": 8,
+  "mints": {
+    "NVDA": "86qmy5GqmAe7b3Tr9XuZYkV4RtKaGEuDSo8u4Fjmfxhn",
+    "TSLA": "BXbnSKnAhpiRhRRs3PucHhqz1K5g1Ss5Rf1iYMYb3UAM",
+    "AAPL": "8wz9UANX6AYYsZm5a9Wa3c9KZ39UWoMaBmNwb1VYPZmx",
+    "MSFT": "DnkHbph7KiqeBQQfwBz4JvbqNmqMaBjRZc52d7PTKKVU",
+    "GOOGL": "Gcnn1KGwWxKdtV7A9Bx9c11DSNfqMsj2PfjHUo84tXpE",
+    "AMZN": "5vJo3YNGhNd3rZ9isGmNDobVrA58H6FqufVhfEUGZC9T",
+    "META": "6MoALW4PEayNzicbL4prADMKhmxfZ9FsasuDmqq3pMa3",
+    "AMD": "41WjbsGPUzNSC7ieUHwDuvpqV6SSSqUvV6FC6rnzHKBj",
+    "PLTR": "CFmgXWqFgsdHvpsTa4eFjA63aoDJryrdeJGTg5uZVxC6",
+    "COIN": "6PtxZbjLGpUpNnKYMPcZyn8wSB3DiKfHDnBWhWnYFAbR",
+    "HOOD": "QXAfTqP7ZxYxy5Fe9WR5DfRSVtAc74EHiPWtssYoiRJ",
+    "MSTR": "EJjCYBaSQN7VHF7jn6yTEbVKLVFbLmSbMhz7B4Ltk97X",
+    "SPY": "3Dcp5meaQFous59KfrYbEXk8uSpMuaX21ZHmAwHkcosa",
+    "QQQ": "EYr55WggfBWptWAk2ktQ7rHk6Y9a9pGjCup7Ec3q5rGu"
+  }
+}

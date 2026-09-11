@@ -221,7 +221,7 @@ function Center({ d, now, m1, m2 }: { d: DuelView; now: number; m1: number | nul
     <div className="flex flex-col items-center gap-3 md:w-80">
       {live || done ? (
         <div className="w-full">
-          <HealthBars p1Move={m1} p2Move={m2} />
+          <HealthBars p1Move={m1} p2Move={m2} roundSecs={Math.max(60, d.endTs - d.startTs)} />
         </div>
       ) : (
         <span className="display text-6xl text-gold">VS</span>
@@ -405,8 +405,16 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
   const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 
   return (
-    <section className={`card mx-auto mt-6 max-w-2xl p-5 ${fresh ? "ring-2 ring-gold" : ""}`}>
-      <p className="label">{fresh ? "Fight picked. Now send it." : "Share"}</p>
+    <section className={`card mx-auto mt-6 max-w-2xl p-5 ${fresh && d.status === STATUS_OPEN ? "ring-2 ring-gold" : ""}`}>
+      <p className="label">
+        {d.status === STATUS_OPEN
+          ? fresh
+            ? "Fight picked. Now send it."
+            : "Send it to someone"
+          : d.status === STATUS_SETTLED
+            ? "Post the result"
+            : "Share the fight"}
+      </p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <input readOnly value={url} className="input font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
         <button

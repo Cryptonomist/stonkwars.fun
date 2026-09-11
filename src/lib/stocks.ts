@@ -11,6 +11,7 @@
 import { PublicKey } from "@solana/web3.js";
 
 import devnet from "@/data/stocks.devnet.json";
+import localnet from "@/data/stocks.localnet.json";
 import { TOKEN_2022_PROGRAM_ID, type StakeAsset } from "@/lib/duel";
 
 export type Stock = {
@@ -39,7 +40,7 @@ export const ROSTER: Stock[] = [
   { ticker: "QQQ", name: "Nasdaq-100 ETF", feed: "9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d", color: "#8C3FFF" },
 ];
 
-export const CLUSTER = (process.env.NEXT_PUBLIC_CLUSTER ?? "devnet") as "devnet" | "mainnet-beta";
+export const CLUSTER = (process.env.NEXT_PUBLIC_CLUSTER ?? "devnet") as "devnet" | "localnet" | "mainnet-beta";
 
 type Deployment = {
   tokenProgram: string;
@@ -47,7 +48,10 @@ type Deployment = {
   mints: Record<string, string>;
 };
 
-const DEPLOYMENTS: Record<string, Deployment> = { devnet: devnet as Deployment };
+const DEPLOYMENTS: Record<string, Deployment> = {
+  devnet: devnet as Deployment,
+  localnet: localnet as Deployment,
+};
 
 const deployment: Deployment | undefined = DEPLOYMENTS[CLUSTER];
 
