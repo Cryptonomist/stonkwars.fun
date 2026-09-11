@@ -99,10 +99,12 @@ src/                  the Next.js app
 scripts/
   data/tokens.json    every issuer's tokens, with on-chain mint facts
   build-roster.ts     tokens -> the roster: what a fight can hold and a market can price
+  watch-listings.ts   what the issuers publish today that the snapshot does not have
   setup-devnet.ts     config, oracle, a test mint and registration per stock
   settler.ts          the permissionless cranks, on a timer
   e2e-live.ts         whole fights on real prices at any hour, checked against the sources
   dev-crank.ts        local validator only: the settler with prices faked
+  dev-fight.ts        local validator only: open and take a fight in one command
 ```
 
 ### The program
