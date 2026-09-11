@@ -43,6 +43,11 @@ test-ledger/
 *-keypair.json
 keys/
 
+# local validator state and logs
+.surfpool/
+txtx.yml
+runbooks/
+
 # workers
 workers/**/node_modules
 .dev.vars
