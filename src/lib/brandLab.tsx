@@ -861,7 +861,91 @@ const arcadeClash = arcadeLogo(`${arcadeGround(false, 330)}
 <polygon points="${sparkPoints(200, 200, 104, 32, 10)}" fill="${OUTLINE}"/>
 <polygon points="${sparkPoints(200, 200, 92, 28, 10)}" fill="#ffffff"/>`);
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * The crossed candles on their own ground: the mark should not repeat the
+ * header behind it, and the pair of colours is worth arguing about.
+ *
+ * The fighters' two colours must never be the market's green and red: those
+ * already mean up and down on every screen, so a green fighter whose stock is
+ * falling would read as a bug.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+type Ground = "void" | "coin" | "paper" | "cabinet";
+type Pair = { a: string; aDark: string; b: string; bDark: string; chrome?: boolean };
+
+const PAIRS: Record<string, Pair> = {
+  // Cyan and pink: neutral, and what the app already runs on.
+  cyanpink: { a: "#2fe0ff", aDark: "#0f86a8", b: "#ff3ea5", bDark: "#b3175f" },
+  // The arcade's own convention: player one red, player two blue.
+  players: { a: "#ff2f45", aDark: "#a5101f", b: "#3d7bff", bDark: "#15379b" },
+  // The market's colours. Clear, but they collide with up and down.
+  market: { a: "#35f28b", aDark: "#12a158", b: "#ff4d5e", bDark: "#a81828" },
+  // Chrome against one hot accent: the metal does the talking.
+  chrome: { a: "#dfe6f2", aDark: "#5b6478", b: "#ff3ea5", bDark: "#b3175f", chrome: true },
+};
+
+function markGround(kind: Ground, pair: Pair) {
+  const glow = `<radialGradient id="ga" cx="0.32" cy="0.42" r="0.5"><stop offset="0" stop-color="${pair.a}" stop-opacity="0.3"/><stop offset="1" stop-color="${pair.a}" stop-opacity="0"/></radialGradient>
+<radialGradient id="gb" cx="0.68" cy="0.58" r="0.5"><stop offset="0" stop-color="${pair.b}" stop-opacity="0.3"/><stop offset="1" stop-color="${pair.b}" stop-opacity="0"/></radialGradient>`;
+  if (kind === "paper") {
+    return {
+      defs: "",
+      body: `<rect width="${P}" height="${P}" fill="#f5f4ef"/>`,
+      outline: "#0c0c0d",
+      spark: "#0c0c0d",
+    };
+  }
+  if (kind === "coin") {
+    return {
+      defs: glow,
+      body: `<rect width="${P}" height="${P}" fill="#08080d"/><circle cx="200" cy="200" r="194" fill="url(#chrome)"/><circle cx="200" cy="200" r="162" fill="#0a0a12"/><rect width="${P}" height="${P}" fill="url(#ga)"/><rect width="${P}" height="${P}" fill="url(#gb)"/>`,
+      outline: "#0a0a12",
+      spark: "#ffffff",
+    };
+  }
+  if (kind === "cabinet") {
+    const lines = Array.from({ length: 50 }, (_, i) => `<rect y="${i * 8}" width="${P}" height="2" fill="#ffffff" opacity="0.05"/>`).join("");
+    return {
+      defs: glow,
+      body: `<rect width="${P}" height="${P}" fill="#160a26"/><rect width="${P}" height="${P}" fill="url(#ga)"/><rect width="${P}" height="${P}" fill="url(#gb)"/>${lines}`,
+      outline: "#120820",
+      spark: "#ffffff",
+    };
+  }
+  return {
+    defs: glow,
+    body: `<rect width="${P}" height="${P}" fill="#07070b"/><rect width="${P}" height="${P}" fill="url(#ga)"/><rect width="${P}" height="${P}" fill="url(#gb)"/>`,
+    outline: "#07070b",
+    spark: "#ffffff",
+  };
+}
+
+function candleMark(kind: Ground, pairName: string) {
+  const pair = PAIRS[pairName];
+  const g = markGround(kind, pair);
+  const body = (id: string, light: string, dark: string) =>
+    `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${light}"/><stop offset="0.45" stop-color="${light}"/><stop offset="1" stop-color="${dark}"/></linearGradient>`;
+  const chromeGrad = `<linearGradient id="chrome" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="0.35" stop-color="#e2e9f6"/><stop offset="0.5" stop-color="#8b97b1"/><stop offset="0.56" stop-color="#39435e"/><stop offset="0.72" stop-color="#d7dfee"/><stop offset="1" stop-color="#ffffff"/></linearGradient>`;
+  return `<defs>${chromeGrad}${body("bodyA", pair.a, pair.aDark)}${body("bodyB", pair.b, pair.bDark)}${g.defs}</defs>
+${g.body}
+<g transform="rotate(34 200 200)">${candleShape(200, 200, 214, 54, 106, "bodyB", g.outline)}</g>
+<g transform="rotate(-34 200 200)">${candleShape(200, 200, 214, 54, 106, pair.chrome ? "chrome" : "bodyA", g.outline)}</g>
+<polygon points="${sparkPoints(200, 200, 54, 16)}" fill="${g.outline}"/>
+<polygon points="${sparkPoints(200, 200, 46, 14)}" fill="${g.spark}"/>`;
+}
+
+const markVariants: Record<string, { banner: () => Promise<ImageResponse>; pfp: () => Promise<ImageResponse> }> = {};
+for (const [kind, pairs] of [
+  ["void", ["cyanpink", "players", "market", "chrome"]],
+  ["coin", ["cyanpink"]],
+  ["paper", ["cyanpink", "market"]],
+  ["cabinet", ["cyanpink"]],
+] as [Ground, string[]][]) {
+  for (const pair of pairs) markVariants[`mark-${kind}-${pair}`] = arcadeLogo(candleMark(kind, pair));
+}
+
 export const DIRECTIONS: Record<string, { banner: () => Promise<ImageResponse>; pfp: () => Promise<ImageResponse> }> = {
+  ...markVariants,
   "fight-night": fightNight,
   arcade,
   "bulls-bears": bullsBears,
