@@ -10,6 +10,8 @@
 
 import type { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
 
+import { confirmSignature, landed, TransactionFailed } from "./confirm";
+
 export type Blockhash = { blockhash: string; lastValidBlockHeight: number };
 
 export async function sendAndConfirm(
@@ -24,20 +26,11 @@ export async function sendAndConfirm(
   onSent?.(signature);
 
   try {
-    const result = await connection.confirmTransaction({ signature, ...latest }, "confirmed");
-    if (result.value.err) {
-      throw new Error(`Transaction failed: ${JSON.stringify(result.value.err)}`);
-    }
-    return signature;
+    return await confirmSignature(connection, signature, latest);
   } catch (err) {
-    const st = await connection
-      .getSignatureStatus(signature, { searchTransactionHistory: true })
-      .catch(() => null);
-    const landed =
-      !!st?.value &&
-      !st.value.err &&
-      (st.value.confirmationStatus === "confirmed" || st.value.confirmationStatus === "finalized");
-    if (!landed) throw err;
-    return signature;
+    // A transaction the chain rejected is settled; anything else, ask again.
+    if (err instanceof TransactionFailed) throw err;
+    if (await landed(connection, signature)) return signature;
+    throw err;
   }
 }

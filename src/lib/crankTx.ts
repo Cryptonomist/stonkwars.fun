@@ -14,6 +14,7 @@ import {
 } from "@solana/web3.js";
 import type { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 
+import { confirmSignature, TransactionFailed } from "./confirm";
 import { buildSettleDuel, buildStartDuel, SOURCE_PYTH, START_DELAY_SECS, type DuelView } from "./duel";
 
 export type SignedTx = { tx: VersionedTransaction; signers: Signer[] };
@@ -102,16 +103,18 @@ export async function sendInOrder(conn: Connection, txs: VersionedTransaction[])
   for (const [i, tx] of txs.entries()) {
     const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 3 });
     const latest = await conn.getLatestBlockhash("confirmed");
-    const res = await conn.confirmTransaction(
-      { signature: sig, blockhash: tx.message.recentBlockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
-      "confirmed",
-    );
-    if (res.value.err) {
+    try {
+      await confirmSignature(conn, sig, {
+        blockhash: tx.message.recentBlockhash,
+        lastValidBlockHeight: latest.lastValidBlockHeight,
+      });
+    } catch (e) {
+      if (!(e instanceof TransactionFailed)) throw e;
       const detail = await conn.getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
       const logs = detail?.meta?.logMessages ?? [];
       const named = logs.map((l) => /Error Message: ([^.]+)/.exec(l)?.[1]).find(Boolean);
       const err = new Error(
-        `Transaction ${i + 1} of ${txs.length} failed: ${named ?? JSON.stringify(res.value.err)}`,
+        `Transaction ${i + 1} of ${txs.length} failed: ${named ?? JSON.stringify(e.err)}`,
       ) as Error & { logs?: string[] };
       err.logs = logs;
       throw err;

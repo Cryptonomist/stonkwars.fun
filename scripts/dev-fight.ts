@@ -76,10 +76,13 @@ async function main() {
     taunt: `${a.ticker} eats ${b.ticker} for breakfast`,
   });
   await send([instruction], [alice]);
-  const open = decodeDuel(duel, (await conn.getAccountInfo(duel))!.data);
-  await send([buildAcceptDuel(open, bob.publicKey)], [bob]);
+  // OPEN=1 leaves the challenge for a person to take in the app.
+  if (process.env.OPEN !== "1") {
+    const open = decodeDuel(duel, (await conn.getAccountInfo(duel))!.data);
+    await send([buildAcceptDuel(open, bob.publicKey)], [bob]);
+  }
 
-  console.log(`${a.ticker} vs ${b.ticker}, ${durationSecs}s round`);
+  console.log(`${a.ticker} vs ${b.ticker}, ${durationSecs}s round${process.env.OPEN === "1" ? ", open" : ""}`);
   console.log(`http://localhost:3000/f/${duel.toBase58()}`);
 }
 
