@@ -746,6 +746,121 @@ const neon = {
   },
 };
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Arcade, without letters: five marks for the same title screen. Each is one
+ * silhouette at feed size, so it survives being 40 pixels wide.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/** The arcade's world as a square: night sky, stars, horizon, grid, and the
+ * sun when a mark wants one behind it. */
+function arcadeGround(sun: boolean, horizon = 296) {
+  const r = rng(4);
+  const stars = Array.from({ length: 26 }, () => {
+    const x = r() * P;
+    const y = r() * (horizon - 40);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.9 + r() * 1.5).toFixed(2)}" fill="#fff" opacity="${(0.3 + r() * 0.6).toFixed(2)}"/>`;
+  }).join("");
+  const grid = `${Array.from({ length: 15 }, (_, i) => {
+    const k = i - 7;
+    return `<line x1="${200 + k * 14}" y1="${horizon}" x2="${200 + k * 92}" y2="${P}" stroke="${AR.pink}" stroke-width="2" stroke-opacity="0.5"/>`;
+  }).join("")}${Array.from({ length: 5 }, (_, i) => {
+    const y = horizon + (P - horizon) * Math.pow((i + 1) / 5, 1.9);
+    return `<line x1="0" y1="${y.toFixed(1)}" x2="${P}" y2="${y.toFixed(1)}" stroke="${AR.pink}" stroke-width="2" stroke-opacity="${(0.3 + 0.35 * ((i + 1) / 5)).toFixed(2)}"/>`;
+  }).join("")}`;
+  return `<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${AR.sky}"/><stop offset="0.62" stop-color="${AR.night}"/><stop offset="1" stop-color="#3d0a4e"/></linearGradient>
+<linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5fb8"/><stop offset="0.55" stop-color="${AR.pink}"/><stop offset="1" stop-color="${AR.ember}"/></linearGradient>
+<linearGradient id="floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b0433"/><stop offset="1" stop-color="#050010"/></linearGradient>
+<linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="0.34" stop-color="#e6ecf7"/><stop offset="0.5" stop-color="#8e9bb6"/><stop offset="0.54" stop-color="#39435e"/><stop offset="0.6" stop-color="#cfd8e8"/><stop offset="1" stop-color="#ffffff"/></linearGradient>
+<linearGradient id="cyanBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9df4ff"/><stop offset="0.45" stop-color="${AR.cyan}"/><stop offset="1" stop-color="#0f86a8"/></linearGradient>
+<linearGradient id="pinkBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9ad2"/><stop offset="0.45" stop-color="${AR.pink}"/><stop offset="1" stop-color="#b3175f"/></linearGradient>
+</defs>
+<rect width="${P}" height="${horizon}" fill="url(#sky)"/>${stars}
+${sun ? `<circle cx="200" cy="${horizon}" r="168" fill="url(#sun)"/>${Array.from({ length: 5 }, (_, i) => `<rect x="32" y="${horizon - 96 + i * 17}" width="336" height="${(3 + i * 1.7).toFixed(1)}" fill="#2c0840"/>`).join("")}` : ""}
+<rect y="${horizon}" width="${P}" height="${P - horizon}" fill="url(#floor)"/>${grid}
+<rect y="${horizon - 2}" width="${P}" height="4" fill="${AR.pink}"/>`;
+}
+
+/** A candlestick: wick, body, wick, upright, ready to be rotated. */
+function candleShape(cx: number, cy: number, bodyH: number, wick: number, w: number, fillId: string, outline: string) {
+  const bodyTop = cy - bodyH / 2;
+  return `<g>
+<rect x="${cx - 11}" y="${bodyTop - wick}" width="22" height="${bodyH + wick * 2}" rx="3" fill="${outline}"/>
+<rect x="${cx - 8}" y="${bodyTop - wick + 3}" width="16" height="${bodyH + wick * 2 - 6}" rx="2" fill="url(#${fillId})"/>
+<rect x="${cx - w / 2 - 7}" y="${bodyTop - 7}" width="${w + 14}" height="${bodyH + 14}" rx="6" fill="${outline}"/>
+<rect x="${cx - w / 2}" y="${bodyTop}" width="${w}" height="${bodyH}" rx="3" fill="url(#${fillId})"/>
+</g>`;
+}
+
+const logoImage = async (markup: string) =>
+  raster(svg(`<svg xmlns="http://www.w3.org/2000/svg" width="${P}" height="${P}" viewBox="0 0 ${P} ${P}">${markup}</svg>`));
+
+const sparkPoints = (cx: number, cy: number, outer: number, inner: number, spikes = 8) => starPoints(cx, cy, outer, inner, spikes);
+
+const arcadeLogo = (markup: string) => ({
+  banner: arcade.banner,
+  async pfp() {
+    return render(
+      <div style={{ width: P, height: P, display: "flex", position: "relative" }}>
+        <Pic src={await logoImage(markup)} x={0} y={0} w={P} h={P} />
+      </div>,
+      P,
+      P,
+      [],
+    );
+  },
+});
+
+const OUTLINE = "#08021c";
+
+/* Each mark is two shapes and a spark at most: at 40 pixels a third shape is
+ * mud. The grid keeps the arcade's floor without competing. */
+const arcadeCandles = arcadeLogo(`${arcadeGround(false, 330)}
+<g transform="rotate(34 200 190)">${candleShape(200, 190, 212, 52, 104, "pinkBody", OUTLINE)}</g>
+<g transform="rotate(-34 200 190)">${candleShape(200, 190, 212, 52, 104, "cyanBody", OUTLINE)}</g>
+<polygon points="${sparkPoints(200, 190, 52, 15)}" fill="${OUTLINE}"/>
+<polygon points="${sparkPoints(200, 190, 44, 13)}" fill="#ffffff"/>`);
+
+const arcadeSun = arcadeLogo(`${arcadeGround(true, 330)}
+<g fill="${OUTLINE}">
+${[
+  { x: 92, h: 92, y: 210 },
+  { x: 164, h: 150, y: 152 },
+  { x: 236, h: 116, y: 118 },
+  { x: 308, h: 176, y: 62 },
+]
+  .map(
+    (c) =>
+      `<rect x="${c.x - 7}" y="${c.y - 30}" width="14" height="${c.h + 60}" rx="7"/><rect x="${c.x - 27}" y="${c.y}" width="54" height="${c.h}" rx="8"/>`,
+  )
+  .join("")}
+</g>`);
+
+/* The crossed rising charts of the live mark, rebuilt in chrome: square caps
+ * and solid arrowheads, so the shape stays sharp when it shrinks. */
+const chartLine = (points: string, head: string, width: number, stroke: string, headFill: string) =>
+  `<polyline points="${points}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="square" stroke-linejoin="miter"/><polygon points="${head}" fill="${headFill}"/>`;
+
+const arcadeArrows = arcadeLogo(`${arcadeGround(false, 330)}
+<g>
+${chartLine("62,292 130,196 184,234 300,66", "238,40 340,40 340,142 306,108 306,74 272,74", 54, OUTLINE, OUTLINE)}
+${chartLine("338,292 270,196 216,234 100,66", "162,40 60,40 60,142 94,108 94,74 128,74", 54, OUTLINE, OUTLINE)}
+${chartLine("338,292 270,196 216,234 100,66", "156,46 66,46 66,136 96,106 96,76 126,76", 34, "url(#chrome)", "url(#chrome)")}
+${chartLine("62,292 130,196 184,234 300,66", "244,46 334,46 334,136 304,106 304,76 274,76", 34, "url(#chrome)", "url(#chrome)")}
+${chartLine("338,292 270,196 216,234 100,66", "150,54 76,54 76,128 98,106 98,80 120,80", 10, AR.pink, AR.pink)}
+${chartLine("62,292 130,196 184,234 300,66", "250,54 324,54 324,128 302,106 302,80 280,80", 10, AR.cyan, AR.cyan)}
+</g>`);
+
+const arcadeClash = arcadeLogo(`${arcadeGround(false, 330)}
+<g stroke-linejoin="round">
+<polygon points="10,200 126,84 126,140 196,140 196,260 126,260 126,316" fill="${OUTLINE}"/>
+<polygon points="28,200 136,94 136,150 186,150 186,250 136,250 136,306" fill="url(#cyanBody)"/>
+<polygon points="390,200 274,84 274,140 204,140 204,260 274,260 274,316" fill="${OUTLINE}"/>
+<polygon points="372,200 264,94 264,150 214,150 214,250 264,250 264,306" fill="url(#pinkBody)"/>
+</g>
+<polygon points="${sparkPoints(200, 200, 104, 32, 10)}" fill="${OUTLINE}"/>
+<polygon points="${sparkPoints(200, 200, 92, 28, 10)}" fill="#ffffff"/>`);
+
 export const DIRECTIONS: Record<string, { banner: () => Promise<ImageResponse>; pfp: () => Promise<ImageResponse> }> = {
   "fight-night": fightNight,
   arcade,
@@ -753,4 +868,8 @@ export const DIRECTIONS: Record<string, { banner: () => Promise<ImageResponse>; 
   cooked,
   comic,
   neon,
+  "arcade-candles": arcadeCandles,
+  "arcade-sun": arcadeSun,
+  "arcade-arrows": arcadeArrows,
+  "arcade-clash": arcadeClash,
 };
