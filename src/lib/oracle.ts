@@ -142,13 +142,25 @@ export async function fetchBars(symbol: string, from: number, to: number): Promi
 
 const GECKO = "https://api.geckoterminal.com/api/v2";
 
-/** How many one-minute closes the off-hours price is taken over. */
+/** At most this many one-minute closes go into an off-hours price. */
 export const OFFHOURS_WINDOW = 15;
 
-/** Fewer minutes than this actually traded, and there is no price to give. */
+/* HOW FAR BACK IT WILL REACH TO FIND THEM.
+ *
+ * A busy pool trades most minutes and the price is the last quarter of an
+ * hour. A quiet one at four in the morning might trade six minutes in an hour,
+ * and demanding fifteen recent ones would mean no price at all, which strands
+ * the fight until the exchange opens. So it takes the most recent closes it
+ * can find within the hour, and asks only that there be enough of them.
+ *
+ * The lag that buys is real and symmetric: both fighters are read the same way
+ * at the same moment, so the comparison holds even when the prints are old. */
+export const OFFHOURS_LOOKBACK = 60;
+
+/** Fewer closes than this in the whole hour, and there is no price to give. */
 export const OFFHOURS_MIN_BARS = 5;
 
-/** Share of the window discarded at each end before averaging. */
+/** Share of the sample discarded at each end before averaging. */
 export const OFFHOURS_TRIM = 0.2;
 
 /** The source refused us for asking too often; try again later, not harder. */
@@ -171,7 +183,7 @@ export async function fetchPoolBars(pool: string, before: number): Promise<Bars>
   if (had) return had;
   if (Date.now() < coolOffUntil) throw new RateLimited("waiting out the market data source");
 
-  const url = `${GECKO}/networks/solana/pools/${pool}/ohlcv/minute?aggregate=1&limit=${OFFHOURS_WINDOW * 4}&before_timestamp=${before}`;
+  const url = `${GECKO}/networks/solana/pools/${pool}/ohlcv/minute?aggregate=1&limit=${OFFHOURS_LOOKBACK + 5}&before_timestamp=${before}`;
   let last = "";
   for (let attempt = 0; attempt < 3; attempt++) {
     const r = await fetch(url, { headers: { ...HEADERS, accept: "application/json" }, cache: "no-store" });
@@ -217,15 +229,21 @@ export async function fetchPoolBars(pool: string, before: number): Promise<Bars>
  * also declares a draw on fights that had a winner, which is a certain fault
  * against a costly and hypothetical one. */
 export function trimmedMeanAtBoundary(bars: Bars, boundary: number): { price: bigint; publishTime: number } | null {
-  const window: number[] = [];
+  /* Every minute that traded inside the hour before the boundary, newest
+   * last, then the most recent fifteen of them. A lively pool fills that from
+   * the last quarter hour; a quiet one reaches further back for the same
+   * count, which is the difference between a fight settling and a fight
+   * stranded until the exchange opens. */
+  const recent: number[] = [];
   for (let i = 0; i < bars.t.length; i++) {
     const end = bars.t[i] + 60;
     const close = bars.c[i];
-    if (end > boundary || end <= boundary - OFFHOURS_WINDOW * 60) continue;
-    if (close != null && close > 0) window.push(close);
+    if (end > boundary || end <= boundary - OFFHOURS_LOOKBACK * 60) continue;
+    if (close != null && close > 0) recent.push(close);
   }
-  if (window.length < OFFHOURS_MIN_BARS) return null;
+  if (recent.length < OFFHOURS_MIN_BARS) return null;
 
+  const window = recent.slice(-OFFHOURS_WINDOW);
   window.sort((a, b) => a - b);
   // At least one off each end, so a single bought minute never counts.
   const cut = Math.max(1, Math.floor(window.length * OFFHOURS_TRIM));

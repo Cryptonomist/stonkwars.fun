@@ -117,10 +117,33 @@ describe("oracle", () => {
       expect(b > a, `${b} should be above ${a}`).to.equal(true);
     });
 
-    it("ignores minutes older than the window, and anything at or after the boundary", () => {
-      const bars = { t: [0, 60, 120, 840, 900, 960], c: [1, 1, 1, 50, 999, 999] };
-      // Only the bar ending at 900 is inside the window, which is too few.
-      expect(trimmedMeanAtBoundary(bars, 900)).to.equal(null);
+    it("ignores anything at or after the boundary, and anything older than the hour", () => {
+      const boundary = 100_000;
+      const bars = {
+        // Four inside the hour, two at or after the boundary, one long past.
+        t: [0, boundary - 3_000, boundary - 2_400, boundary - 1_800, boundary - 600, boundary, boundary + 60],
+        c: [1, 10, 10, 10, 10, 999, 999],
+      };
+      // Four is under the minimum, so the ones after the boundary cannot help.
+      expect(trimmedMeanAtBoundary(bars, boundary)).to.equal(null);
+    });
+
+    /* THE FIGHT THAT WOULD NOT SETTLE.
+     *
+     * MSFT's pool traded a handful of minutes at one in the morning, a fixed
+     * quarter-hour window held none of them, and a real fight sat unsettled
+     * with no price to end it. Reaching back an hour for the same number of
+     * closes is what fixed it. */
+    it("reaches back through a quiet hour rather than giving no price", () => {
+      const boundary = 100_000;
+      const minutes = [55, 44, 33, 22, 11]; // minutes ago, scattered across the hour
+      const bars = {
+        t: minutes.map((m) => boundary - m * 60 - 60).reverse(),
+        c: [100, 101, 102, 103, 104].reverse(),
+      };
+      const got = trimmedMeanAtBoundary(bars, boundary);
+      expect(got, "five closes in the hour is a price").to.not.equal(null);
+      expect(got!.publishTime).to.equal(boundary);
     });
 
     it("gives nothing when the pool barely traded", () => {

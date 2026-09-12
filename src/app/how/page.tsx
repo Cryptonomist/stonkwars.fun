@@ -26,11 +26,11 @@ const RULES: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Can I fight at three in the morning?",
-    a: `Yes, on ${AROUND_THE_CLOCK.toLocaleString()} of them. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside even that, and at weekends, the price comes from the token itself, which never stops trading on Solana: the last fifteen one-minute closes on its pinned pool, with the highest fifth and the lowest fifth thrown away and the rest averaged. That is the point of a share being on a chain, and it is why a fight does not have to wait for a bell.`,
+    a: `Yes, on ${AROUND_THE_CLOCK.toLocaleString()} of them. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside even that, and at weekends, the price comes from the token itself, which never stops trading on Solana: its recent one-minute closes on its pinned pool, up to fifteen of them and reaching back an hour if the pool is quiet, with the highest fifth and the lowest fifth thrown away and the rest averaged. That is the point of a share being on a chain, and it is why a fight does not have to wait for a bell.`,
   },
   {
     q: "Is a pool not easy to push?",
-    a: "One minute of it would be. Off-hours a pool can trade thirty dollars in a minute, and a single swap would set that minute's close, so the oracle never reads one minute. It reads fifteen, discards the highest fifth and the lowest fifth, and averages what is left. A bought minute lands in the part that is discarded and counts for nothing; moving the answer means holding the price away from fair value across most of the window, while every arbitrageur on Solana trades against you. On top of that, only stocks whose deepest pool clears a liquidity and volume floor are priced this way at all; the rest simply keep exchange hours.",
+    a: "One minute of it would be. Off-hours a pool can trade thirty dollars in a minute, and a single swap would set that minute's close, so the oracle never reads one minute. It reads up to fifteen, discards the highest fifth and the lowest fifth, and averages what is left. A bought minute lands in the part that is discarded and counts for nothing; moving the answer means holding the price away from fair value across most of the sample, while every arbitrageur on Solana trades against you. On top of that, only stocks whose deepest pool clears a liquidity and volume floor are priced this way at all; the rest simply keep exchange hours.",
   },
   {
     q: "Why not take the middle price instead of an average?",
