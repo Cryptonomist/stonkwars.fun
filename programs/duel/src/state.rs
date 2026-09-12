@@ -15,6 +15,42 @@ pub struct Config {
     pub oracle: Pubkey,
 }
 
+/* A NAME ON THE LEADERBOARD.
+ *
+ * Wins are a wallet's, and a wallet is a string of characters nobody brags
+ * about. A profile puts an X handle beside it, written only when the wallet
+ * and the oracle both sign: the wallet proves who is claiming, and the oracle
+ * signs only after X's own OAuth says the handle belongs to whoever asked.
+ *
+ * It is a label and nothing more. No fight, payout or ranking reads it, and a
+ * wallet with no profile is ranked exactly the same. */
+#[account]
+#[derive(InitSpace)]
+pub struct Profile {
+    pub wallet: Pubkey,
+    /// X's numeric id for the account, which survives a change of handle.
+    pub x_id: u64,
+    #[max_len(MAX_HANDLE_LEN)]
+    pub handle: String,
+    pub linked_ts: i64,
+    pub bump: u8,
+}
+
+/* WHICH WALLET AN X ACCOUNT POINTS AT.
+ *
+ * One per X account, so the same account cannot wear two wallets' records at
+ * once. Linking again from a second wallet re-points this, which is what
+ * somebody moving wallets wants; the old profile is left behind, and a reader
+ * shows a handle only when the claim points back at the profile's wallet. So a
+ * stale profile is invisible without anyone having to clean it up. */
+#[account]
+#[derive(InitSpace)]
+pub struct XClaim {
+    pub x_id: u64,
+    pub wallet: Pubkey,
+    pub bump: u8,
+}
+
 /* A STOCK THAT MAY BE DUELLED.
  *
  * The registry is what stops a duel in a worthless lookalike: anyone can mint

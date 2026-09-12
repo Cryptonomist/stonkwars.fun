@@ -66,4 +66,8 @@ pub enum DuelError {
     NoSignedQuote,
     #[msg("That is not the instructions sysvar")]
     NotInstructionsSysvar,
+    #[msg("That is not a usable X handle")]
+    BadHandle,
+    #[msg("That X account points at another wallet")]
+    NotYourClaim,
 }

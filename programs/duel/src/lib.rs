@@ -97,6 +97,49 @@ pub mod duel {
         Ok(())
     }
 
+    /* PUT YOUR NAME ON YOUR WINS.
+     *
+     * Two signatures, and the pair is the whole design. The wallet's proves
+     * who is claiming. The oracle's is added by the server, and only after X's
+     * own OAuth has said the handle belongs to whoever is holding the browser.
+     * Neither signature alone writes anything, so nobody can hang a stranger's
+     * name on their record and nobody can hang their name on a stranger's
+     * wallet.
+     *
+     * The handle decides nothing: it is drawn next to a record the chain
+     * worked out on its own. */
+    pub fn link_handle(ctx: Context<LinkHandle>, x_id: u64, handle: String) -> Result<()> {
+        require!(x_id != 0, DuelError::BadHandle);
+        require!(is_handle(&handle), DuelError::BadHandle);
+
+        let p = &mut ctx.accounts.profile;
+        p.wallet = ctx.accounts.wallet.key();
+        p.x_id = x_id;
+        p.handle = handle.clone();
+        p.linked_ts = Clock::get()?.unix_timestamp;
+        p.bump = ctx.bumps.profile;
+
+        // Re-pointed rather than refused: somebody moving wallets still owns
+        // the X account, and X's OAuth just said so.
+        let c = &mut ctx.accounts.claim;
+        c.x_id = x_id;
+        c.wallet = ctx.accounts.wallet.key();
+        c.bump = ctx.bumps.claim;
+
+        emit!(HandleLinked { wallet: p.wallet, x_id, handle });
+        Ok(())
+    }
+
+    /// Take the name off again, and the rent back with it. The wallet alone
+    /// decides this: the oracle vouches for a handle, it does not hold it.
+    pub fn unlink_handle(ctx: Context<UnlinkHandle>) -> Result<()> {
+        emit!(HandleUnlinked {
+            wallet: ctx.accounts.wallet.key(),
+            x_id: ctx.accounts.profile.x_id,
+        });
+        Ok(())
+    }
+
     pub fn register_asset(
         ctx: Context<RegisterAsset>,
         feed_id: [u8; 32],
@@ -579,6 +622,18 @@ fn is_source(source: u8) -> bool {
     source == SOURCE_PYTH || source == SOURCE_SIGNED
 }
 
+/* WHAT X ITSELF ALLOWS, AND NOTHING ELSE.
+ *
+ * A handle is drawn on a page and linked to, so a lookalike built out of
+ * spaces, punctuation or right-to-left marks would be a way to wear somebody
+ * else's name. X's own rule is fifteen characters of `[A-Za-z0-9_]`, and the
+ * chain holds the line rather than trusting the server that sent it. */
+fn is_handle(handle: &str) -> bool {
+    !handle.is_empty()
+        && handle.len() <= MAX_HANDLE_LEN
+        && handle.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+}
+
 /// One side's price for `boundary`, from wherever its stock is priced: a Pyth
 /// update account passed for that side, or a quote from `oracle` in an Ed25519
 /// instruction in this transaction.
@@ -710,6 +765,67 @@ pub struct SetOracle<'info> {
     #[account(mut, seeds = [SEED_CONFIG], bump = config.bump, has_one = admin)]
     pub config: Account<'info, Config>,
     pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
+#[instruction(x_id: u64)]
+pub struct LinkHandle<'info> {
+    #[account(mut)]
+    pub wallet: Signer<'info>,
+    /// The key that vouches for the handle. It is the same key that signs
+    /// prices, and it is named by the config, so a stranger's signature is
+    /// worth nothing here.
+    pub oracle: Signer<'info>,
+    #[account(
+        seeds = [SEED_CONFIG],
+        bump = config.bump,
+        constraint = config.oracle != Pubkey::default() @ DuelError::NoOracle,
+        constraint = config.oracle == oracle.key() @ DuelError::NoOracle,
+    )]
+    pub config: Account<'info, Config>,
+    /// `init_if_needed` because linking again is how somebody changes handle.
+    #[account(
+        init_if_needed,
+        payer = wallet,
+        space = 8 + Profile::INIT_SPACE,
+        seeds = [SEED_PROFILE, wallet.key().as_ref()],
+        bump,
+    )]
+    pub profile: Account<'info, Profile>,
+    #[account(
+        init_if_needed,
+        payer = wallet,
+        space = 8 + XClaim::INIT_SPACE,
+        seeds = [SEED_XCLAIM, &x_id.to_le_bytes()],
+        bump,
+    )]
+    pub claim: Account<'info, XClaim>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UnlinkHandle<'info> {
+    #[account(mut)]
+    pub wallet: Signer<'info>,
+    #[account(
+        mut,
+        close = wallet,
+        seeds = [SEED_PROFILE, wallet.key().as_ref()],
+        bump = profile.bump,
+        has_one = wallet,
+    )]
+    pub profile: Account<'info, Profile>,
+    /* The claim goes with it, but only while it still points here: an X
+     * account that has since moved to another wallet is that wallet's to
+     * unlink. A profile left behind that way is already invisible. */
+    #[account(
+        mut,
+        close = wallet,
+        seeds = [SEED_XCLAIM, &profile.x_id.to_le_bytes()],
+        bump = claim.bump,
+        constraint = claim.wallet == wallet.key() @ DuelError::NotYourClaim,
+    )]
+    pub claim: Account<'info, XClaim>,
 }
 
 #[derive(Accounts)]

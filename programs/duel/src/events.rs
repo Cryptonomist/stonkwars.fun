@@ -6,6 +6,19 @@ pub struct OracleSet {
 }
 
 #[event]
+pub struct HandleLinked {
+    pub wallet: Pubkey,
+    pub x_id: u64,
+    pub handle: String,
+}
+
+#[event]
+pub struct HandleUnlinked {
+    pub wallet: Pubkey,
+    pub x_id: u64,
+}
+
+#[event]
 pub struct AssetRegistered {
     pub mint: Pubkey,
     pub feed_id: [u8; 32],

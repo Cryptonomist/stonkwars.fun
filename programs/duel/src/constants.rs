@@ -3,6 +3,11 @@ use anchor_lang::prelude::*;
 pub const SEED_CONFIG: &[u8] = b"config";
 pub const SEED_ASSET: &[u8] = b"asset";
 pub const SEED_DUEL: &[u8] = b"duel";
+pub const SEED_PROFILE: &[u8] = b"profile";
+pub const SEED_XCLAIM: &[u8] = b"xclaim";
+
+/// An X handle is at most 15 characters, each of them `[A-Za-z0-9_]`.
+pub const MAX_HANDLE_LEN: usize = 15;
 
 /// The Pyth Solana Receiver, at this address on mainnet and devnet alike. It
 /// writes a price update only after checking the Wormhole guardian signatures

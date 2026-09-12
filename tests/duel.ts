@@ -1308,6 +1308,144 @@ describe("duel - LiteSVM", () => {
     );
   });
 
+  /* A HANDLE NEEDS BOTH SIGNATURES.
+   *
+   * The wallet's says who is claiming; the oracle's is the server vouching
+   * that X's own sign-in named that handle. Either alone is worthless, which
+   * is most of what these check. */
+  describe("link_handle", () => {
+    const profilePda = (wallet: Address) => pda([enc("profile"), codec.encode(wallet) as Uint8Array]);
+
+    async function claimPda(xId: bigint): Promise<Address> {
+      const b = new Uint8Array(8);
+      new DataView(b.buffer).setBigUint64(0, xId, true);
+      return pda([enc("xclaim"), b]);
+    }
+
+    async function linkIx(
+      wallet: KeyPairSigner,
+      xId: bigint,
+      handle: string,
+      voucher: KeyPairSigner = oracle,
+    ) {
+      return ix("link_handle", { x_id: new BN(xId.toString()), handle }, [
+        acct(wallet.address, WS, wallet),
+        acct(voucher.address, RS, voucher),
+        acct(configPda, R),
+        acct(await profilePda(wallet.address), W),
+        acct(await claimPda(xId), W),
+        acct(SYSTEM, R),
+      ]);
+    }
+
+    const unlinkIx = async (wallet: KeyPairSigner, xId: bigint) =>
+      ix("unlink_handle", {}, [
+        acct(wallet.address, WS, wallet),
+        acct(await profilePda(wallet.address), W),
+        acct(await claimPda(xId), W),
+      ]);
+
+    it("writes the handle when the wallet and the oracle both sign", async () => {
+      const alice = await player();
+      await send(await linkIx(alice, 7777n, "stonkwars"), alice);
+
+      const p = decode("Profile", await profilePda(alice.address));
+      expect(b58(p.wallet)).to.equal(alice.address);
+      expect(p.handle).to.equal("stonkwars");
+      expect(Number(p.x_id)).to.equal(7777);
+      expect(Number(p.linked_ts)).to.equal(nowTs());
+
+      // The X account points back, which is what makes it displayable.
+      expect(b58(decode("XClaim", await claimPda(7777n)).wallet)).to.equal(alice.address);
+    });
+
+    it("refuses a handle the oracle did not vouch for", async () => {
+      const bob = await player();
+      const impostor = await generateKeyPairSigner();
+      svm.airdrop(impostor.address, lamports(SOL));
+      await expectFailure(await linkIx(bob, 8888n, "elonmusk", impostor), bob, "NoOracle");
+    });
+
+    it("refuses to write a handle onto a wallet that did not sign", async () => {
+      /* The oracle vouches for the X account, never for the wallet: aimed at
+       * somebody else's profile, the seeds no longer match the signer. */
+      const carol = await player();
+      const dave = await player();
+      const stolen = ix("link_handle", { x_id: new BN(9999), handle: "carol" }, [
+        acct(carol.address, WS, carol),
+        acct(oracle.address, RS, oracle),
+        acct(configPda, R),
+        acct(await profilePda(dave.address), W),
+        acct(await claimPda(9999n), W),
+        acct(SYSTEM, R),
+      ]);
+      await expectFailure(stolen, carol, "ConstraintSeeds");
+    });
+
+    it("refuses anything X itself would not issue as a handle", async () => {
+      const e = await player();
+      for (const bad of ["", "sixteen_chars_xx", "has space", "kebab-case", "semi;colon"]) {
+        await expectFailure(await linkIx(e, 1234n, bad), e, "BadHandle");
+      }
+      await expectFailure(await linkIx(e, 0n, "zeroid"), e, "BadHandle");
+      // Fifteen is the limit; digits and underscores are fine inside it.
+      await send(await linkIx(e, 1234n, "a_b9_fifteen_15"), e);
+      expect(decode("Profile", await profilePda(e.address)).handle).to.equal("a_b9_fifteen_15");
+    });
+
+    it("lets somebody change handle, keeping one profile", async () => {
+      const f = await player();
+      await send(await linkIx(f, 4242n, "before"), f);
+      await send(await linkIx(f, 4242n, "after"), f);
+      expect(decode("Profile", await profilePda(f.address)).handle).to.equal("after");
+    });
+
+    it("moves an X account to a new wallet, leaving the old profile pointing nowhere", async () => {
+      const oldWallet = await player();
+      const newWallet = await player();
+      await send(await linkIx(oldWallet, 5150n, "mover"), oldWallet);
+      await send(await linkIx(newWallet, 5150n, "mover"), newWallet);
+
+      // Both profiles exist; only the new one agrees with the claim, and a
+      // reader shows a handle only on agreement.
+      expect(b58(decode("XClaim", await claimPda(5150n)).wallet)).to.equal(newWallet.address);
+      expect(decode("Profile", await profilePda(oldWallet.address)).x_id.toString()).to.equal("5150");
+    });
+
+    it("unlinks for the rent back, and only the wallet decides", async () => {
+      const g = await player();
+      await send(await linkIx(g, 6060n, "quitter"), g);
+
+      const stranger = await player();
+      await expectFailure(
+        ix("unlink_handle", {}, [
+          acct(stranger.address, WS, stranger),
+          acct(await profilePda(g.address), W),
+          acct(await claimPda(6060n), W),
+        ]),
+        stranger,
+        "ConstraintSeeds",
+      );
+
+      const before = svm.getBalance(g.address)!;
+      await send(await unlinkIx(g, 6060n), g);
+      expect(exists(await profilePda(g.address))).to.be.false;
+      expect(exists(await claimPda(6060n))).to.be.false;
+      expect(svm.getBalance(g.address)!).to.be.greaterThan(before);
+    });
+
+    it("will not let a left-behind profile close somebody else's claim", async () => {
+      const first = await player();
+      const second = await player();
+      await send(await linkIx(first, 3131n, "shared"), first);
+      await send(await linkIx(second, 3131n, "shared"), second);
+
+      // The claim belongs to the second wallet now.
+      await expectFailure(await unlinkIx(first, 3131n), first, "NotYourClaim");
+      await send(await unlinkIx(second, 3131n), second);
+    });
+  });
+
   it("close_duel returns the rent only once a duel is finished, and only to its creator", async () => {
     const d = await liveDuel(180_00000000n, 340_00000000n);
     const close = (who: KeyPairSigner) =>
