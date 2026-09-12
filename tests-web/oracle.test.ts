@@ -156,28 +156,35 @@ describe("oracle", () => {
   describe("which market answers for a moment", () => {
     // 2026-09-15 is a Tuesday; 2026-09-13 a Sunday.
     const at = (hh: number, mm: number, day = 15) => Math.floor(nyToMs(2026, 9, day, hh, mm, 0) / 1000);
-    const listed = { market: "US", pool: "somepool" };
+    const pooled = { market: "US", pool: "somepool" };
+    const both = { market: "US", pool: "somepool", perp: "xyz:NVDA" };
 
     it("uses the exchange right through its extended hours", () => {
-      expect(sourceAt(at(4, 0), listed)).to.equal("exchange"); // pre-market opens
-      expect(sourceAt(at(12, 0), listed)).to.equal("exchange");
-      expect(sourceAt(at(19, 59), listed)).to.equal("exchange"); // after-hours still going
+      expect(sourceAt(at(4, 0), both)).to.equal("exchange"); // pre-market opens
+      expect(sourceAt(at(12, 0), both)).to.equal("exchange");
+      expect(sourceAt(at(19, 59), both)).to.equal("exchange"); // after-hours still going
     });
 
-    it("uses the token once the exchange is shut", () => {
-      expect(sourceAt(at(20, 0), listed)).to.equal("onchain"); // after-hours over
-      expect(sourceAt(at(2, 30), listed)).to.equal("onchain"); // the middle of the night
-      expect(sourceAt(at(12, 0, 13), listed)).to.equal("onchain"); // a Sunday
+    /* The perp prints every minute and the pool does not, so when both exist
+     * the perp wins and the price can use the ordinary boundary rule. */
+    it("prefers the perpetual market once the exchange is shut", () => {
+      expect(sourceAt(at(20, 0), both)).to.equal("perp"); // after-hours over
+      expect(sourceAt(at(2, 30), both)).to.equal("perp"); // the middle of the night
+      expect(sourceAt(at(12, 0, 13), both)).to.equal("perp"); // a Sunday
     });
 
-    it("keeps exchange hours for a stock with no pool worth reading", () => {
+    it("falls back to the pool for a stock with no perpetual market", () => {
+      expect(sourceAt(at(2, 30), pooled)).to.equal("pool");
+    });
+
+    it("keeps exchange hours for a stock with neither", () => {
       expect(sourceAt(at(2, 30), { market: "US" })).to.equal("exchange");
     });
 
     it("keeps exchange hours for a listing whose sessions we do not model", () => {
       // Hong Kong trades while New York sleeps; guessing would be worse than
       // waiting for its own bars.
-      expect(sourceAt(at(2, 30), { market: "HK", pool: "somepool" })).to.equal("exchange");
+      expect(sourceAt(at(2, 30), { market: "HK", pool: "somepool", perp: "xyz:NVDA" })).to.equal("exchange");
     });
   });
 });

@@ -118,6 +118,54 @@ export async function fetchBars(symbol: string, from: number, to: number): Promi
   return { t: res.timestamp ?? [], c: res.indicators?.quote?.[0]?.close ?? [] };
 }
 
+/* THE MARKET THAT NEVER CLOSES.
+ *
+ * Hyperliquid's HIP-3 equity perps trade every minute of every day, including
+ * the weekend, and print a candle for each one. That matters more than it
+ * sounds: with no gaps, an out-of-hours price can use the ordinary rule, the
+ * close of the first bar at or after the boundary, instead of an average over
+ * a window. A fight then measures exactly the interval it says it does.
+ *
+ * It is a perpetual future, not a share, and that is the honest cost. What it
+ * buys is a price that exists: the pools these stocks trade in managed a
+ * median of three traded minutes an hour at a weekend, against sixty here, and
+ * a fifteen-minute window on a pool moved five times as much as the market
+ * actually did. Each market in src/data/perps.json was checked to be the same
+ * company as the stock it prices, because a matching ticker is not a matching
+ * instrument: `xyz:CL` is crude oil, and our CL is Colgate-Palmolive. */
+
+const HYPERLIQUID = "https://api.hyperliquid.xyz/info";
+
+/** One-minute candles for a perp market, as `Bars` in seconds. */
+export async function fetchPerpBars(coin: string, from: number, to: number): Promise<Bars> {
+  const key = `${coin}:${from}:${to}`;
+  const had = perpBars.get(key);
+  if (had) return had;
+
+  const r = await fetch(HYPERLIQUID, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      type: "candleSnapshot",
+      req: { coin, interval: "1m", startTime: from * 1_000, endTime: to * 1_000 },
+    }),
+    cache: "no-store",
+  });
+  if (!r.ok) throw new Error(`${coin}: perp data HTTP ${r.status}`);
+  const rows = ((await r.json()) as { t: number; c: string }[] | null) ?? [];
+
+  const bars: Bars = {
+    t: rows.map((c) => Math.floor(c.t / 1_000)),
+    c: rows.map((c) => (Number(c.c) > 0 ? Number(c.c) : null)),
+  };
+  if (perpBars.size > 500) perpBars.clear();
+  perpBars.set(key, bars);
+  return bars;
+}
+
+/** Finished minutes never change, so asking twice is a waste of somebody's API. */
+const perpBars = new Map<string, Bars>();
+
 /* WHEN THE EXCHANGE IS SHUT, THE TOKEN IS NOT.
  *
  * This is the point of putting a share on a chain: the token keeps trading
@@ -297,10 +345,17 @@ async function dollarsPer(currency: string, at: number): Promise<number | null> 
  * Listings outside the US keep their own exchange's hours either way: their
  * sessions are not what `session()` describes, and guessing would be worse
  * than waiting. */
-export function sourceAt(boundary: number, opts: { market?: string; pool?: string }): "exchange" | "onchain" {
-  if (!opts.pool) return "exchange";
+export type PriceSource = "exchange" | "perp" | "pool";
+
+export function sourceAt(boundary: number, opts: { market?: string; pool?: string; perp?: string }): PriceSource {
+  // A listing outside the US keeps its own exchange's hours, which session()
+  // does not model. Guessing would be worse than waiting for its own bars.
   if ((opts.market ?? "US") !== "US") return "exchange";
-  return session(boundary * 1_000) === "closed" ? "onchain" : "exchange";
+  if (session(boundary * 1_000) !== "closed") return "exchange";
+  // Shut. The perp first: it prints every minute, so the ordinary rule works.
+  if (opts.perp) return "perp";
+  if (opts.pool) return "pool";
+  return "exchange";
 }
 
 /** The quote for `feed` at `boundary`, in dollars, or null if the price it
@@ -315,13 +370,35 @@ export async function quoteAt(opts: {
   now?: number;
   market?: string;
   pool?: string;
+  perp?: string;
 }): Promise<Quote | null> {
   const now = opts.now ?? Math.floor(Date.now() / 1000);
   if (now - opts.boundary > MAX_LOOKBACK_SECS) {
     throw new Error(`${opts.symbol}: ${opts.boundary} is older than the minute bars reach`);
   }
+  const source = sourceAt(opts.boundary, opts);
 
-  if (sourceAt(opts.boundary, opts) === "onchain") {
+  /* The perp prints every minute, so this is the same rule the exchange path
+   * uses: the close of the first bar at or after the boundary. No window, no
+   * averaging, and a round measures the interval it claims to. */
+  if (source === "perp") {
+    const bars = await fetchPerpBars(opts.perp!, opts.boundary - 300, Math.min(now, opts.boundary + 600));
+    const p = priceAtBoundary(bars, opts.boundary, now);
+    if (p) {
+      return {
+        feed: opts.feed.replace(/^0x/, "").toLowerCase(),
+        boundary: opts.boundary,
+        price: p.price,
+        expo: QUOTE_EXPO,
+        publishTime: p.publishTime,
+      };
+    }
+    /* A market that has not printed yet is a wait, not a failure, and falling
+     * through to a pool would answer a different question. */
+    return null;
+  }
+
+  if (source === "pool") {
     // The window is behind the boundary, so it is complete the moment the
     // boundary passes; a settler an hour late reads the same fifteen minutes.
     if (now < opts.boundary + BAR_SETTLE_SECS) return null;

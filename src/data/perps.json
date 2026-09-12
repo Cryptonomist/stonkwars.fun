@@ -1,0 +1,226 @@
+{
+ "TSLA": {
+  "coin": "xyz:TSLA",
+  "notional24h": 13213045.066290006,
+  "minutesPerHour": 61,
+  "markVsMarket": 0.0004378283712785273,
+  "at": "2026-09-12"
+ },
+ "NVDA": {
+  "coin": "xyz:NVDA",
+  "notional24h": 19022321.01802,
+  "minutesPerHour": 61,
+  "markVsMarket": 0.004214576938934518,
+  "at": "2026-09-12"
+ },
+ "AAPL": {
+  "coin": "xyz:AAPL",
+  "notional24h": 17907897.002960023,
+  "minutesPerHour": 61,
+  "markVsMarket": 0.0019261444006381655,
+  "at": "2026-09-12"
+ },
+ "MSFT": {
+  "coin": "xyz:MSFT",
+  "notional24h": 4453971.4551,
+  "minutesPerHour": 59,
+  "markVsMarket": 0.0014728729092266775,
+  "at": "2026-09-12"
+ },
+ "GOOGL": {
+  "coin": "xyz:GOOGL",
+  "notional24h": 18719806.07665,
+  "minutesPerHour": 57,
+  "markVsMarket": 0.00360413589364853,
+  "at": "2026-09-12"
+ },
+ "AMZN": {
+  "coin": "xyz:AMZN",
+  "notional24h": 3045973.23561,
+  "minutesPerHour": 61,
+  "markVsMarket": 0.001090427603395797,
+  "at": "2026-09-12"
+ },
+ "META": {
+  "coin": "xyz:META",
+  "notional24h": 23903239.53388001,
+  "minutesPerHour": 61,
+  "markVsMarket": 0.0013888245914540644,
+  "at": "2026-09-12"
+ },
+ "MSTR": {
+  "coin": "xyz:MSTR",
+  "notional24h": 12192076.521010002,
+  "minutesPerHour": 55,
+  "markVsMarket": 0.0018324807207758197,
+  "at": "2026-09-12"
+ },
+ "COIN": {
+  "coin": "xyz:COIN",
+  "notional24h": 5335960.73162,
+  "minutesPerHour": 55,
+  "markVsMarket": 0.005934040853589071,
+  "at": "2026-09-12"
+ },
+ "HOOD": {
+  "coin": "xyz:HOOD",
+  "notional24h": 22491696.074949995,
+  "minutesPerHour": 61,
+  "markVsMarket": 0.0023985075952740165,
+  "at": "2026-09-12"
+ },
+ "PLTR": {
+  "coin": "xyz:PLTR",
+  "notional24h": 3220771.9670400023,
+  "minutesPerHour": 55,
+  "markVsMarket": 0.0033486814566764476,
+  "at": "2026-09-12"
+ },
+ "SPCX": {
+  "coin": "xyz:SPCX",
+  "notional24h": 60153791.70959994,
+  "minutesPerHour": 59,
+  "markVsMarket": 0.007406917531909295,
+  "at": "2026-09-12"
+ },
+ "CRCL": {
+  "coin": "xyz:CRCL",
+  "notional24h": 28439142.623481013,
+  "minutesPerHour": 60,
+  "markVsMarket": 0.012373068432671185,
+  "at": "2026-09-12"
+ },
+ "AMD": {
+  "coin": "xyz:AMD",
+  "notional24h": 5943931.750189998,
+  "minutesPerHour": 59,
+  "markVsMarket": 0.002712494914071992,
+  "at": "2026-09-12"
+ },
+ "MU": {
+  "coin": "xyz:MU",
+  "notional24h": 44569799.650159985,
+  "minutesPerHour": 61,
+  "markVsMarket": 0.0019379447531940061,
+  "at": "2026-09-12"
+ },
+ "INTC": {
+  "coin": "xyz:INTC",
+  "notional24h": 16161903.1031,
+  "minutesPerHour": 58,
+  "markVsMarket": 0.0026228871187098895,
+  "at": "2026-09-12"
+ },
+ "AVGO": {
+  "coin": "xyz:AVGO",
+  "notional24h": 1164816.9455999997,
+  "minutesPerHour": 55,
+  "markVsMarket": 0.0019890052211387808,
+  "at": "2026-09-12"
+ },
+ "ORCL": {
+  "coin": "xyz:ORCL",
+  "notional24h": 35152339.579189986,
+  "minutesPerHour": 56,
+  "markVsMarket": 0.022491349480968828,
+  "at": "2026-09-12"
+ },
+ "SNDK": {
+  "coin": "xyz:SNDK",
+  "notional24h": 98493001.18650003,
+  "minutesPerHour": 60,
+  "markVsMarket": 0.0010101937735328397,
+  "at": "2026-09-12"
+ },
+ "CRWV": {
+  "coin": "xyz:CRWV",
+  "notional24h": 2607546.46834,
+  "minutesPerHour": 58,
+  "markVsMarket": 0.0011461962018204728,
+  "at": "2026-09-12"
+ },
+ "DELL": {
+  "coin": "xyz:DELL",
+  "notional24h": 9926053.182600003,
+  "minutesPerHour": 60,
+  "markVsMarket": 0.0034197676673305383,
+  "at": "2026-09-12"
+ },
+ "DRAM": {
+  "coin": "xyz:DRAM",
+  "notional24h": 30705072.065099984,
+  "minutesPerHour": 59,
+  "markVsMarket": 0.0010321489001692038,
+  "at": "2026-09-12"
+ },
+ "EWY": {
+  "coin": "xyz:EWY",
+  "notional24h": 8632138.467389997,
+  "minutesPerHour": 55,
+  "markVsMarket": 0.00291437049597293,
+  "at": "2026-09-12"
+ },
+ "KORU": {
+  "coin": "xyz:KORU",
+  "notional24h": 5427824.549599999,
+  "minutesPerHour": 59,
+  "markVsMarket": 0.011183355006501913,
+  "at": "2026-09-12"
+ },
+ "LITE": {
+  "coin": "xyz:LITE",
+  "notional24h": 2283911.5883299997,
+  "minutesPerHour": 60,
+  "markVsMarket": 0.007497060505053823,
+  "at": "2026-09-12"
+ },
+ "MRNA": {
+  "coin": "xyz:MRNA",
+  "notional24h": 2969054.1514,
+  "minutesPerHour": 59,
+  "markVsMarket": 0.011391262068486592,
+  "at": "2026-09-12"
+ },
+ "MRVL": {
+  "coin": "xyz:MRVL",
+  "notional24h": 4598475.423200001,
+  "minutesPerHour": 59,
+  "markVsMarket": 0.003261329944938629,
+  "at": "2026-09-12"
+ },
+ "NBIS": {
+  "coin": "xyz:NBIS",
+  "notional24h": 7287846.863300002,
+  "minutesPerHour": 60,
+  "markVsMarket": 0.00008906702293480396,
+  "at": "2026-09-12"
+ },
+ "RKLB": {
+  "coin": "xyz:RKLB",
+  "notional24h": 3745799.3292200007,
+  "minutesPerHour": 55,
+  "markVsMarket": 0.0032088959491659757,
+  "at": "2026-09-12"
+ },
+ "SKHY": {
+  "coin": "xyz:SKHY",
+  "notional24h": 39059983.80980001,
+  "minutesPerHour": 57,
+  "markVsMarket": 0.002157100015783641,
+  "at": "2026-09-12"
+ },
+ "SOXL": {
+  "coin": "xyz:SOXL",
+  "notional24h": 15055461.436100002,
+  "minutesPerHour": 60,
+  "markVsMarket": 0.0065670661631916875,
+  "at": "2026-09-12"
+ },
+ "USAR": {
+  "coin": "xyz:USAR",
+  "notional24h": 1019616.5527499999,
+  "minutesPerHour": 58,
+  "markVsMarket": 0.008804627249357242,
+  "at": "2026-09-12"
+ }
+}

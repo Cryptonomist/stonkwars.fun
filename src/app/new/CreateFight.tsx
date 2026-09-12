@@ -87,7 +87,10 @@ export function CreateFight() {
   const endsAt = endTs || (now ? now + (roundDef.secs ?? 0) : 0);
   const sides = [p1, p2].filter((t): t is string => !!t);
   const waiting = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "waits") : [];
-  const onPools = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "pool") : [];
+  const onPools = endsAt ? sides.filter((t) => pricedAt(t, endsAt) !== "waits" && pricedAt(t, endsAt) !== "exchange") : [];
+  /* Only a pool needs the window caveat; a perpetual market prints every
+   * minute and settles on the ordinary rule. */
+  const onPoolOnly = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "pool") : [];
   const short = balance.data !== undefined && balance.data !== null && balance.data < amount1;
   const noAccount = balance.data === null;
 
@@ -226,12 +229,12 @@ export function CreateFight() {
               <p className="mt-2 text-sm text-up">
                 The exchange is shut, so {onPools.join(" and ")} settle on their own Solana pools. This fight runs now.
               </p>
-              {roundDef.secs && roundDef.secs < OFFHOURS_WINDOW * 60 ? (
+              {onPoolOnly.length && roundDef.secs && roundDef.secs < OFFHOURS_WINDOW * 60 ? (
                 <p className="mt-2 text-sm text-dim">
-                  An out-of-hours price is read from the last {OFFHOURS_WINDOW} minutes on the pool, which is what makes
-                  it hard to push. A round shorter than that shares most of its window with its own start, so it settles
-                  on the move across {OFFHOURS_WINDOW} minutes rather than {span(roundDef.secs)}. A real fight either
-                  way; just not the one the clock says.
+                  {onPoolOnly.join(" and ")} {onPoolOnly.length === 1 ? "has" : "have"} no market open right now except
+                  {onPoolOnly.length === 1 ? " its" : " their"} Solana pool, which is read over {OFFHOURS_WINDOW} minutes
+                  to stop one trade setting it. A round shorter than that settles on the move across those{" "}
+                  {OFFHOURS_WINDOW} minutes rather than {span(roundDef.secs)}.
                 </p>
               ) : null}
             </>

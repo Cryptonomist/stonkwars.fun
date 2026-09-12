@@ -100,7 +100,9 @@ scripts/
   data/tokens.json    every issuer's tokens, with on-chain mint facts
   build-roster.ts     tokens -> the roster: what a fight can hold and a market can price
   watch-listings.ts   what the issuers publish today that the snapshot does not have
-  build-pools.ts      the pool that prices each stock while its exchange is shut
+  build-perps.ts      the perpetual market that prices each stock while its exchange is shut
+  build-pools.ts      the Solana pool that prices it when there is no perp
+  offhours-audit.ts   which stocks can actually be priced right now, asked of the real oracle
   setup-devnet.ts     config, oracle, a test mint and registration per stock
   settler.ts          the permissionless cranks, on a timer
   e2e-live.ts         whole fights on real prices at any hour, checked against the sources
@@ -162,7 +164,7 @@ NEXT_PUBLIC_CLUSTER=localnet NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8899 RPC_URL=h
 ## Honest limits
 
 - **The oracle is a trusted key** for the stocks it prices, as above. Its market data is a public minute-bar feed; the source is one function in `lib/oracle.ts`, and swapping it (or moving a stock to Pyth) changes nothing on chain.
-- **Off-hours prices are thinner.** While a US stock's own market is open, 4am to 8pm New York time, the oracle reads that market. Outside it, a stock whose Solana pool clears a liquidity and volume floor is priced from the last fifteen one-minute closes on that pool, discarding the highest fifth and the lowest fifth and averaging the rest. That is what makes it hard to push: a bought minute lands in the part that is thrown away, and moving the answer means holding the pool away from fair value across most of the window while arbitrage trades against you. It is still a thinner print than an exchange's, and it can differ from where the stock next opens. Pyth's equity feeds stop with the market, so the three Pyth-priced stocks keep exchange hours whatever their pools do.
+- **Out of hours, the price is not the share's.** While a US stock's own market is open, 4am to 8pm New York time, the oracle reads that market. Outside it, the price comes from the stock's perpetual future on Hyperliquid, which trades every minute of every day, on the same rule the exchange gets: the close of the first one-minute bar at or after the boundary. A perp is not a share, and that is the honest cost of settling at a weekend. It is also the better of the two options we measured: the Solana pools these stocks trade in managed a median of three traded minutes an hour at a weekend, and a fifteen-minute reading of them moved five times as much as the market actually had. A stock with no perpetual market falls back to its pool, read as a trimmed average; one with neither keeps exchange hours, as do all 80 listings outside the US. Each perp market is checked against the stock's own last price before it is used, which is how we caught that the venue's `CL` is crude oil while ours is Colgate-Palmolive. Pyth's equity feeds stop with the market, so the three Pyth-priced stocks keep exchange hours whatever else is open.
 - **Thin stocks.** "The first price at or after the boundary" is the first minute with a trade. A stock that does not trade in the bell's minute settles on its next trade, which for a thin ETF can be the next morning.
 - **Foreign listings** trade in their own hours. A Hong Kong stock against a US one at the US bell settles on Hong Kong's next trade after it.
 - **Scaled amounts and dividends.** Issuers pass on dividends and splits through a `ScaledUiAmount` multiplier, which today runs from 0.07 to 10 across the roster's mints. Prices are the underlying share's, so a stock that goes ex-dividend mid-fight drops by the dividend while its token compensates holders; a mainnet build must also apply the multiplier when it values and sizes stakes. The test shares have none.

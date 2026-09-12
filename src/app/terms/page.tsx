@@ -66,10 +66,11 @@ export default function Terms() {
         </p>
         <p>
           While a US stock&apos;s own market is open, from 4am to 8pm New York time, that market is where the oracle reads.
-          Outside those hours, for stocks whose Solana pool clears a liquidity and volume floor, the price is taken from
-          that pool&apos;s recent one-minute closes as of the moment in question, up to fifteen of them and reaching back as
-          far as an hour when the pool is quiet, discarding the highest fifth and the lowest fifth and averaging the
-          rest. Off-hours pool prices are
+          Outside those hours the price comes from the stock&apos;s perpetual future on Hyperliquid, which trades every
+          minute of every day, using the same rule: the close of the first one-minute bar at or after the moment in
+          question. A perpetual future is not a share, and its price can differ from the share&apos;s; each market is checked
+          against the stock&apos;s own last price before it is used. Where no such market exists, the price is taken from the
+          stock&apos;s Solana pool instead, as a trimmed average of its recent one-minute closes. Off-hours prices are
           thinner than an exchange print and can differ from where the stock next opens, which is the trade for being
           able to fight at all while the exchange is shut. The pool for each stock is pinned and published, so anyone
           can read the same number from the same public source.

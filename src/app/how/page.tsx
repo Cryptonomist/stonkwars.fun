@@ -26,15 +26,11 @@ const RULES: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Can I fight at three in the morning?",
-    a: `Yes, on ${AROUND_THE_CLOCK.toLocaleString()} of them. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside even that, and at weekends, the price comes from the token itself, which never stops trading on Solana: its recent one-minute closes on its pinned pool, up to fifteen of them and reaching back an hour if the pool is quiet, with the highest fifth and the lowest fifth thrown away and the rest averaged. That is the point of a share being on a chain, and it is why a fight does not have to wait for a bell.`,
+    a: `Yes, on ${AROUND_THE_CLOCK.toLocaleString()} of them. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside even that, and at weekends, the price comes from a market that never closes: the stock's perpetual future on Hyperliquid, which trades every minute of every day. The rule is the same one the exchange gets, the close of the first one-minute bar at or after the moment in question, so a round measures exactly the interval it says it does.`,
   },
   {
-    q: "Is a pool not easy to push?",
-    a: "One minute of it would be. Off-hours a pool can trade thirty dollars in a minute, and a single swap would set that minute's close, so the oracle never reads one minute. It reads up to fifteen, discards the highest fifth and the lowest fifth, and averages what is left. A bought minute lands in the part that is discarded and counts for nothing; moving the answer means holding the price away from fair value across most of the sample, while every arbitrageur on Solana trades against you. On top of that, only stocks whose deepest pool clears a liquidity and volume floor are priced this way at all; the rest simply keep exchange hours.",
-  },
-  {
-    q: "Why not take the middle price instead of an average?",
-    a: "Because the middle price is one of the closes, so it moves in jumps. Slide the window by a couple of minutes and the sample in the middle is often the same one, which reports no change at all and turns a fight somebody won into a draw. Throwing away the extremes and averaging the rest still ignores anything bought, and it answers with a number that moves whenever the market does.",
+    q: "A perpetual future is not a share. Why is that fair?",
+    a: "Because a fight compares two moves, not two price tags, and the alternative was worse. We priced weekends from each token's own Solana pool first, and measured it: those pools traded a median of three minutes an hour, and a fifteen-minute reading of them moved five times as much as the market actually had. The perps print every minute, carry real size, and track the underlying share closely; each market is checked against the stock's own last price before it is used at all, which is how we caught that the venue's CL is crude oil while our CL is Colgate-Palmolive. A stock with no perpetual market falls back to its pool, and one with neither keeps exchange hours.",
   },
   {
     q: "Why not Pyth for everything?",

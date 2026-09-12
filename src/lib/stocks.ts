@@ -18,6 +18,7 @@
 
 import { PublicKey } from "@solana/web3.js";
 
+import perpsJson from "@/data/perps.json";
 import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
 import { type StakeAsset } from "@/lib/duel";
@@ -62,6 +63,15 @@ export const ROSTER = rosterJson as Stock[];
  * pool deep enough to be worth reading, and keep exchange hours. */
 const POOLS = poolsJson as Record<string, { pool: string; liquidityUsd: number; volume24hUsd: number; at: string }>;
 
+/* The perpetual market that prices each stock when its exchange is shut. It
+ * prints every minute, including weekends, which a pool does not, so it is
+ * preferred over one. Every entry was checked to be the same company as the
+ * stock it prices; see scripts/build-perps.ts. */
+const PERPS = perpsJson as Record<
+  string,
+  { coin: string; notional24h: number; minutesPerHour: number; markVsMarket: number; at: string }
+>;
+
 export const CLUSTER = (process.env.NEXT_PUBLIC_CLUSTER ?? "devnet") as "devnet" | "localnet" | "mainnet-beta";
 
 /* Only this cluster's token list goes into the bundle. NEXT_PUBLIC_CLUSTER is
@@ -103,15 +113,21 @@ export const byFeed = (feed: string) =>
 export function quoteSymbolFor(feed: string) {
   const s = byFeed(feed);
   if (!s) return undefined;
-  return { symbol: s.quote, currency: s.currency, market: s.market, pool: POOLS[s.ticker]?.pool };
+  return {
+    symbol: s.quote,
+    currency: s.currency,
+    market: s.market,
+    pool: POOLS[s.ticker]?.pool,
+    perp: PERPS[s.ticker]?.coin,
+  };
 }
 
 /** Whether a stock can settle a fight outside its exchange's hours. Pyth's
  *  equity feeds stop publishing with the market, so a Pyth-priced stock keeps
- *  exchange hours however deep its pool is. */
+ *  exchange hours however busy its off-hours markets are. */
 export const tradesAroundTheClock = (ticker: string) => {
   const s = byTicker(ticker);
-  return !!s && s.source !== "pyth" && !!POOLS[ticker];
+  return !!s && s.source !== "pyth" && (!!PERPS[ticker] || !!POOLS[ticker]);
 };
 
 /* WHERE A FIGHT ENDING AT `boundary` WOULD GET ITS PRICE.
@@ -122,16 +138,16 @@ export const tradesAroundTheClock = (ticker: string) => {
  *
  * A listing outside the US keeps its own exchange's hours, which we do not
  * model, so it is never called a wait. */
-export function pricedAt(ticker: string, boundary: number): "exchange" | "pool" | "waits" {
+export function pricedAt(ticker: string, boundary: number): "exchange" | "perp" | "pool" | "waits" {
   const s = byTicker(ticker);
   if (!s) return "waits";
-  if (tradesAroundTheClock(ticker) && session(boundary * 1_000) === "closed") return "pool";
-  if (s.market !== "US") return "exchange";
-  return session(boundary * 1_000) === "closed" ? "waits" : "exchange";
+  if (s.market !== "US" || session(boundary * 1_000) !== "closed") return "exchange";
+  if (!tradesAroundTheClock(ticker)) return "waits";
+  return PERPS[ticker] ? "perp" : "pool";
 }
 
 /** How many of the roster can, for the pages that say so. */
-export const AROUND_THE_CLOCK = Object.keys(POOLS).length;
+export const AROUND_THE_CLOCK = ROSTER.filter((s) => tradesAroundTheClock(s.ticker)).length;
 
 export const tokensFor = (ticker: string) => tokensByTicker.get(ticker) ?? [];
 

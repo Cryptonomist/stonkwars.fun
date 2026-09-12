@@ -547,7 +547,8 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
 function oracleRead(feed: string, publishTime: number): string {
   const market = quoteSymbolFor(feed);
   if (!market) return "Oracle";
-  return sourceAt(publishTime, market) === "onchain" ? "Oracle · pool" : "Oracle · exchange";
+  const from = sourceAt(publishTime, market);
+  return from === "perp" ? "Oracle · perp" : from === "pool" ? "Oracle · pool" : "Oracle · exchange";
 }
 
 function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
