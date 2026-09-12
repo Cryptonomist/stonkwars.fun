@@ -93,13 +93,14 @@ src/                  the Next.js app
   app/api/crank       the settler, for an external cron
   app/api/faucet      test clusters only: test shares and SOL
   lib/duel.ts         the client half of the program: PDAs, instructions
-  lib/oracle.ts       the price for a moment, from minute bars, and its signature
+  lib/oracle.ts       the price for a moment: the exchange's bars, or the pool's, and its signature
   lib/crankTx.ts      a fight's transactions: post, quote + start/settle, close
   data/roster.json    the 1,033 stocks
 scripts/
   data/tokens.json    every issuer's tokens, with on-chain mint facts
   build-roster.ts     tokens -> the roster: what a fight can hold and a market can price
   watch-listings.ts   what the issuers publish today that the snapshot does not have
+  build-pools.ts      the pool that prices each stock while its exchange is shut
   setup-devnet.ts     config, oracle, a test mint and registration per stock
   settler.ts          the permissionless cranks, on a timer
   e2e-live.ts         whole fights on real prices at any hour, checked against the sources
@@ -161,6 +162,7 @@ NEXT_PUBLIC_CLUSTER=localnet NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8899 RPC_URL=h
 ## Honest limits
 
 - **The oracle is a trusted key** for the stocks it prices, as above. Its market data is a public minute-bar feed; the source is one function in `lib/oracle.ts`, and swapping it (or moving a stock to Pyth) changes nothing on chain.
+- **Off-hours prices are thinner.** While a US stock's own market is open, 4am to 8pm New York time, the oracle reads that market. Outside it, a stock whose Solana pool clears a liquidity and volume floor is priced by the median of the last fifteen one-minute closes on that pool. A median is what makes it hard to push: one trade cannot move it, and holding a pool away from fair value for eight separate minutes costs far more than any stake here. It is still a thinner print than an exchange's, and it can differ from where the stock next opens.
 - **Thin stocks.** "The first price at or after the boundary" is the first minute with a trade. A stock that does not trade in the bell's minute settles on its next trade, which for a thin ETF can be the next morning.
 - **Foreign listings** trade in their own hours. A Hong Kong stock against a US one at the US bell settles on Hong Kong's next trade after it.
 - **Scaled amounts and dividends.** Issuers pass on dividends and splits through a `ScaledUiAmount` multiplier, which today runs from 0.07 to 10 across the roster's mints. Prices are the underlying share's, so a stock that goes ex-dividend mid-fight drops by the dividend while its token compensates holders; a mainnet build must also apply the multiplier when it values and sizes stakes. The test shares have none.

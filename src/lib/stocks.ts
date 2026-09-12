@@ -18,6 +18,7 @@
 
 import { PublicKey } from "@solana/web3.js";
 
+import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
 import { type StakeAsset } from "@/lib/duel";
 
@@ -55,6 +56,11 @@ const TEST_TOKEN = { issuer: "test", decimals: 8, tokenProgram: "TokenzQdBNbLqP5
 
 export const ROSTER = rosterJson as Stock[];
 
+/* The Solana pool that prices each stock when its exchange is shut, pinned so
+ * that anyone can read the same number we did. Stocks missing from it have no
+ * pool deep enough to be worth reading, and keep exchange hours. */
+const POOLS = poolsJson as Record<string, { pool: string; liquidityUsd: number; volume24hUsd: number; at: string }>;
+
 export const CLUSTER = (process.env.NEXT_PUBLIC_CLUSTER ?? "devnet") as "devnet" | "localnet" | "mainnet-beta";
 
 /* Only this cluster's token list goes into the bundle. NEXT_PUBLIC_CLUSTER is
@@ -88,12 +94,22 @@ export const byTicker = (ticker: string) => ROSTER.find((s) => s.ticker === tick
 export const byFeed = (feed: string) =>
   ROSTER.find((s) => s.feed === feed.replace(/^0x/, "").toLowerCase());
 
-/** Where the oracle reads a stock's minute bars, by feed id, and in what
- * currency. */
+/* WHERE A STOCK'S PRICE COMES FROM, BY FEED ID.
+ *
+ * Its symbol at the market data source and the currency that source quotes it
+ * in, plus the Solana pool that prices it while its exchange is shut. A stock
+ * with no pinned pool keeps exchange hours; see scripts/build-pools.ts. */
 export function quoteSymbolFor(feed: string) {
   const s = byFeed(feed);
-  return s ? { symbol: s.quote, currency: s.currency } : undefined;
+  if (!s) return undefined;
+  return { symbol: s.quote, currency: s.currency, market: s.market, pool: POOLS[s.ticker]?.pool };
 }
+
+/** Whether a stock can settle a fight outside its exchange's hours. */
+export const tradesAroundTheClock = (ticker: string) => !!POOLS[ticker];
+
+/** How many of the roster can, for the pages that say so. */
+export const AROUND_THE_CLOCK = Object.keys(POOLS).length;
 
 export const tokensFor = (ticker: string) => tokensByTicker.get(ticker) ?? [];
 

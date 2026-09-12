@@ -46,9 +46,12 @@ import { quoteAt, signedQuoteInstruction } from "./oracle";
 
 export { boundaryOf, crankTransactions, pythFeedsOf, type SignedTx } from "./crankTx";
 
-/** Where the oracle finds a signed stock's minute bars, by feed id, and the
- * currency they are in. */
-export type QuoteSymbol = (feed: string) => { symbol: string; currency: string } | undefined;
+/** Where the oracle finds a signed stock's price, by feed id: its symbol at
+ * the market data source, the currency that source quotes it in, and the
+ * Solana pool that prices it while its exchange is shut. */
+export type QuoteSymbol = (
+  feed: string,
+) => { symbol: string; currency: string; market?: string; pool?: string } | undefined;
 
 /** A job that cannot run yet and should be retried, not reported as broken. */
 export class NotYet extends Error {}
@@ -102,8 +105,8 @@ export async function signedQuotes(opts: {
   for (const feed of feeds) {
     const market = opts.quoteSymbol(feed);
     if (!market) throw new Error(`No market symbol for feed ${feed.slice(0, 8)}`);
-    const q = await quoteAt({ feed, symbol: market.symbol, currency: market.currency, boundary });
-    if (!q) throw new NotYet(`${market.symbol}: waiting for the minute after ${boundary} to close`);
+    const q = await quoteAt({ feed, ...market, boundary });
+    if (!q) throw new NotYet(`${market.symbol}: waiting for the price at ${boundary} to be final`);
     out.push(signedQuoteInstruction(oracle, q));
   }
   return out;

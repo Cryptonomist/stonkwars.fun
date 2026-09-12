@@ -4,7 +4,15 @@
 import { expect } from "chai";
 import { Keypair } from "@solana/web3.js";
 
-import { priceAtBoundary, quoteMessage, signedQuoteInstruction, QUOTE_LEN } from "../src/lib/oracle";
+import {
+  medianAtBoundary,
+  priceAtBoundary,
+  quoteMessage,
+  signedQuoteInstruction,
+  sourceAt,
+  QUOTE_LEN,
+} from "../src/lib/oracle";
+import { nyToMs } from "../src/lib/market";
 
 /* The same vector is asserted in programs/duel/src/quote.rs
  * (`the_message_layout_is_pinned`), so the two sides cannot drift apart. */
@@ -64,6 +72,77 @@ describe("oracle", () => {
     it("rounds the source's float noise away, the same way every time", () => {
       const noisy = { t: [0], c: [332.6000061035156] };
       expect(priceAtBoundary(noisy, 10, 1_000)?.price).to.equal(3_326_000n);
+    });
+  });
+
+  /* OUT OF HOURS, THE TOKEN PRICES THE STOCK.
+   *
+   * The exchange shuts and the pool does not, which is the argument for
+   * putting a share on a chain at all. The defence against a thin minute being
+   * bought is that the price is the median of fifteen of them. */
+  describe("medianAtBoundary", () => {
+    /** A window of minute bars ending exactly at `boundary`. */
+    const window = (closes: (number | null)[], boundary = 900) => ({
+      t: closes.map((_, i) => boundary - (closes.length - i) * 60),
+      c: closes,
+    });
+
+    it("takes the middle close of the window, as of the boundary", () => {
+      const bars = window([10, 12, 11, 13, 9, 10, 11, 12, 10]);
+      expect(medianAtBoundary(bars, 900)).to.deep.equal({ price: 110_000n, publishTime: 900 });
+    });
+
+    it("cannot be moved by one minute, however far that minute goes", () => {
+      const honest = [100, 100, 101, 100, 99, 100, 100, 101, 100, 100, 99, 100, 100, 100, 101];
+      const before = medianAtBoundary(window(honest), 900)!.price;
+      // Somebody empties a thin pool in the last minute before the bell.
+      expect(medianAtBoundary(window([...honest.slice(0, -1), 140]), 900)!.price).to.equal(before);
+      // Three bought minutes still do not reach the middle of fifteen.
+      expect(medianAtBoundary(window([...honest.slice(0, -3), 140, 141, 139]), 900)!.price).to.equal(before);
+    });
+
+    it("averages the two middle closes, so a sort cannot decide it", () => {
+      expect(medianAtBoundary(window([10, 20, 30, 40, 50, 60]), 900)!.price).to.equal(350_000n);
+    });
+
+    it("ignores minutes older than the window, and anything at or after the boundary", () => {
+      const bars = { t: [0, 60, 120, 840, 900, 960], c: [1, 1, 1, 50, 999, 999] };
+      // Only the bar ending at 900 is inside the window, which is too few.
+      expect(medianAtBoundary(bars, 900)).to.equal(null);
+    });
+
+    it("gives nothing when the pool barely traded", () => {
+      expect(medianAtBoundary(window([10, null, null, 11, null, null, 12]), 900)).to.equal(null);
+      expect(medianAtBoundary(window([10, 0, -1, 11, null]), 900)).to.equal(null);
+      expect(medianAtBoundary({ t: [], c: [] }, 900)).to.equal(null);
+    });
+  });
+
+  describe("which market answers for a moment", () => {
+    // 2026-09-15 is a Tuesday; 2026-09-13 a Sunday.
+    const at = (hh: number, mm: number, day = 15) => Math.floor(nyToMs(2026, 9, day, hh, mm, 0) / 1000);
+    const listed = { market: "US", pool: "somepool" };
+
+    it("uses the exchange right through its extended hours", () => {
+      expect(sourceAt(at(4, 0), listed)).to.equal("exchange"); // pre-market opens
+      expect(sourceAt(at(12, 0), listed)).to.equal("exchange");
+      expect(sourceAt(at(19, 59), listed)).to.equal("exchange"); // after-hours still going
+    });
+
+    it("uses the token once the exchange is shut", () => {
+      expect(sourceAt(at(20, 0), listed)).to.equal("onchain"); // after-hours over
+      expect(sourceAt(at(2, 30), listed)).to.equal("onchain"); // the middle of the night
+      expect(sourceAt(at(12, 0, 13), listed)).to.equal("onchain"); // a Sunday
+    });
+
+    it("keeps exchange hours for a stock with no pool worth reading", () => {
+      expect(sourceAt(at(2, 30), { market: "US" })).to.equal("exchange");
+    });
+
+    it("keeps exchange hours for a listing whose sessions we do not model", () => {
+      // Hong Kong trades while New York sleeps; guessing would be worse than
+      // waiting for its own bars.
+      expect(sourceAt(at(2, 30), { market: "HK", pool: "somepool" })).to.equal("exchange");
     });
   });
 });

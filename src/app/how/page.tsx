@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { ROSTER } from "@/lib/stocks";
+import { AROUND_THE_CLOCK, ROSTER } from "@/lib/stocks";
 
 export const metadata: Metadata = { title: "How it works" };
 
@@ -25,12 +25,20 @@ const RULES: { q: string; a: React.ReactNode }[] = [
     a: `For every boundary, exactly one per stock, from one of two sources. ${PYTH.join(" and ")} are priced by Pyth: the first Pyth update published at or after the boundary. Each update carries the publish time of the one before it, so the program demands previous < boundary <= this one, and only one update in existence satisfies that (the same rule as Pyth's own parsePriceFeedUpdatesUnique). Every other stock is priced by the Stonk Wars oracle: the close of its first one-minute bar at or after the boundary, signed by the oracle key and checked on chain by Solana's Ed25519 program. That is a fact about the past, so there is one answer and nothing to shop for.`,
   },
   {
+    q: "Can I fight at three in the morning?",
+    a: `Yes, on ${AROUND_THE_CLOCK.toLocaleString()} of them. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside even that, and at weekends, the price comes from the token itself, which never stops trading on Solana: the median of the last fifteen one-minute closes on its pinned pool, as of the boundary. That is the point of a share being on a chain, and it is why a fight does not have to wait for a bell.`,
+  },
+  {
+    q: "Is a pool not easy to push?",
+    a: "One minute of it would be. Off-hours a pool can trade thirty dollars in a minute, and a single swap would set that minute's close, so the oracle never reads one minute: it takes the median of fifteen. A median cannot be moved by one trade. Pushing it means holding the price away from fair value across eight separate minutes while every arbitrageur on Solana trades against you, which costs far more than any stake in this game is worth. On top of that, only stocks whose deepest pool clears a liquidity and volume floor are priced this way at all; the rest simply keep exchange hours.",
+  },
+  {
     q: "Why not Pyth for everything?",
     a: "This deployment's Pyth plan covers only a couple of equity feeds. Rather than lock out the rest of the market, the program takes a second source for the others and says so on every fight. When a stock gets a Pyth feed, one admin call switches it for new fights; fights already running keep the source they started with.",
   },
   {
-    q: "Why not the price of the token itself?",
-    a: "Because most tokenized stocks barely trade on Solana, and a thin pool can be pushed with one trade right at the bell. Fights settle on the stock's real market price, which nobody can move with a swap.",
+    q: "Why not the token's price all the time?",
+    a: "Because while the stock's own market is open it is the better number by a distance: far deeper, far harder to move, and the thing the token is a claim on. The pool is the answer to a shut exchange, not a replacement for an open one.",
   },
   {
     q: "When does a round start?",
@@ -42,7 +50,7 @@ const RULES: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "What if the market is closed?",
-    a: "A fight taken on a weekend starts at the first price when trading resumes. If that is more than five days away, or it lands inside the last minute of a fixed-end round, the fight is void and both stakes go home.",
+    a: "For a stock priced by its pool, nothing changes: the fight runs and settles on schedule. For the rest, and for listings outside the US, a fight taken while their market is shut starts at the first price when trading resumes. If that is more than five days away, or it lands inside the last minute of a fixed-end round, the fight is void and both stakes go home.",
   },
   {
     q: "What if nobody takes my fight?",

@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from "react";
 
-import { STAKEABLE, byTicker, type Stock } from "@/lib/stocks";
+import { STAKEABLE, byTicker, tradesAroundTheClock, type Stock } from "@/lib/stocks";
 import { quoteValue, usePrices } from "@/lib/prices";
 import { usd } from "@/lib/format";
 
@@ -168,7 +168,14 @@ function Tile({
         ) : null}
       </span>
       <span className="w-full truncate text-xs text-dim">{s.name}</span>
-      <span className="font-mono text-sm">{price ? usd(price) : "--"}</span>
+      <span className="flex w-full items-baseline gap-2">
+        <span className="font-mono text-sm">{price ? usd(price) : "--"}</span>
+        {tradesAroundTheClock(s.ticker) ? (
+          <span className="ml-auto shrink-0 text-[10px] font-bold uppercase tracking-wider text-up" title="Its pool prices it when the exchange is shut, so a fight can run at any hour">
+            24/7
+          </span>
+        ) : null}
+      </span>
     </button>
   );
 }

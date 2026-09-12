@@ -50,7 +50,8 @@ import {
 import { clock, etTime, pythToNumber, shares, shortAddress, span, usd } from "@/lib/format";
 import { explorerAddress, useDuel, useSend, useTokenBalance } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
-import { byTicker, CLUSTER, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import { sourceAt } from "@/lib/oracle";
+import { byTicker, CLUSTER, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 import { BRAND } from "@/lib/brand";
 
@@ -538,6 +539,14 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
   );
 }
 
+/* Which market the oracle read for a price, worked out the same way it was:
+ * the stock's own exchange while it was trading, its Solana pool otherwise. */
+function oracleRead(feed: string, publishTime: number): string {
+  const market = quoteSymbolFor(feed);
+  if (!market) return "Oracle";
+  return sourceAt(publishTime, market) === "onchain" ? "Oracle · pool" : "Oracle · exchange";
+}
+
 function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
   if (d.startTs === 0) {
     return (
@@ -556,7 +565,7 @@ function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
         <td className="py-2 pr-3 font-display text-lg font-extrabold">{ticker}</td>
         <td className="py-2 pr-3 font-mono">{usd(pythToNumber(p.price, p.expo))}</td>
         <td className="py-2 pr-3 font-mono text-dim">{new Date(p.publishTime * 1000).toISOString().replace(".000Z", "Z")}</td>
-        <td className="py-2 pr-3 text-xs">{source === SOURCE_PYTH ? "Pyth" : "Oracle"}</td>
+        <td className="py-2 pr-3 text-xs">{source === SOURCE_PYTH ? "Pyth" : oracleRead(feed, p.publishTime)}</td>
         <td className="py-2 font-mono text-xs text-dim">{feed.slice(0, 8)}...</td>
       </tr>
     ) : null;

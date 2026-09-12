@@ -64,6 +64,14 @@ export default function Terms() {
           on its own page, and every quote it signs is public in the transaction that used it. If you are not willing to
           rely on it, fight only the stocks marked as priced by Pyth.
         </p>
+        <p>
+          While a US stock&apos;s own market is open, from 4am to 8pm New York time, that market is where the oracle reads.
+          Outside those hours, for stocks whose Solana pool clears a liquidity and volume floor, the price is the median
+          of the last fifteen one-minute closes on that pool as of the moment in question. Off-hours pool prices are
+          thinner than an exchange print and can differ from where the stock next opens, which is the trade for being
+          able to fight at all while the exchange is shut. The pool for each stock is pinned and published, so anyone
+          can read the same number from the same public source.
+        </p>
       </Section>
 
       <Section title="Who may use it">
@@ -86,8 +94,9 @@ export default function Terms() {
         </p>
         <p>
           Prices come from outside. A source can be late, wrong or unavailable. A stock that does not trade in the
-          relevant minute settles on its next trade, which for a thin listing can be the following morning. A fight that
-          cannot be run fairly is voided and both stakes go home.
+          relevant minute settles on its next trade, which for a thin listing can be the following morning. A pool that
+          barely trades in the fifteen minutes before a boundary gives no off-hours price at all. A fight that cannot be
+          run fairly is voided and both stakes go home.
         </p>
         <p>
           Your wallet is yours. We cannot recover a key, reverse a signature or undo a transaction, and neither can

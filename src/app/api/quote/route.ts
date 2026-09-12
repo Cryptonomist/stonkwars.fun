@@ -56,10 +56,10 @@ export async function GET(req: NextRequest) {
     for (const feed of sides) {
       const market = quoteSymbolFor(feed);
       if (!market) return NextResponse.json({ error: `No market symbol for feed ${feed}` }, { status: 500 });
-      const q = await quoteAt({ feed, symbol: market.symbol, currency: market.currency, boundary });
+      const q = await quoteAt({ feed, ...market, boundary });
       if (!q) {
         return NextResponse.json(
-          { error: `The minute after the ${which} has not closed for ${market.symbol} yet. Try again shortly.` },
+          { error: `The price at the ${which} is not final for ${market.symbol} yet. Try again shortly.` },
           { status: 425 },
         );
       }

@@ -24,6 +24,8 @@
 
 import { Ed25519Program, type Keypair, type TransactionInstruction } from "@solana/web3.js";
 
+import { session } from "./market";
+
 export const QUOTE_PREFIX = "STONKWARS:PRICE:v1";
 export const QUOTE_LEN = 78;
 /** Prices are signed as integers of 1/10,000th of the quote currency. */
@@ -94,9 +96,15 @@ export function priceAtBoundary(
 const YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart";
 const HEADERS = { "user-agent": "Mozilla/5.0 (compatible; stonkwars-oracle/1.0)" };
 
-/** Regular-session one-minute bars for `symbol` between two unix times. */
+/* Pre-market and after-hours count.
+ *
+ * A US stock trades from 4am to 8pm New York time, not 9:30 to 4, and the
+ * hours either side of the session are when most of the people playing this
+ * are awake. Those bars are thinner than the middle of the day, which is worth
+ * saying out loud, but they are prints on the stock's own market rather than
+ * anybody's quote. */
 export async function fetchBars(symbol: string, from: number, to: number): Promise<Bars> {
-  const url = `${YAHOO}/${encodeURIComponent(symbol)}?period1=${from}&period2=${to}&interval=1m&includePrePost=false`;
+  const url = `${YAHOO}/${encodeURIComponent(symbol)}?period1=${from}&period2=${to}&interval=1m&includePrePost=true`;
   const r = await fetch(url, { headers: HEADERS, cache: "no-store" });
   if (!r.ok) throw new Error(`${symbol}: market data HTTP ${r.status}`);
   const body = (await r.json()) as {
@@ -108,6 +116,81 @@ export async function fetchBars(symbol: string, from: number, to: number): Promi
   const res = body.chart?.result?.[0];
   if (!res) throw new Error(`${symbol}: ${body.chart?.error?.description ?? "no market data"}`);
   return { t: res.timestamp ?? [], c: res.indicators?.quote?.[0]?.close ?? [] };
+}
+
+/* WHEN THE EXCHANGE IS SHUT, THE TOKEN IS NOT.
+ *
+ * This is the point of putting a share on a chain: the token keeps trading
+ * through the night and the weekend, on pools nobody can close. So when the
+ * stock's own exchange has nothing to say, the price comes from the token
+ * itself, on Solana.
+ *
+ * ONE MINUTE OF IT WOULD NOT BE SAFE. Off-hours a pool can trade thirty
+ * dollars in a minute, and a single swap would set that minute's close. So the
+ * price is the MEDIAN of the last fifteen one-minute closes before the
+ * boundary. A median cannot be moved by one trade: pushing it means holding
+ * the price away from fair value across eight separate minutes, while every
+ * arbitrageur on Solana trades against you, which costs orders of magnitude
+ * more than any stake here is worth.
+ *
+ * It stays a fact about the past, so it is as repeatable as the exchange bars:
+ * the pool is pinned in the roster, the window is fixed, and anyone can ask
+ * the same public source and get the same number.
+ *
+ * A stock whose pool is too thin to be worth reading has no pinned pool at
+ * all, and simply keeps exchange hours. See scripts/build-pools.ts. */
+
+const GECKO = "https://api.geckoterminal.com/api/v2";
+
+/** How many one-minute closes the off-hours median is taken over. */
+export const OFFHOURS_WINDOW = 15;
+
+/** Fewer minutes than this actually traded, and there is no price to give. */
+export const OFFHOURS_MIN_BARS = 5;
+
+/* One-minute bars for a Solana pool, as of `before`.
+ *
+ * The source is free and rate limited, and a settle that gives up on a busy
+ * minute would leave a fight hanging, so a refusal is waited out rather than
+ * thrown. The bars themselves are history: waiting changes the answer not at
+ * all, only how long it takes to arrive. */
+export async function fetchPoolBars(pool: string, before: number): Promise<Bars> {
+  const url = `${GECKO}/networks/solana/pools/${pool}/ohlcv/minute?aggregate=1&limit=${OFFHOURS_WINDOW * 4}&before_timestamp=${before}`;
+  let last = "";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const r = await fetch(url, { headers: { ...HEADERS, accept: "application/json" }, cache: "no-store" });
+    if (r.ok) {
+      const body = (await r.json()) as { data?: { attributes?: { ohlcv_list?: number[][] } } };
+      const rows = body.data?.attributes?.ohlcv_list ?? [];
+      // Oldest first, to match the exchange bars.
+      const sorted = [...rows].sort((a, b) => a[0] - b[0]);
+      return { t: sorted.map((row) => row[0]), c: sorted.map((row) => (row[4] > 0 ? row[4] : null)) };
+    }
+    last = `HTTP ${r.status}`;
+    if (r.status !== 429 && r.status < 500) break;
+    await new Promise((resolve) => setTimeout(resolve, 1_500 * (attempt + 1)));
+  }
+  throw new Error(`pool ${pool.slice(0, 8)}: on-chain data ${last}`);
+}
+
+/** The median of the closes in the window ending at `boundary`, or null if too
+ *  few minutes traded in it. */
+export function medianAtBoundary(bars: Bars, boundary: number): { price: bigint; publishTime: number } | null {
+  const window: number[] = [];
+  for (let i = 0; i < bars.t.length; i++) {
+    const end = bars.t[i] + 60;
+    const close = bars.c[i];
+    if (end > boundary || end <= boundary - OFFHOURS_WINDOW * 60) continue;
+    if (close != null && close > 0) window.push(close);
+  }
+  if (window.length < OFFHOURS_MIN_BARS) return null;
+
+  window.sort((a, b) => a - b);
+  const mid = window.length >> 1;
+  // An even count takes the mean of the two middle closes, so the answer does
+  // not depend on which of them the sort happened to put first.
+  const median = window.length % 2 ? window[mid] : (window[mid - 1] + window[mid]) / 2;
+  return { price: BigInt(Math.round(median * 10 ** -QUOTE_EXPO)), publishTime: boundary };
 }
 
 /* EVERY PRICE IN DOLLARS.
@@ -145,19 +228,60 @@ async function dollarsPer(currency: string, at: number): Promise<number | null> 
   return rate === null ? null : rate * fx.scale;
 }
 
-/** The quote for `feed` at `boundary`, in dollars, or null if its bar is not
- * complete yet. `symbol` is the stock's symbol at the market data source and
- * `currency` what that source quotes it in. */
+/* WHICH MARKET ANSWERS FOR A MOMENT.
+ *
+ * The stock's own exchange while it is trading, from four in the morning to
+ * eight at night New York time. Outside that, the token's pool on Solana, for
+ * the stocks that have one deep enough to pin. A stock with no pinned pool
+ * keeps exchange hours and waits for the opening bell, as it always did.
+ *
+ * Listings outside the US keep their own exchange's hours either way: their
+ * sessions are not what `session()` describes, and guessing would be worse
+ * than waiting. */
+export function sourceAt(boundary: number, opts: { market?: string; pool?: string }): "exchange" | "onchain" {
+  if (!opts.pool) return "exchange";
+  if ((opts.market ?? "US") !== "US") return "exchange";
+  return session(boundary * 1_000) === "closed" ? "onchain" : "exchange";
+}
+
+/** The quote for `feed` at `boundary`, in dollars, or null if the price it
+ * needs is not final yet. `symbol` is the stock's symbol at the market data
+ * source, `currency` what that source quotes it in, and `pool` the Solana pool
+ * that prices it when its exchange is shut. */
 export async function quoteAt(opts: {
   feed: string;
   symbol: string;
   currency?: string;
   boundary: number;
   now?: number;
+  market?: string;
+  pool?: string;
 }): Promise<Quote | null> {
   const now = opts.now ?? Math.floor(Date.now() / 1000);
   if (now - opts.boundary > MAX_LOOKBACK_SECS) {
     throw new Error(`${opts.symbol}: ${opts.boundary} is older than the minute bars reach`);
+  }
+
+  if (sourceAt(opts.boundary, opts) === "onchain") {
+    // The window is behind the boundary, so it is complete the moment the
+    // boundary passes; a settler an hour late reads the same fifteen minutes.
+    if (now < opts.boundary + BAR_SETTLE_SECS) return null;
+    const bars = await fetchPoolBars(opts.pool!, opts.boundary);
+    const m = medianAtBoundary(bars, opts.boundary);
+    if (m) {
+      return {
+        feed: opts.feed.replace(/^0x/, "").toLowerCase(),
+        boundary: opts.boundary,
+        price: m.price,
+        expo: QUOTE_EXPO,
+        publishTime: m.publishTime,
+      };
+    }
+    /* The pool went quiet in those fifteen minutes, so there is no price worth
+     * signing from it. Fall through to the exchange, which means the fight
+     * waits for the opening bell exactly as it did before any of this. Both
+     * answers are history, so falling back does not make the result depend on
+     * when anybody asked. */
   }
   // Minute bars come at most a week per request. Six days covers any closure
   // a duel can wait through: a start more than five days late is void.
