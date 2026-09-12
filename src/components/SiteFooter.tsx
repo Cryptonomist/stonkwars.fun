@@ -19,8 +19,10 @@ export function SiteFooter() {
             Settled on Solana. No one holds the stakes but the program.
           </span>
         </div>
-        <div className="flex gap-4 sm:ml-auto">
+        <div className="flex flex-wrap gap-4 sm:ml-auto">
           <Link href="/how" className="hover:text-ink">How it works</Link>
+          <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+          <Link href="/terms" className="hover:text-ink">Terms</Link>
           <a href={explorer} target="_blank" rel="noreferrer" className="hover:text-ink">
             Program
           </a>
