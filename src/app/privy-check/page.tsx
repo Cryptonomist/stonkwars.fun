@@ -8,20 +8,33 @@
  * change. This page asks that question and nothing else. Sign in, and it shows
  * whether `useWallet()` can see the result. */
 
+import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets as usePrivySolanaWallets } from "@privy-io/react-auth/solana";
 
 import { PRIVY_APP_ID } from "@/components/PrivySignIn";
 
+/* usePrivy() throws outright when no provider is above it, and without an app
+ * id there is no provider. That is not a runtime problem, it is a build one:
+ * this page is prerendered, so on any deployment missing the variable the
+ * throw happens during `next build` and takes the whole deploy down with it.
+ * Hence the two components. The hooks live below the check, never beside it. */
 export default function PrivyCheck() {
-  const { ready, authenticated, user, login, logout } = usePrivy();
-  const { wallets: privyWallets } = usePrivySolanaWallets();
-  const { wallets, wallet, publicKey, connected } = useWallet();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   if (!PRIVY_APP_ID) {
     return <p className="py-10 text-dim">NEXT_PUBLIC_PRIVY_APP_ID is not set on this deployment.</p>;
   }
+  if (!mounted) return <p className="py-10 text-dim">Loading...</p>;
+  return <Report />;
+}
+
+function Report() {
+  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { wallets: privyWallets } = usePrivySolanaWallets();
+  const { wallets, wallet, publicKey, connected } = useWallet();
 
   const seenByAdapter = wallets.map((w) => w.adapter.name);
   const privyVisible = seenByAdapter.some((n) => /privy/i.test(n));
