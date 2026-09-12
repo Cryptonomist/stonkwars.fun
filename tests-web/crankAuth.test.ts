@@ -1,6 +1,6 @@
 import { expect } from "chai";
 
-import { authorise } from "../src/app/api/crank/route";
+import { authorise } from "../src/lib/crankAuth.server";
 
 /* The settler is configured by typing into a web form on another site, and for
  * a long time the only thing that form got back was the number 401. Every case
