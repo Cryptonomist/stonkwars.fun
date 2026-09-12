@@ -58,7 +58,15 @@ export async function crankTransactions(opts: {
 }): Promise<SignedTx[]> {
   const { conn, receiver, payer, duel: d, which } = opts;
   const priority = opts.priorityMicroLamports ?? 20_000;
-  const fee = { computeUnitPriceMicroLamports: priority, tightComputeBudget: true };
+  /* NOT a tight compute budget on Pyth's own transactions.
+   *
+   * `tightComputeBudget` sizes them to an estimate with no headroom, and the
+   * cost of verifying a Wormhole signature is not constant, so posting a price
+   * fails with ComputationalBudgetExceeded now and again. It is retried and
+   * gets there, but a settler that fails a third of the time is a settler
+   * nobody should trust. The headroom costs a few thousand lamports of
+   * priority fee, which is nothing against a fight not starting. */
+  const fee = { computeUnitPriceMicroLamports: priority };
 
   let post: SignedTx[] = [];
   let close: SignedTx[] = [];

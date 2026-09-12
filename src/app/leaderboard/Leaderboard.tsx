@@ -5,54 +5,24 @@
  * at the end price, which is what the win was actually worth when it landed. */
 
 import { ConnectX } from "@/components/ConnectX";
-import { allDuels, OUTCOME_CREATOR, STATUS_SETTLED } from "@/lib/duel";
-import { pythToNumber, shortAddress, usd } from "@/lib/format";
+import { allDuels, STATUS_SETTLED } from "@/lib/duel";
+import { shortAddress, usd } from "@/lib/format";
 import { useDuels, useProfiles } from "@/lib/hooks";
+import { rankFighters } from "@/lib/leaderboard";
 import { STAKE_DECIMALS } from "@/lib/stocks";
-
-type Row = { wallet: string; wins: number; losses: number; taken: number; streak: number; best: number };
 
 export function Leaderboard() {
   const duels = useDuels("all", allDuels(), 20_000);
   const profiles = useProfiles();
-
-  const table = new Map<string, Row>();
-  const row = (w: string) => {
-    let r = table.get(w);
-    if (!r) {
-      r = { wallet: w, wins: 0, losses: 0, taken: 0, streak: 0, best: 0 };
-      table.set(w, r);
-    }
-    return r;
-  };
-
-  const settled = (duels.data ?? []).filter((d) => d.status === STATUS_SETTLED).sort((a, b) => a.endTs - b.endTs);
-  for (const d of settled) {
-    const creatorWon = d.outcome === OUTCOME_CREATOR;
-    const winner = creatorWon ? d.creator.toBase58() : d.opponent.toBase58();
-    const loser = creatorWon ? d.opponent.toBase58() : d.creator.toBase58();
-    const loserAmount = creatorWon ? d.opponentAmount : d.creatorAmount;
-    const loserEnd = creatorWon ? d.opponentEnd : d.creatorEnd;
-    const taken = (Number(loserAmount) / 10 ** STAKE_DECIMALS) * pythToNumber(loserEnd.price, loserEnd.expo);
-
-    const w = row(winner);
-    w.wins++;
-    w.taken += taken;
-    w.streak++;
-    w.best = Math.max(w.best, w.streak);
-    const l = row(loser);
-    l.losses++;
-    l.streak = 0;
-  }
-
-  const ranked = [...table.values()].sort((a, b) => b.wins - a.wins || b.taken - a.taken).slice(0, 50);
+  const ranked = rankFighters(duels.data ?? [], STAKE_DECIMALS).slice(0, 50);
+  const settled = (duels.data ?? []).filter((d) => d.status === STATUS_SETTLED).length;
 
   return (
     <div className="py-10">
       <p className="label">Settled on chain</p>
       <h1 className="display mt-2 text-6xl sm:text-7xl">Leaderboard</h1>
       <p className="mt-3 text-dim">
-        {settled.length} {settled.length === 1 ? "fight" : "fights"} settled so far.
+        {settled} {settled === 1 ? "fight" : "fights"} settled so far.
       </p>
 
       <ConnectX />

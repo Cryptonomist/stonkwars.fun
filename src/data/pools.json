@@ -1,1 +1,163 @@
-{}
+{
+ "TSLA": {
+  "pool": "8aDaBQkTrS6HVMjyc6EZebgdiaXhLYGriDWKWWp1NpFF",
+  "dex": "TSLAx / USDC",
+  "liquidityUsd": 2117967.2763,
+  "volume24hUsd": 1146467.96729028,
+  "at": "2026-09-12"
+ },
+ "NVDA": {
+  "pool": "49iMatQtoyabsYAQc8GafVq6aeBFVDxSRH44oiatyyw6",
+  "dex": "NVDAx / USDC",
+  "liquidityUsd": 2140472.6356,
+  "volume24hUsd": 3177434.35030382,
+  "at": "2026-09-12"
+ },
+ "AAPL": {
+  "pool": "CKwJZwm7oj3nu4653N1EpDrqXbXAYXoPFiPeEnLouF8y",
+  "dex": "AAPLx / USDC",
+  "liquidityUsd": 332000.3422,
+  "volume24hUsd": 1018008.16167428,
+  "at": "2026-09-12"
+ },
+ "QQQ": {
+  "pool": "GMjGLWzvK75LPetrgAmdeXnvxc4fUuQPwJxeQqTDU1aG",
+  "dex": "QQQx / USDC",
+  "liquidityUsd": 2173861.7963,
+  "volume24hUsd": 1657936.25393574,
+  "at": "2026-09-12"
+ },
+ "SPY": {
+  "pool": "6truu3rZuiB9rKQg4VYC3Dt3QwV7DgwGqXrYUcrvnDDE",
+  "dex": "SPYx / USDC",
+  "liquidityUsd": 2873690.4383,
+  "volume24hUsd": 11839839.5001384,
+  "at": "2026-09-12"
+ },
+ "MSFT": {
+  "pool": "CLu4kFM4nb67xrdN7vJnMxXXir8Z5hA4HJUzPFccXjsL",
+  "dex": "MSFTx / USDC",
+  "liquidityUsd": 314525.0133,
+  "volume24hUsd": 581057.637396153,
+  "at": "2026-09-12"
+ },
+ "GOOGL": {
+  "pool": "B8YAwjGYk6qidWzGBXMAxP7nYfG8g74EZ3Y4gFSsobRw",
+  "dex": "GOOGLx / USDC",
+  "liquidityUsd": 360699.7229,
+  "volume24hUsd": 1082354.16066051,
+  "at": "2026-09-12"
+ },
+ "AMZN": {
+  "pool": "6m5aXAve4uh6Kt4ytKyCLWNMjd8PYP5vujwNCtycrUiD",
+  "dex": "AMZNx / USDC",
+  "liquidityUsd": 231978.3754,
+  "volume24hUsd": 331135.191597413,
+  "at": "2026-09-12"
+ },
+ "META": {
+  "pool": "3L7KbPVaAQA4UTecaGQYsm6UCq5F3sZM9zAYkxqYt63j",
+  "dex": "METAx / USDC",
+  "liquidityUsd": 173484.2205,
+  "volume24hUsd": 446360.887214941,
+  "at": "2026-09-12"
+ },
+ "MSTR": {
+  "pool": "2ngTuP7xA581dqX9uJkGRqxmKuehY3k4SDfPebeoRG2J",
+  "dex": "MSTRx / SOL",
+  "liquidityUsd": 715949.3746,
+  "volume24hUsd": 488982.252792035,
+  "at": "2026-09-12"
+ },
+ "COIN": {
+  "pool": "w7SGmPeXoMCsjvXqgsAmUn56uypyDsjAtsxeVkaiqxa",
+  "dex": "COINx / USDC",
+  "liquidityUsd": 939171.6626,
+  "volume24hUsd": 490924.642147177,
+  "at": "2026-09-12"
+ },
+ "HOOD": {
+  "pool": "DXWbip5LducMAbDSSpLYz9Xik3253EPeAYQufQtx7LXs",
+  "dex": "HOODx / USDC",
+  "liquidityUsd": 887855.085,
+  "volume24hUsd": 362598.498840338,
+  "at": "2026-09-12"
+ },
+ "PLTR": {
+  "pool": "5bY2fh9rgTYaBDxFGFJmddhaDkm5zwiWP6b2ZsjJZyP",
+  "dex": "PLTRx / USDC",
+  "liquidityUsd": 174401.5389,
+  "volume24hUsd": 617266.511129809,
+  "at": "2026-09-12"
+ },
+ "GME": {
+  "pool": "hSQxf9L7Tpwf1PKjWWSbnew2vyTPpGrfWwNa4gq2n2x",
+  "dex": "GMEx / USDC",
+  "liquidityUsd": 232490.0295,
+  "volume24hUsd": 580360.710678171,
+  "at": "2026-09-12"
+ },
+ "SPCX": {
+  "pool": "AHNN6JmvaGG6XUoSg7sEr38gRYDB2jTbUvqXVuqaRHpq",
+  "dex": "SPCXx / USDC",
+  "liquidityUsd": 867334.154,
+  "volume24hUsd": 1913859.83879429,
+  "at": "2026-09-12"
+ },
+ "CRCL": {
+  "pool": "GYqHjuDzTiw7i52Xv1qohDE6eJr6eSZpsrBVikGZyaFV",
+  "dex": "CRCLx / USDC",
+  "liquidityUsd": 2190524.6563,
+  "volume24hUsd": 4368273.63607426,
+  "at": "2026-09-12"
+ },
+ "NFLX": {
+  "pool": "7RQXW5KEBgHCcy1eSNs1Kh7BWaEL46q8jb9t18S151bL",
+  "dex": "NFLXx / USDC",
+  "liquidityUsd": 121154.7016,
+  "volume24hUsd": 131575.276531719,
+  "at": "2026-09-12"
+ },
+ "GLD": {
+  "pool": "78ReVNMLGRWmjtf2HmBoHUe2pRcsctXTTbxJnbhchyze",
+  "dex": "GLDx / USDC",
+  "liquidityUsd": 464235.7412,
+  "volume24hUsd": 2882490.2971038,
+  "at": "2026-09-12"
+ },
+ "KO": {
+  "pool": "BG7f49R2sb2UBCMu3AHuDmgDRyzqVgeMpDEk9S9gvQhy",
+  "dex": "KOx / USDC",
+  "liquidityUsd": 115466.3705,
+  "volume24hUsd": 575739.278097049,
+  "at": "2026-09-12"
+ },
+ "BRK.B": {
+  "pool": "B4UdLnvzCrnfRndLdgGTYZjcKTDsaFKB54cmKb2GoSne",
+  "dex": "BRK.Bx / USDC",
+  "liquidityUsd": 119944.9078,
+  "volume24hUsd": 479965.726087346,
+  "at": "2026-09-12"
+ },
+ "MCD": {
+  "pool": "CcPxuvtqXeefgnBnCKSKSLvdGdJ3kbWyb3LDevGX3PJg",
+  "dex": "MCDx / USDC",
+  "liquidityUsd": 215951.8118,
+  "volume24hUsd": 322071.983193684,
+  "at": "2026-09-12"
+ },
+ "STRC": {
+  "pool": "DU9dgBU6Yh2JjsYcjtRY21G14dhQxn6Xm5PT949Sa4tA",
+  "dex": "STRCx / USDC",
+  "liquidityUsd": 401293.2143,
+  "volume24hUsd": 2237229.63741913,
+  "at": "2026-09-12"
+ },
+ "VIDA": {
+  "pool": "EDBMuQjwzwP8dxe7GwDTFsBSeCr2hEtyWs8hXV2No95T",
+  "dex": "CTO / VIDAx",
+  "liquidityUsd": 158325.146,
+  "volume24hUsd": 639342.293893713,
+  "at": "2026-09-12"
+ }
+}

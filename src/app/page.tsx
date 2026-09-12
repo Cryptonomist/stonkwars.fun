@@ -1,10 +1,19 @@
 import Link from "next/link";
 
 import { LiveBoard } from "@/components/LiveBoard";
-import { SampleFight } from "@/components/SampleFight";
+import { Movers } from "@/components/Movers";
+import { SiteTally } from "@/components/SiteTally";
 import { TickerTape } from "@/components/TickerTape";
-import { BRAND } from "@/lib/brand";
+import { TopFighters } from "@/components/TopFighters";
 import { AROUND_THE_CLOCK, ROSTER } from "@/lib/stocks";
+
+/* THE FRONT PAGE IS A BOARD, NOT A PITCH.
+ *
+ * Everyone this is for has seen a hundred landing pages and reads none of
+ * them. What they read is numbers: what is moving, who is fighting, who is
+ * winning, what it paid. So the page opens on the tape and the board, says
+ * what the game is in one line rather than one billboard, and keeps the
+ * explaining for the people who scroll far enough to want it. */
 
 const STEPS = [
   {
@@ -31,7 +40,7 @@ const TRUST = [
   },
   {
     title: "One price counts",
-    body: "Each boundary has exactly one price: Pyth's first update at or after it (every update records the time of the one before), or the close of the stock's first one-minute bar at or after it. The program takes that one and refuses the rest.",
+    body: "Each boundary has exactly one price: Pyth's first update at or after it, or the close of the stock's first one-minute bar at or after it. Outside market hours, the median of the token's last fifteen minutes on its own pool. The program takes that one and refuses the rest.",
   },
   {
     title: "Anyone can settle",
@@ -43,15 +52,6 @@ const TRUST = [
   },
 ];
 
-/* What the page can say in numbers instead of adjectives. */
-const FACTS = [
-  { n: ROSTER.length.toLocaleString(), label: "tokenized stocks" },
-  AROUND_THE_CLOCK > 0
-    ? { n: "24/7", label: "fights, not market hours" }
-    : { n: "Signed", label: "prices, checked on chain" },
-  { n: "0%", label: "house cut" },
-];
-
 export default function Home() {
   return (
     <div>
@@ -60,47 +60,53 @@ export default function Home() {
         <TickerTape />
       </div>
 
-      <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.1fr_1fr] lg:py-16">
-        <div>
-          <p className="label">Peer to peer, settled on Solana</p>
-          <h1 className="display mt-3 text-6xl leading-[0.95] sm:text-7xl lg:text-8xl">
-            Win, and you
-            <br />
-            own their stock.
-          </h1>
-          <p className="display mt-3 text-4xl text-cooked sm:text-5xl">Loser gets cooked.</p>
-          <p className="mt-6 max-w-xl text-lg text-dim">{BRAND.pitch}</p>
-
-          <div className="mt-7 flex flex-wrap gap-2">
-            {FACTS.map((f) => (
-              <span key={f.label} className="flex items-baseline gap-2 bg-panel-2 px-3 py-1.5">
-                <span className="display text-xl text-p1">{f.n}</span>
-                <span className="text-xs text-dim">{f.label}</span>
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/new" className="btn btn-p1 px-8 text-xl">
-              Pick a fight
-            </Link>
-            <Link href="/fights" className="btn btn-ghost px-8 text-xl">
-              Watch the fights
-            </Link>
-          </div>
-        </div>
-        <SampleFight />
+      <section className="flex flex-wrap items-baseline gap-x-6 gap-y-3 py-6">
+        <h1 className="display text-3xl sm:text-4xl">
+          Your stock vs theirs. <span className="text-cooked">Winner takes both.</span>
+        </h1>
+        <p className="max-w-xl text-sm text-dim">
+          Stake tokenized shares against somebody else&apos;s. The bigger percentage move by the bell takes every share on
+          the table, paid in stock. {AROUND_THE_CLOCK > 0 ? `${AROUND_THE_CLOCK} of them fight around the clock.` : ""}
+        </p>
+        <Link href="/new" className="btn btn-p1 ml-auto px-7 text-lg">
+          Pick a fight
+        </Link>
       </section>
 
-      <section>
-        <div className="flex items-end justify-between">
-          <h2 className="display text-5xl">In the ring</h2>
-          <Link href="/fights" className="label hover:text-ink">
-            All fights
-          </Link>
+      <SiteTally />
+
+      <section className="mt-6 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <div>
+          <div className="flex items-end justify-between">
+            <h2 className="display text-3xl">In the ring</h2>
+            <Link href="/fights" className="label hover:text-ink">
+              All fights
+            </Link>
+          </div>
+          <div className="mt-3">
+            <LiveBoard limit={8} columns={1} />
+          </div>
         </div>
-        <div className="mt-4">
-          <LiveBoard limit={6} />
+
+        <div className="flex flex-col gap-6">
+          <div>
+            <div className="flex items-end justify-between">
+              <h2 className="display text-3xl">Moving today</h2>
+              <Link href="/new" className="label hover:text-ink">
+                Pick one
+              </Link>
+            </div>
+            <div className="card mt-3 px-4 py-2">
+              <Movers rows={8} />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="display text-3xl">Who cooks</h2>
+            <div className="card mt-3 px-4 py-2">
+              <TopFighters rows={7} />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -114,7 +120,7 @@ export default function Home() {
         ))}
       </section>
 
-      <section className="mt-20">
+      <section className="mt-16">
         <p className="label">Why nobody can rig it</p>
         <h2 className="display mt-2 text-5xl sm:text-6xl">No ref. Just the bell.</h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">

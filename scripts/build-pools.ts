@@ -30,34 +30,56 @@ const MIN_LIQUIDITY_USD = 100_000;
 /** Traded enough that somebody is watching it, and would arbitrage a push. */
 const MIN_VOLUME_24H_USD = 25_000;
 
-/** GeckoTerminal's free tier is about 30 calls a minute. */
-const GAP_MS = 2_200;
+/** The multi endpoint takes thirty addresses at a time and names each one's
+ *  deepest pool, so the whole roster is thirty-five calls rather than a
+ *  thousand. Asking once per token took hours and mostly ate rate limits. */
+const PER_CALL = 30;
+const GAP_MS = 3_000;
 
 type Token = { ticker: string; mint: string };
 type Pool = { pool: string; dex: string; liquidityUsd: number; volume24hUsd: number };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function poolsFor(mint: string, attempt = 0): Promise<Pool[]> {
-  const r = await fetch(`${GECKO}/networks/solana/tokens/${mint}/pools`, { headers: HEADERS });
-  if (r.status === 429) {
-    if (attempt >= 4) throw new Error("rate limited");
-    await sleep(5_000 * (attempt + 1));
-    return poolsFor(mint, attempt + 1);
+type MultiBody = {
+  data?: {
+    attributes?: { address?: string };
+    relationships?: { top_pools?: { data?: { id?: string }[] } };
+  }[];
+  included?: {
+    id?: string;
+    attributes?: { address?: string; name?: string; reserve_in_usd?: string; volume_usd?: { h24?: string } };
+  }[];
+};
+
+/** The deepest pool for each of `mints`, by mint, where the source knows one. */
+async function topPools(mints: string[], attempt = 0): Promise<Map<string, Pool>> {
+  const url = `${GECKO}/networks/solana/tokens/multi/${mints.join(",")}?include=top_pools`;
+  const r = await fetch(url, { headers: HEADERS });
+  if (r.status === 429 || r.status >= 500) {
+    if (attempt >= 4) throw new Error(`HTTP ${r.status} after retries`);
+    await sleep(6_000 * (attempt + 1));
+    return topPools(mints, attempt + 1);
   }
-  if (r.status === 404) return [];
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const body = (await r.json()) as {
-    data?: { attributes?: { address?: string; name?: string; reserve_in_usd?: string; volume_usd?: { h24?: string } } }[];
-  };
-  return (body.data ?? [])
-    .map((p) => ({
-      pool: p.attributes?.address ?? "",
-      dex: p.attributes?.name ?? "",
-      liquidityUsd: Number(p.attributes?.reserve_in_usd ?? 0),
-      volume24hUsd: Number(p.attributes?.volume_usd?.h24 ?? 0),
-    }))
-    .filter((p) => p.pool);
+
+  const body = (await r.json()) as MultiBody;
+  const pools = new Map((body.included ?? []).map((p) => [p.id ?? "", p]));
+
+  const out = new Map<string, Pool>();
+  for (const token of body.data ?? []) {
+    const mint = token.attributes?.address;
+    const topId = token.relationships?.top_pools?.data?.[0]?.id;
+    const pool = topId ? pools.get(topId) : undefined;
+    if (!mint || !pool?.attributes?.address) continue;
+    out.set(mint, {
+      pool: pool.attributes.address,
+      dex: pool.attributes.name ?? "",
+      liquidityUsd: Number(pool.attributes.reserve_in_usd ?? 0),
+      volume24hUsd: Number(pool.attributes.volume_usd?.h24 ?? 0),
+    });
+  }
+  return out;
 }
 
 async function main() {
@@ -71,33 +93,35 @@ async function main() {
 
   const out: Record<string, Pool & { at: string }> = {};
   const today = new Date().toISOString().slice(0, 10);
+  const file = path.join(ROOT, "src/data/pools.json");
+  const save = () => fs.writeFileSync(file, `${JSON.stringify(out, null, 1)}\n`);
+
+  const entries = [...byTicker];
   let checked = 0;
   let tooThin = 0;
   let none = 0;
 
-  for (const [ticker, mint] of byTicker) {
-    checked++;
+  for (let i = 0; i < entries.length; i += PER_CALL) {
+    const batch = entries.slice(i, i + PER_CALL);
     try {
-      const pools = await poolsFor(mint);
-      const best = pools.sort((a, b) => b.liquidityUsd - a.liquidityUsd)[0];
-      if (!best) {
-        none++;
-      } else if (best.liquidityUsd < MIN_LIQUIDITY_USD || best.volume24hUsd < MIN_VOLUME_24H_USD) {
-        tooThin++;
-      } else {
-        out[ticker] = { ...best, at: today };
+      const found = await topPools(batch.map(([, mint]) => mint));
+      for (const [ticker, mint] of batch) {
+        const best = found.get(mint);
+        if (!best) none++;
+        else if (best.liquidityUsd < MIN_LIQUIDITY_USD || best.volume24hUsd < MIN_VOLUME_24H_USD) tooThin++;
+        else out[ticker] = { ...best, at: today };
       }
     } catch (e) {
-      console.error(`${ticker}: ${e instanceof Error ? e.message : e}`);
+      console.error(`batch at ${i}: ${e instanceof Error ? e.message : e}`);
     }
-    if (checked % 50 === 0) {
-      console.log(`${checked}/${byTicker.size} checked, ${Object.keys(out).length} pinned`);
-    }
+    checked += batch.length;
+    // Written as we go, so a run that is interrupted still leaves what it found.
+    save();
+    console.log(`${checked}/${entries.length} checked, ${Object.keys(out).length} pinned`);
     await sleep(GAP_MS);
   }
 
-  const file = path.join(ROOT, "src/data/pools.json");
-  fs.writeFileSync(file, `${JSON.stringify(out, null, 1)}\n`);
+  save();
   console.log(
     `\n${Object.keys(out).length} stocks can settle around the clock` +
       ` (${tooThin} pools too thin, ${none} with no pool at all, of ${byTicker.size})`,

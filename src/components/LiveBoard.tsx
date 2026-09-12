@@ -11,7 +11,7 @@ import { usePrices } from "@/lib/prices";
 import { tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 
-export function LiveBoard({ limit = 12 }: { limit?: number }) {
+export function LiveBoard({ limit = 12, columns = 2 }: { limit?: number; columns?: 1 | 2 }) {
   const duels = useDuels("all", allDuels());
   const now = useNow();
 
@@ -50,7 +50,7 @@ export function LiveBoard({ limit = 12 }: { limit?: number }) {
     );
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className={`grid gap-3 ${columns === 2 ? "md:grid-cols-2" : ""}`}>
       {shown.map((d) => (
         <FightRow key={d.address.toBase58()} d={d} now={now} quotes={prices.data} />
       ))}
