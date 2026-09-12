@@ -52,10 +52,15 @@ export function StockPicker({
 
   const visible = useMemo(() => {
     const page = hits.slice(0, shown);
-    // Keep the current pick visible, first, whatever the filter says.
+    /* Keep the current pick in sight while somebody types, so a search does
+     * not appear to lose it. NOT when they have switched tabs, though: pinning
+     * a stock to the top of the ETFs tab makes the tab look like it ignored
+     * the click, which is exactly what it was reported as. A tab is an
+     * instruction about what belongs on screen, and the pick is not exempt. */
     const picked = value ? byTicker(value) : undefined;
-    return picked && !page.includes(picked) ? [picked, ...page] : page;
-  }, [hits, shown, value]);
+    const belongs = picked && (kind === "all" || picked.kind === kind);
+    return belongs && !page.includes(picked) ? [picked, ...page] : page;
+  }, [hits, shown, value, kind]);
 
   const prices = usePrices(
     visible.map((s) => s.ticker),
