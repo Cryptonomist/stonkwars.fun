@@ -1030,4 +1030,7 @@
 {"ticker":"ZJGLD","symbol":"ZJGLDx","mint":"LZ5mH1ujF59WFCtkYJ9omTePZTaJpKZAQxTKci7B3nD"},
 {"ticker":"ZM","symbol":"ZMx","mint":"P76LYSHYF7uj5cjrfdxc4dF8k4NjrAn2woRqdpvYHop"},
 {"ticker":"ZS","symbol":"ZSx","mint":"FyqSRbxVo243sNNzizDaAskizTCKoQLseGA1dU7ZfdVY"},
-{"ticker":"ZTS","symbol":"ZTSx","mint":"Hg14A6fAPZxDmnya9Yv41yx4qKzocRPKnRP3xfQBP3G6"}]}
+{"ticker":"ZTS","symbol":"ZTSx","mint":"Hg14A6fAPZxDmnya9Yv41yx4qKzocRPKnRP3xfQBP3G6"},
+{"ticker":"BTCt","symbol":"BTCt","mint":"8hcVjRV6eg372hPrYJKsKhTVcL1VKmJdps8KzbcJy1YR"},
+{"ticker":"ETHt","symbol":"ETHt","mint":"5vrMbZWxvpXfYfZVYSYJTgr2QMq3d8mfqrtTxjzoUqY7"},
+{"ticker":"SOLt","symbol":"SOLt","mint":"6fKQqW37o94ua8w3duhpL9oMrmoHDFnCYiEX5Uc1ZXUW"}]}
