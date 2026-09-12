@@ -87,9 +87,9 @@ database: it reads profiles from the chain like everything else.
 **Built for the trenches.** The front page is a board, not a pitch: a live tape,
 what is in the ring, what is moving, who is winning. A fight link unfurls on X
 as a VS card and, for wallet users, as a Blink they can take the fight from
-without leaving their feed. The fight page plays like a fighting game — every
-price that arrives lands as a hit, a run of them is a combo, the bell is a
-knockout — over numbers that are all real. A guest wallet and a faucet put a
+without leaving their feed. The fight page plays like a fighting game: every
+price that arrives lands as a hit, a run of them is a combo, and the bell is a
+knockout, all over numbers that are real. A guest wallet and a faucet put a
 stranger in a fight within a minute, no extension and no SOL.
 
 ## What was built in the window (Sept 11–18)
