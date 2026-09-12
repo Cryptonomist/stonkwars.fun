@@ -25,10 +25,22 @@ const ROOT = path.resolve(__dirname, "..");
 const GECKO = "https://api.geckoterminal.com/api/v2";
 const HEADERS = { "user-agent": "Mozilla/5.0 (compatible; stonkwars-pools/1.0)", accept: "application/json" };
 
-/** Deep enough that pushing a fifteen-minute median is not worth anyone's while. */
+/** Deep enough that pushing the off-hours price is not worth anyone's while. */
 const MIN_LIQUIDITY_USD = 100_000;
 /** Traded enough that somebody is watching it, and would arbitrage a push. */
 const MIN_VOLUME_24H_USD = 25_000;
+
+/* AND DEPTH IS NOT THE SAME AS TRADING.
+ *
+ * Measured at one in the morning, five of twenty-three pools that passed the
+ * floors above could be priced at all. CRCL had $2.19M sitting in it and had
+ * not traded a minute in the hour. A stock the app promises will fight around
+ * the clock and then cannot price is worse than one that never claimed it.
+ *
+ * So the last gate is the only one that matters overnight: how many minutes of
+ * the last hour actually traded. Run this script at a quiet hour and the list
+ * it writes is one that holds up at every other hour too. */
+const MIN_TRADED_MINUTES_PER_HOUR = 20;
 
 /** The multi endpoint takes thirty addresses at a time and names each one's
  *  deepest pool, so the whole roster is thirty-five calls rather than a
@@ -37,7 +49,7 @@ const PER_CALL = 30;
 const GAP_MS = 3_000;
 
 type Token = { ticker: string; mint: string };
-type Pool = { pool: string; dex: string; liquidityUsd: number; volume24hUsd: number };
+type Pool = { pool: string; dex: string; liquidityUsd: number; volume24hUsd: number; tradedMinutesPerHour?: number };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -82,6 +94,22 @@ async function topPools(mints: string[], attempt = 0): Promise<Map<string, Pool>
   return out;
 }
 
+/** How many of the last sixty minutes this pool actually traded. */
+async function tradedMinutes(pool: string, attempt = 0): Promise<number> {
+  const before = Math.floor(Date.now() / 1000);
+  const url = `${GECKO}/networks/solana/pools/${pool}/ohlcv/minute?aggregate=1&limit=65&before_timestamp=${before}`;
+  const r = await fetch(url, { headers: HEADERS });
+  if (r.status === 429 || r.status >= 500) {
+    if (attempt >= 4) return 0;
+    await sleep(6_000 * (attempt + 1));
+    return tradedMinutes(pool, attempt + 1);
+  }
+  if (!r.ok) return 0;
+  const body = (await r.json()) as { data?: { attributes?: { ohlcv_list?: number[][] } } };
+  const rows = body.data?.attributes?.ohlcv_list ?? [];
+  return rows.filter(([t, , , , c]) => c > 0 && t + 60 > before - 3_600 && t + 60 <= before).length;
+}
+
 async function main() {
   const deployment = JSON.parse(fs.readFileSync(path.join(ROOT, "src/data/stocks.mainnet-beta.json"), "utf8")) as {
     tokens: Token[];
@@ -97,6 +125,7 @@ async function main() {
   const save = () => fs.writeFileSync(file, `${JSON.stringify(out, null, 1)}\n`);
 
   const entries = [...byTicker];
+  const candidates: [string, Pool][] = [];
   let checked = 0;
   let tooThin = 0;
   let none = 0;
@@ -109,22 +138,38 @@ async function main() {
         const best = found.get(mint);
         if (!best) none++;
         else if (best.liquidityUsd < MIN_LIQUIDITY_USD || best.volume24hUsd < MIN_VOLUME_24H_USD) tooThin++;
-        else out[ticker] = { ...best, at: today };
+        else candidates.push([ticker, best]);
       }
     } catch (e) {
       console.error(`batch at ${i}: ${e instanceof Error ? e.message : e}`);
     }
     checked += batch.length;
-    // Written as we go, so a run that is interrupted still leaves what it found.
+    console.log(`${checked}/${entries.length} checked, ${candidates.length} deep enough`);
+    await sleep(GAP_MS);
+  }
+
+  /* The gate that actually decides it: does this pool trade? Asked last,
+   * because it costs a request each and only the deep ones are worth asking
+   * about. */
+  console.log(`\nmeasuring how much ${candidates.length} of them trade, one hour back`);
+  let quiet = 0;
+  for (const [ticker, pool] of candidates) {
+    const minutes = await tradedMinutes(pool.pool);
+    if (minutes >= MIN_TRADED_MINUTES_PER_HOUR) {
+      out[ticker] = { ...pool, at: today, tradedMinutesPerHour: minutes };
+      console.log(`  ${ticker.padEnd(6)} ${String(minutes).padStart(2)}/60 traded  kept`);
+    } else {
+      quiet++;
+      console.log(`  ${ticker.padEnd(6)} ${String(minutes).padStart(2)}/60 traded  too quiet to price`);
+    }
     save();
-    console.log(`${checked}/${entries.length} checked, ${Object.keys(out).length} pinned`);
     await sleep(GAP_MS);
   }
 
   save();
   console.log(
-    `\n${Object.keys(out).length} stocks can settle around the clock` +
-      ` (${tooThin} pools too thin, ${none} with no pool at all, of ${byTicker.size})`,
+    `\n${Object.keys(out).length} stocks can settle around the clock, measured at ${new Date().toISOString()}` +
+      ` (${quiet} deep but too quiet, ${tooThin} pools too thin, ${none} with no pool at all, of ${byTicker.size})`,
   );
   console.log(`written to ${path.relative(ROOT, file)}`);
 }
