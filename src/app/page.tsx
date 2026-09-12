@@ -2,8 +2,9 @@ import Link from "next/link";
 
 import { LiveBoard } from "@/components/LiveBoard";
 import { SampleFight } from "@/components/SampleFight";
+import { TickerTape } from "@/components/TickerTape";
 import { BRAND } from "@/lib/brand";
-import { ROSTER } from "@/lib/stocks";
+import { AROUND_THE_CLOCK, ROSTER } from "@/lib/stocks";
 
 const STEPS = [
   {
@@ -42,20 +43,44 @@ const TRUST = [
   },
 ];
 
+/* What the page can say in numbers instead of adjectives. */
+const FACTS = [
+  { n: ROSTER.length.toLocaleString(), label: "tokenized stocks" },
+  AROUND_THE_CLOCK > 0
+    ? { n: "24/7", label: "fights, not market hours" }
+    : { n: "Signed", label: "prices, checked on chain" },
+  { n: "0%", label: "house cut" },
+];
+
 export default function Home() {
   return (
     <div>
-      <section className="grid items-center gap-10 py-14 lg:grid-cols-[1.1fr_1fr] lg:py-20">
+      {/* Out past the page's column, edge to edge, the way a tape should run. */}
+      <div className="relative left-1/2 w-screen -translate-x-1/2 overflow-x-clip">
+        <TickerTape />
+      </div>
+
+      <section className="grid items-center gap-10 py-12 lg:grid-cols-[1.1fr_1fr] lg:py-16">
         <div>
-          <p className="label">{ROSTER.length} tokenized stocks · on Solana</p>
-          <h1 className="display mt-4 text-7xl sm:text-8xl lg:text-9xl">
+          <p className="label">Peer to peer, settled on Solana</p>
+          <h1 className="display mt-3 text-6xl leading-[0.95] sm:text-7xl lg:text-8xl">
             Win, and you
             <br />
             own their stock.
           </h1>
-          <p className="display mt-3 text-5xl text-cooked sm:text-6xl">Loser gets cooked.</p>
+          <p className="display mt-3 text-4xl text-cooked sm:text-5xl">Loser gets cooked.</p>
           <p className="mt-6 max-w-xl text-lg text-dim">{BRAND.pitch}</p>
-          <div className="mt-8 flex flex-wrap gap-3">
+
+          <div className="mt-7 flex flex-wrap gap-2">
+            {FACTS.map((f) => (
+              <span key={f.label} className="flex items-baseline gap-2 bg-panel-2 px-3 py-1.5">
+                <span className="display text-xl text-p1">{f.n}</span>
+                <span className="text-xs text-dim">{f.label}</span>
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-7 flex flex-wrap gap-3">
             <Link href="/new" className="btn btn-p1 px-8 text-xl">
               Pick a fight
             </Link>
@@ -67,17 +92,7 @@ export default function Home() {
         <SampleFight />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        {STEPS.map((s) => (
-          <div key={s.n} className="card p-6">
-            <span className="display text-5xl text-p2">{s.n}</span>
-            <h2 className="display mt-3 text-4xl">{s.title}</h2>
-            <p className="mt-2 text-dim">{s.body}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="mt-16">
+      <section>
         <div className="flex items-end justify-between">
           <h2 className="display text-5xl">In the ring</h2>
           <Link href="/fights" className="label hover:text-ink">
@@ -87,6 +102,16 @@ export default function Home() {
         <div className="mt-4">
           <LiveBoard limit={6} />
         </div>
+      </section>
+
+      <section className="mt-16 grid gap-4 md:grid-cols-3">
+        {STEPS.map((s) => (
+          <div key={s.n} className="card p-6">
+            <span className="display text-5xl text-p2">{s.n}</span>
+            <h2 className="display mt-3 text-4xl">{s.title}</h2>
+            <p className="mt-2 text-dim">{s.body}</p>
+          </div>
+        ))}
       </section>
 
       <section className="mt-20">

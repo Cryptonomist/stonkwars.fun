@@ -333,6 +333,24 @@ body {
   }
 }
 
+/* The tape. Two copies of the same row, sliding the width of one. */
+.tape {
+  animation: tape 70s linear infinite;
+}
+
+.tape:hover {
+  animation-play-state: paused;
+}
+
+@keyframes tape {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
 /* The last ten seconds, when the clock itself starts sweating. */
 .final-seconds {
   color: var(--color-cooked);
@@ -357,7 +375,8 @@ body {
   .hit-flash,
   .shake,
   .combo,
-  .final-seconds {
+  .final-seconds,
+  .tape {
     animation: none;
   }
   .bar-fill {

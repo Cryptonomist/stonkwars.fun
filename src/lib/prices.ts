@@ -14,7 +14,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type { Quotes } from "@/lib/pricemath";
 
-export { movePct, quoteValue, stakeForDollars, stakeValue } from "@/lib/pricemath";
+export { dayChangePct, movePct, quoteValue, stakeForDollars, stakeValue } from "@/lib/pricemath";
 export type { Quote, Quotes } from "@/lib/pricemath";
 
 /** The most tickers one request carries; the server refuses more. */

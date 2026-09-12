@@ -12,12 +12,23 @@ export type Quote = {
   expo: number;
   conf: string;
   publishTime: number;
+  /** The close of the session before this one, at the same exponent, where the
+   *  source gave one. Display only: no outcome is measured against it. */
+  prev?: string;
 };
 
 export type Quotes = { quotes: Record<string, Quote>; at: number; error?: string };
 
 export const quoteValue = (q?: Pick<Quote, "price" | "expo">): number | null =>
   q ? Number(q.price) * 10 ** q.expo : null;
+
+/** The move on the day, against the previous session's close, or null when the
+ *  source did not give one. */
+export function dayChangePct(q?: Quote): number | null {
+  if (!q?.prev) return null;
+  const prev = Number(q.prev);
+  return prev > 0 ? ((Number(q.price) - prev) / prev) * 100 : null;
+}
 
 /* STAKE SIZING, IN INTEGERS.
  *

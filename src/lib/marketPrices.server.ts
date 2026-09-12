@@ -21,22 +21,33 @@ const EXPO = -4;
 
 type SparkResult = {
   symbol: string;
-  response?: { meta?: { regularMarketPrice?: number; regularMarketTime?: number } }[];
+  response?: {
+    meta?: { regularMarketPrice?: number; regularMarketTime?: number; chartPreviousClose?: number };
+    indicators?: { quote?: { close?: (number | null)[] }[] };
+  }[];
 };
 
-async function sparkBatch(symbols: string[]): Promise<Map<string, { price: number; time: number }>> {
-  const r = await fetch(`${SPARK}?symbols=${symbols.map(encodeURIComponent).join(",")}&range=1d&interval=1d`, {
+/* Five days of daily closes rather than one, which costs the same request and
+ * carries the close before this one. That is what a move on the day is
+ * measured against, so every page can show one without asking again. */
+async function sparkBatch(symbols: string[]): Promise<Map<string, { price: number; time: number; prev?: number }>> {
+  const r = await fetch(`${SPARK}?symbols=${symbols.map(encodeURIComponent).join(",")}&range=5d&interval=1d`, {
     headers: { "user-agent": "Mozilla/5.0 (compatible; stonkwars/1.0)" },
     cache: "no-store",
   });
   if (!r.ok) throw new Error(`market data HTTP ${r.status}`);
   const body = (await r.json()) as { spark?: { result?: SparkResult[] } };
-  const out = new Map<string, { price: number; time: number }>();
+  const out = new Map<string, { price: number; time: number; prev?: number }>();
   for (const s of body.spark?.result ?? []) {
-    const meta = s.response?.[0]?.meta;
-    if (meta?.regularMarketPrice && meta.regularMarketPrice > 0) {
-      out.set(s.symbol, { price: meta.regularMarketPrice, time: meta.regularMarketTime ?? 0 });
-    }
+    const res = s.response?.[0];
+    const meta = res?.meta;
+    if (!meta?.regularMarketPrice || !(meta.regularMarketPrice > 0)) continue;
+    /* The session before the latest one. The final close in the series is the
+     * current session (still moving while it is open), so the one before it is
+     * what today's move is measured from. */
+    const closes = (res?.indicators?.quote?.[0]?.close ?? []).filter((c): c is number => typeof c === "number" && c > 0);
+    const prev = closes.length >= 2 ? closes[closes.length - 2] : meta.chartPreviousClose;
+    out.set(s.symbol, { price: meta.regularMarketPrice, time: meta.regularMarketTime ?? 0, prev });
   }
   return out;
 }
@@ -51,7 +62,7 @@ export async function marketQuotes(stocks: Stock[]): Promise<Record<string, Quot
   const batches: string[][] = [];
   for (let i = 0; i < symbols.length; i += PER_REQUEST) batches.push(symbols.slice(i, i + PER_REQUEST));
   const results = await Promise.allSettled(batches.map((b) => sparkBatch(b)));
-  const seen = new Map<string, { price: number; time: number }>();
+  const seen = new Map<string, { price: number; time: number; prev?: number }>();
   for (const res of results) if (res.status === "fulfilled") for (const [k, v] of res.value) seen.set(k, v);
 
   const quotes: Record<string, Quote> = {};
@@ -67,12 +78,18 @@ export async function marketQuotes(stocks: Stock[]): Promise<Record<string, Quot
     } else if (s.currency !== "USD") {
       continue;
     }
+    let prev = p.prev;
+    if (prev !== undefined && fx) {
+      const rate = seen.get(fx.symbol)?.price;
+      prev = rate ? prev * rate * fx.scale : undefined;
+    }
     quotes[s.ticker] = {
       ticker: s.ticker,
       price: String(Math.round(price * 10 ** -EXPO)),
       expo: EXPO,
       conf: "0",
       publishTime: p.time,
+      ...(prev !== undefined && prev > 0 ? { prev: String(Math.round(prev * 10 ** -EXPO)) } : {}),
     };
   }
   return quotes;
