@@ -25,6 +25,7 @@ import { clusterApiUrl } from "@solana/web3.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { GuestWalletAdapter } from "@/lib/guestWallet";
+import { PrivySignIn } from "@/components/PrivySignIn";
 import { CLUSTER } from "@/lib/stocks";
 
 const FALLBACK = clusterApiUrl(CLUSTER === "mainnet-beta" ? "mainnet-beta" : "devnet");
@@ -57,13 +58,18 @@ export function Providers({ children }: { children: ReactNode }) {
     [],
   );
 
+  /* Privy sits outside, because its wallet announces itself to the page the
+   * way an extension does, and WalletProvider has to be listening by then.
+   * Without an app id it is not there at all. */
   return (
     <QueryClientProvider client={queryClient}>
-      <ConnectionProvider endpoint={endpoint} config={config}>
-        <WalletProvider wallets={wallets} autoConnect>
-          {children}
-        </WalletProvider>
-      </ConnectionProvider>
+      <PrivySignIn>
+        <ConnectionProvider endpoint={endpoint} config={config}>
+          <WalletProvider wallets={wallets} autoConnect>
+            {children}
+          </WalletProvider>
+        </ConnectionProvider>
+      </PrivySignIn>
     </QueryClientProvider>
   );
 }
