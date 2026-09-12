@@ -4,7 +4,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { boundaryOf } from "@/lib/crankTx";
 import { decodeDuel, PROGRAM_ID, SOURCE_SIGNED } from "@/lib/duel";
 import { quoteAt, quoteMessage, signedQuoteInstruction } from "@/lib/oracle";
-import { oracleKeypair } from "@/lib/oracleKey.server";
+import { oracleKeypair, oracleKeyProblem } from "@/lib/oracleKey.server";
 import { quoteSymbolFor } from "@/lib/stocks";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,13 @@ export async function GET(req: NextRequest) {
   }
 
   const oracle = oracleKeypair();
-  if (!oracle) return NextResponse.json({ error: "This server holds no oracle key." }, { status: 503 });
+  if (!oracle) {
+    const why = oracleKeyProblem();
+    return NextResponse.json(
+      { error: "This server holds no oracle key.", ...(why ? { because: why.problem, detail: why.detail } : {}) },
+      { status: 503 },
+    );
+  }
 
   const conn = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", "confirmed");
   const account = await conn.getAccountInfo(address);
