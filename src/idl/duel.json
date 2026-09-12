@@ -788,6 +788,117 @@
       "args": []
     },
     {
+      "name": "link_handle",
+      "discriminator": [
+        178,
+        141,
+        159,
+        232,
+        195,
+        244,
+        195,
+        187
+      ],
+      "accounts": [
+        {
+          "name": "wallet",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "oracle",
+          "docs": [
+            "The key that vouches for the handle. It is the same key that signs",
+            "prices, and it is named by the config, so a stranger's signature is",
+            "worth nothing here."
+          ],
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "profile",
+          "docs": [
+            "`init_if_needed` because linking again is how somebody changes handle."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  102,
+                  105,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  120,
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "x_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "x_id",
+          "type": "u64"
+        },
+        {
+          "name": "handle",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "refund_duel",
       "docs": [
         "Both stakes back to their owners: for a void duel at once, and for a",
@@ -1869,6 +1980,82 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "unlink_handle",
+      "docs": [
+        "Take the name off again, and the rent back with it. The wallet alone",
+        "decides this: the oracle vouches for a handle, it does not hold it."
+      ],
+      "discriminator": [
+        21,
+        86,
+        198,
+        91,
+        72,
+        216,
+        128,
+        5
+      ],
+      "accounts": [
+        {
+          "name": "wallet",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "profile"
+          ]
+        },
+        {
+          "name": "profile",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  111,
+                  102,
+                  105,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  120,
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "profile.x_id",
+                "account": "Profile"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -1909,6 +2096,32 @@
         135,
         124,
         224
+      ]
+    },
+    {
+      "name": "Profile",
+      "discriminator": [
+        184,
+        101,
+        165,
+        188,
+        95,
+        63,
+        127,
+        188
+      ]
+    },
+    {
+      "name": "XClaim",
+      "discriminator": [
+        27,
+        114,
+        149,
+        219,
+        43,
+        55,
+        223,
+        248
       ]
     }
   ],
@@ -2028,6 +2241,32 @@
         34,
         118,
         245
+      ]
+    },
+    {
+      "name": "HandleLinked",
+      "discriminator": [
+        245,
+        186,
+        191,
+        117,
+        73,
+        40,
+        217,
+        92
+      ]
+    },
+    {
+      "name": "HandleUnlinked",
+      "discriminator": [
+        251,
+        151,
+        72,
+        141,
+        180,
+        179,
+        65,
+        64
       ]
     },
     {
@@ -2204,6 +2443,16 @@
       "code": 6031,
       "name": "NotInstructionsSysvar",
       "msg": "That is not the instructions sysvar"
+    },
+    {
+      "code": 6032,
+      "name": "BadHandle",
+      "msg": "That is not a usable X handle"
+    },
+    {
+      "code": 6033,
+      "name": "NotYourClaim",
+      "msg": "That X account points at another wallet"
     }
   ],
   "types": [
@@ -2694,6 +2943,42 @@
       }
     },
     {
+      "name": "HandleLinked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "x_id",
+            "type": "u64"
+          },
+          {
+            "name": "handle",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "HandleUnlinked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "x_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "OracleSet",
       "type": {
         "kind": "struct",
@@ -2724,6 +3009,57 @@
           {
             "name": "publish_time",
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Profile",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "x_id",
+            "docs": [
+              "X's numeric id for the account, which survives a change of handle."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "handle",
+            "type": "string"
+          },
+          {
+            "name": "linked_ts",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "XClaim",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "x_id",
+            "type": "u64"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

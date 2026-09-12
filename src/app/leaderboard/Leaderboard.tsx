@@ -4,15 +4,17 @@
  * a record is wins and losses, and "taken" is the value of the loser's stake
  * at the end price, which is what the win was actually worth when it landed. */
 
+import { ConnectX } from "@/components/ConnectX";
 import { allDuels, OUTCOME_CREATOR, STATUS_SETTLED } from "@/lib/duel";
 import { pythToNumber, shortAddress, usd } from "@/lib/format";
-import { useDuels } from "@/lib/hooks";
+import { useDuels, useProfiles } from "@/lib/hooks";
 import { STAKE_DECIMALS } from "@/lib/stocks";
 
 type Row = { wallet: string; wins: number; losses: number; taken: number; streak: number; best: number };
 
 export function Leaderboard() {
   const duels = useDuels("all", allDuels(), 20_000);
+  const profiles = useProfiles();
 
   const table = new Map<string, Row>();
   const row = (w: string) => {
@@ -53,6 +55,8 @@ export function Leaderboard() {
         {settled.length} {settled.length === 1 ? "fight" : "fights"} settled so far.
       </p>
 
+      <ConnectX />
+
       <div className="mt-8 overflow-x-auto">
         {duels.isLoading ? (
           <p className="text-dim">Tallying...</p>
@@ -73,7 +77,20 @@ export function Leaderboard() {
               {ranked.map((r, i) => (
                 <tr key={r.wallet} className="border-t border-line">
                   <td className="display py-3 pr-4 text-2xl text-p1">{i + 1}</td>
-                  <td className="py-3 pr-4 font-mono">{shortAddress(r.wallet, 5)}</td>
+                  <td className="py-3 pr-4">
+                    {profiles.data?.[r.wallet] ? (
+                      <a
+                        href={`https://x.com/${profiles.data[r.wallet]}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="display text-xl hover:text-p1"
+                      >
+                        @{profiles.data[r.wallet]}
+                      </a>
+                    ) : (
+                      <span className="font-mono">{shortAddress(r.wallet, 5)}</span>
+                    )}
+                  </td>
                   <td className="py-3 pr-4 font-mono">
                     <span className="text-up">{r.wins}W</span> <span className="text-down">{r.losses}L</span>
                   </td>

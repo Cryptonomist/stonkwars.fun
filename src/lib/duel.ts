@@ -81,6 +81,70 @@ export function duelPda(creator: PublicKey, seed: bigint): PublicKey {
   )[0];
 }
 
+export function profilePda(wallet: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([enc.encode("profile"), wallet.toBytes()], PROGRAM_ID)[0];
+}
+
+export function xClaimPda(xId: bigint): PublicKey {
+  const le = new Uint8Array(8);
+  new DataView(le.buffer).setBigUint64(0, xId, true);
+  return PublicKey.findProgramAddressSync([enc.encode("xclaim"), le], PROGRAM_ID)[0];
+}
+
+/** X's own rule, mirrored from `is_handle` in the program. */
+export const isHandle = (handle: string) => /^[A-Za-z0-9_]{1,15}$/.test(handle);
+
+/* Writing a handle needs the wallet and the oracle both. The wallet signs in
+ * the browser; the server adds the oracle's signature, and only after X's own
+ * sign-in named the handle. See app/api/x/attest. */
+export function buildLinkHandle(wallet: PublicKey, oracle: PublicKey, xId: bigint, handle: string) {
+  if (!isHandle(handle)) throw new Error("That is not a usable X handle");
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: wallet, isSigner: true, isWritable: true },
+      { pubkey: oracle, isSigner: true, isWritable: false },
+      { pubkey: configPda(), isSigner: false, isWritable: false },
+      { pubkey: profilePda(wallet), isSigner: false, isWritable: true },
+      { pubkey: xClaimPda(xId), isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: coder.instruction.encode("link_handle", { x_id: new BN(xId.toString()), handle }),
+  });
+}
+
+export function buildUnlinkHandle(wallet: PublicKey, xId: bigint) {
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: wallet, isSigner: true, isWritable: true },
+      { pubkey: profilePda(wallet), isSigner: false, isWritable: true },
+      { pubkey: xClaimPda(xId), isSigner: false, isWritable: true },
+    ],
+    data: coder.instruction.encode("unlink_handle", {}),
+  });
+}
+
+export type ProfileView = { wallet: PublicKey; xId: bigint; handle: string };
+
+export const decodeProfile = (data: Uint8Array): ProfileView => {
+  const p = coder.accounts.decode("Profile", Buffer.from(data)) as {
+    wallet: PublicKey;
+    x_id: BN;
+    handle: string;
+  };
+  return { wallet: new PublicKey(p.wallet), xId: BigInt(p.x_id.toString()), handle: p.handle };
+};
+
+export const decodeXClaim = (data: Uint8Array): { xId: bigint; wallet: PublicKey } => {
+  const c = coder.accounts.decode("XClaim", Buffer.from(data)) as { x_id: BN; wallet: PublicKey };
+  return { xId: BigInt(c.x_id.toString()), wallet: new PublicKey(c.wallet) };
+};
+
+/** Every profile, and every claim, for the leaderboard's names. */
+export const allProfiles = () => [accountFilter("Profile")];
+export const allXClaims = () => [accountFilter("XClaim")];
+
 /** The associated token account for an owner and mint, under a token program. */
 export function ataFor(owner: PublicKey, mint: PublicKey, tokenProgram: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync(
@@ -425,6 +489,15 @@ const DUEL_DISCRIMINATOR = (
 function duelFilter() {
   if (!DUEL_DISCRIMINATOR) throw new Error("The vendored IDL has no Duel discriminator");
   return { memcmp: { offset: 0, bytes: utils.bytes.bs58.encode(Buffer.from(DUEL_DISCRIMINATOR)) } };
+}
+
+/** A getProgramAccounts filter matching one account type in the vendored IDL. */
+function accountFilter(name: string) {
+  const found = (idlJson as { accounts?: { name: string; discriminator: number[] }[] }).accounts?.find(
+    (a) => a.name === name,
+  )?.discriminator;
+  if (!found) throw new Error(`The vendored IDL has no ${name} discriminator`);
+  return { memcmp: { offset: 0, bytes: utils.bytes.bs58.encode(Buffer.from(found)) } };
 }
 
 export const duelsWithStatus = (status: number) => [

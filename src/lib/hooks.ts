@@ -13,7 +13,15 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 
-import { decodeDuel, PROGRAM_ID, type DuelView } from "@/lib/duel";
+import {
+  allProfiles,
+  allXClaims,
+  decodeDuel,
+  decodeProfile,
+  decodeXClaim,
+  PROGRAM_ID,
+  type DuelView,
+} from "@/lib/duel";
 import { sendAndConfirm } from "@/lib/send";
 
 /** One duel, polled. `null` means the account does not exist (never did, or
@@ -54,6 +62,48 @@ export function useDuels(key: string, filters: GetProgramAccountsFilter[] | null
       return out.sort((x, y) => y.createdTs - x.createdTs);
     },
     refetchInterval: refetchMs,
+  });
+}
+
+/* Every handle the chain will vouch for, by wallet.
+ *
+ * A profile counts only when the X account it names points back at it, which
+ * is what makes a profile left behind by somebody moving wallets go quiet on
+ * its own, with nobody having to tidy it up. */
+export function useProfiles() {
+  const { connection } = useConnection();
+  return useQuery<Record<string, string>>({
+    queryKey: ["profiles"],
+    queryFn: async () => {
+      const [profiles, claims] = await Promise.all([
+        connection.getProgramAccounts(PROGRAM_ID, { commitment: "confirmed", filters: allProfiles() }),
+        connection.getProgramAccounts(PROGRAM_ID, { commitment: "confirmed", filters: allXClaims() }),
+      ]);
+
+      const owns = new Map<string, string>();
+      for (const c of claims) {
+        try {
+          const claim = decodeXClaim(c.account.data);
+          owns.set(claim.xId.toString(), claim.wallet.toBase58());
+        } catch {
+          /* Not a claim this client knows how to read. */
+        }
+      }
+
+      const byWallet: Record<string, string> = {};
+      for (const p of profiles) {
+        try {
+          const profile = decodeProfile(p.account.data);
+          const wallet = profile.wallet.toBase58();
+          if (owns.get(profile.xId.toString()) === wallet) byWallet[wallet] = profile.handle;
+        } catch {
+          /* Same. */
+        }
+      }
+      return byWallet;
+    },
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }
 
