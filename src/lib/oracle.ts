@@ -148,27 +148,48 @@ export const OFFHOURS_WINDOW = 15;
 /** Fewer minutes than this actually traded, and there is no price to give. */
 export const OFFHOURS_MIN_BARS = 5;
 
-/* One-minute bars for a Solana pool, as of `before`.
+/** The source refused us for asking too often; try again later, not harder. */
+export class RateLimited extends Error {}
+
+/* A pool's minutes, once.
  *
- * The source is free and rate limited, and a settle that gives up on a busy
- * minute would leave a fight hanging, so a refusal is waited out rather than
- * thrown. The bars themselves are history: waiting changes the answer not at
- * all, only how long it takes to arrive. */
+ * A boundary's window is finished history, so the answer for a given pool and
+ * boundary never changes and is worth keeping. It matters more than it looks:
+ * a crank retries a fight every few seconds until it settles, and without this
+ * each attempt asked again and the free source started refusing all of them,
+ * which is a rate limit we were inflicting on ourselves. */
+const poolBars = new Map<string, Bars>();
+let coolOffUntil = 0;
+
+/** One-minute bars for a Solana pool, as of `before`. */
 export async function fetchPoolBars(pool: string, before: number): Promise<Bars> {
+  const key = `${pool}:${before}`;
+  const had = poolBars.get(key);
+  if (had) return had;
+  if (Date.now() < coolOffUntil) throw new RateLimited("waiting out the market data source");
+
   const url = `${GECKO}/networks/solana/pools/${pool}/ohlcv/minute?aggregate=1&limit=${OFFHOURS_WINDOW * 4}&before_timestamp=${before}`;
   let last = "";
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     const r = await fetch(url, { headers: { ...HEADERS, accept: "application/json" }, cache: "no-store" });
     if (r.ok) {
       const body = (await r.json()) as { data?: { attributes?: { ohlcv_list?: number[][] } } };
       const rows = body.data?.attributes?.ohlcv_list ?? [];
       // Oldest first, to match the exchange bars.
       const sorted = [...rows].sort((a, b) => a[0] - b[0]);
-      return { t: sorted.map((row) => row[0]), c: sorted.map((row) => (row[4] > 0 ? row[4] : null)) };
+      const bars = { t: sorted.map((row) => row[0]), c: sorted.map((row) => (row[4] > 0 ? row[4] : null)) };
+      if (poolBars.size > 500) poolBars.clear();
+      poolBars.set(key, bars);
+      return bars;
     }
     last = `HTTP ${r.status}`;
     if (r.status !== 429 && r.status < 500) break;
-    await new Promise((resolve) => setTimeout(resolve, 1_500 * (attempt + 1)));
+    await new Promise((resolve) => setTimeout(resolve, 2_000 * (attempt + 1)));
+  }
+  if (last === "HTTP 429") {
+    // Stand back for a minute rather than joining the queue every few seconds.
+    coolOffUntil = Date.now() + 60_000;
+    throw new RateLimited(`pool ${pool.slice(0, 8)}: ${last}`);
   }
   throw new Error(`pool ${pool.slice(0, 8)}: on-chain data ${last}`);
 }
@@ -266,7 +287,14 @@ export async function quoteAt(opts: {
     // The window is behind the boundary, so it is complete the moment the
     // boundary passes; a settler an hour late reads the same fifteen minutes.
     if (now < opts.boundary + BAR_SETTLE_SECS) return null;
-    const bars = await fetchPoolBars(opts.pool!, opts.boundary);
+    let bars: Bars;
+    try {
+      bars = await fetchPoolBars(opts.pool!, opts.boundary);
+    } catch (e) {
+      // Being told to wait is not a failure; the crank will come back.
+      if (e instanceof RateLimited) return null;
+      throw e;
+    }
     const m = medianAtBoundary(bars, opts.boundary);
     if (m) {
       return {

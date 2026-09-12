@@ -21,6 +21,7 @@ import { PublicKey } from "@solana/web3.js";
 import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
 import { type StakeAsset } from "@/lib/duel";
+import { session } from "@/lib/market";
 
 export type Stock = {
   ticker: string;
@@ -105,8 +106,29 @@ export function quoteSymbolFor(feed: string) {
   return { symbol: s.quote, currency: s.currency, market: s.market, pool: POOLS[s.ticker]?.pool };
 }
 
-/** Whether a stock can settle a fight outside its exchange's hours. */
-export const tradesAroundTheClock = (ticker: string) => !!POOLS[ticker];
+/** Whether a stock can settle a fight outside its exchange's hours. Pyth's
+ *  equity feeds stop publishing with the market, so a Pyth-priced stock keeps
+ *  exchange hours however deep its pool is. */
+export const tradesAroundTheClock = (ticker: string) => {
+  const s = byTicker(ticker);
+  return !!s && s.source !== "pyth" && !!POOLS[ticker];
+};
+
+/* WHERE A FIGHT ENDING AT `boundary` WOULD GET ITS PRICE.
+ *
+ * "waits" is the one worth saying out loud: the stock is real, the fight is
+ * legal, and nothing will settle it until its market opens again. Somebody
+ * picking TSLA at midnight should be told that before they stake, not after.
+ *
+ * A listing outside the US keeps its own exchange's hours, which we do not
+ * model, so it is never called a wait. */
+export function pricedAt(ticker: string, boundary: number): "exchange" | "pool" | "waits" {
+  const s = byTicker(ticker);
+  if (!s) return "waits";
+  if (tradesAroundTheClock(ticker) && session(boundary * 1_000) === "closed") return "pool";
+  if (s.market !== "US") return "exchange";
+  return session(boundary * 1_000) === "closed" ? "waits" : "exchange";
+}
 
 /** How many of the roster can, for the pages that say so. */
 export const AROUND_THE_CLOCK = Object.keys(POOLS).length;

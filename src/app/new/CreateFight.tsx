@@ -18,8 +18,18 @@ import { useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, MAX_TAUNT_LEN, randomSeed, readableProgramError } from "@/lib/duel";
 import { etTime, shares, span, usd } from "@/lib/format";
 import { nextBell, session, weekBell } from "@/lib/market";
+import { OFFHOURS_WINDOW } from "@/lib/oracle";
 import { quoteValue, stakeForDollars, stakeValue, usePrices } from "@/lib/prices";
-import { byTicker, CLUSTER, sourceLabel, STAKE_DECIMALS, stakeAssetFor, tokenSymbol } from "@/lib/stocks";
+import {
+  AROUND_THE_CLOCK,
+  byTicker,
+  CLUSTER,
+  pricedAt,
+  sourceLabel,
+  STAKE_DECIMALS,
+  stakeAssetFor,
+  tokenSymbol,
+} from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 
 type Round = "5m" | "15m" | "1h" | "bell" | "week";
@@ -69,6 +79,15 @@ export function CreateFight() {
   }, [now, round, roundDef.secs]);
 
   const marketNow = now ? session(now * 1000) : "open";
+
+  /* Where each side's price would come from when this round ends. A stock
+   * whose exchange is shut and whose token has no pool deep enough to read
+   * will not settle until the market opens, and saying so before somebody
+   * stakes is the whole point of working it out here. */
+  const endsAt = endTs || (now ? now + (roundDef.secs ?? 0) : 0);
+  const sides = [p1, p2].filter((t): t is string => !!t);
+  const waiting = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "waits") : [];
+  const onPools = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "pool") : [];
   const short = balance.data !== undefined && balance.data !== null && balance.data < amount1;
   const noAccount = balance.data === null;
 
@@ -195,10 +214,27 @@ export function CreateFight() {
               : endTs
                 ? `Ends at the first prices after ${etTime(endTs)}.`
                 : ""}
-            {roundDef.secs && marketNow !== "open"
-              ? " The market is shut right now, so a round accepted now starts when trading resumes."
-              : ""}
           </p>
+          {waiting.length ? (
+            <p className="mt-2 text-sm text-cooked">
+              The exchange is shut, and {waiting.join(" and ")}{" "}
+              {waiting.length === 1 ? "is priced by it" : "are priced by it"}, so this fight would sit until trading
+              resumes. {AROUND_THE_CLOCK ? `${AROUND_THE_CLOCK} stocks fight around the clock if you want one now.` : ""}
+            </p>
+          ) : onPools.length ? (
+            <>
+              <p className="mt-2 text-sm text-up">
+                The exchange is shut, so {onPools.join(" and ")} settle on their own Solana pools. This fight runs now.
+              </p>
+              {roundDef.secs && roundDef.secs < OFFHOURS_WINDOW * 60 ? (
+                <p className="mt-2 text-sm text-dim">
+                  An out-of-hours price is the median of the last {OFFHOURS_WINDOW} minutes, which is what makes it hard
+                  to push. A round shorter than that shares most of its window with its own start, so both sides will
+                  barely move and a draw is likely. {OFFHOURS_WINDOW} minutes or longer gives a real fight.
+                </p>
+              ) : null}
+            </>
+          ) : null}
         </section>
       </div>
 
