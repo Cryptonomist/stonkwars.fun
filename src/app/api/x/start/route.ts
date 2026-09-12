@@ -12,7 +12,13 @@ export const dynamic = "force-dynamic";
  * remember anybody. */
 export async function GET(req: NextRequest) {
   const cfg = xConfig();
-  if (!cfg) return NextResponse.json({ error: "X sign-in is not configured on this deployment" }, { status: 503 });
+  if (!cfg) {
+    // Send them back to a page rather than a page of JSON.
+    const home = new URL("/leaderboard", req.nextUrl.origin);
+    home.searchParams.set("x", "error");
+    home.searchParams.set("message", "X sign-in is not set up on this deployment yet.");
+    return NextResponse.redirect(home);
+  }
 
   const state = randomState();
   const { verifier, challenge } = pkce();
