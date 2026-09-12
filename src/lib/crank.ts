@@ -217,6 +217,23 @@ export async function crankOnce(opts: {
 }): Promise<CrankResult[]> {
   const now = opts.now ?? Math.floor(Date.now() / 1000);
   const jobs = (await pendingJobs(opts.conn, now)).filter((j) => !opts.skip?.(j.duel.address.toBase58()));
+
+  /* SHUFFLED, OR THE STUCK ONES EAT EVERY PASS.
+   *
+   * A pass takes only the first few jobs, and getProgramAccounts hands them
+   * back in the same order every time. Two fights waiting on a market that is
+   * shut until Monday therefore sat at the front and were retried every minute
+   * for ever, while fights created after them were never reached at all. That
+   * is not a rare state: fights routinely wait on a closed exchange.
+   *
+   * Shuffling costs nothing, needs no memory of previous passes, and gives
+   * every due job the same chance of being served. A job that cannot run yet
+   * simply reports so and somebody else gets the slot. */
+  for (let i = jobs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [jobs[i], jobs[j]] = [jobs[j], jobs[i]];
+  }
+
   const results: CrankResult[] = [];
   for (const job of jobs.slice(0, opts.limit ?? Infinity)) {
     const key = job.duel.address.toBase58();

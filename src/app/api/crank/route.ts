@@ -15,8 +15,9 @@ export const maxDuration = 60;
  * The secret gates who can make THIS SERVER spend its key's SOL on fees, not
  * who can settle a fight: every crank here is permissionless on chain, and the
  * fight page offers the same thing to any visitor. A few jobs per call keeps a
- * call inside the function's time limit; the next ping picks up the rest. */
-const JOBS_PER_CALL = 3;
+ * call inside the function's time limit; the next ping picks up the rest, and
+ * crankOnce shuffles so "the rest" is not always the same unlucky jobs. */
+const JOBS_PER_CALL = 5;
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
