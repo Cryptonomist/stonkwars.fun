@@ -190,23 +190,53 @@ async function main() {
   const open = decodeDuel(duel, (await conn.getAccountInfo(duel))!.data);
   await send([buildAcceptDuel(open, bob.publicKey)], [bob]);
   log(`${t1} vs ${t2}: ${duel.toBase58()}`);
-  log(`https://stonkwars.fun/f/${duel.toBase58()}`);
+  log(`${process.env.SITE_URL ?? "https://stonkwarsfun-six.vercel.app"}/f/${duel.toBase58()}`);
 
-  const deadline = Date.now() + 15 * 60_000;
+  /* HANDS_OFF=1 makes this a test of the DEPLOYED settler rather than of the
+   * program. Nothing here touches the fight after it is accepted, so if it
+   * reaches a result at all, something else did the work: the cron, or a
+   * visitor pressing "Settle it yourself". Which one is answered by the fee
+   * payer, printed below. Without this flag the script cranks the fight itself,
+   * which proves the chain logic and says nothing about whether the cron runs. */
+  const handsOff = process.env.HANDS_OFF === "1";
+  if (handsOff) log(`hands off: not cranking. Waiting to see whether the deployed settler does it.`);
+
+  const deadline = Date.now() + 20 * 60_000;
+  let seen = open.status;
   while (Date.now() < deadline) {
-    const results = await crankOnce({ conn, payer: admin, hermes, oracle, quoteSymbol: quoteSymbolFor });
-    for (const r of results) if (!r.ok && !/not yet|waiting|final/i.test(r.detail ?? "")) log(`${r.kind} ${r.detail}`);
+    if (!handsOff) {
+      const results = await crankOnce({ conn, payer: admin, hermes, oracle, quoteSymbol: quoteSymbolFor });
+      for (const r of results) if (!r.ok && !/not yet|waiting|final/i.test(r.detail ?? "")) log(`${r.kind} ${r.detail}`);
+    }
     const d = decodeDuel(duel, (await conn.getAccountInfo(duel))!.data);
+    if (d.status !== seen) {
+      log(`status ${seen} -> ${d.status}${handsOff ? "  (nobody here did that)" : ""}`);
+      seen = d.status;
+    }
     if (d.status === STATUS_SETTLED || d.status === STATUS_REFUNDED) {
       const winner = d.outcome === 1 ? t1 : d.outcome === 2 ? t2 : "nobody";
       log(`settled: ${winner} takes both`);
+      if (handsOff) await whoDidIt(duel);
       await verify(d, t1, t2);
       return;
     }
-    await sleep(5_000);
+    await sleep(handsOff ? 15_000 : 5_000);
   }
-  console.error("timed out before it settled");
+  console.error(handsOff ? "nothing settled it within 20 minutes: the deployed settler is not running" : "timed out before it settled");
   process.exitCode = 1;
+}
+
+/** Who paid for the transactions on this fight. The crank wallet means the
+ * deployed settler did it; anyone else means a person pressed the button. */
+async function whoDidIt(duel: PublicKey) {
+  const sigs = await conn.getSignaturesForAddress(duel, { limit: 10 });
+  const payers = new Set<string>();
+  for (const s of sigs.reverse()) {
+    const tx = await conn.getTransaction(s.signature, { maxSupportedTransactionVersion: 0 });
+    const payer = tx?.transaction.message.getAccountKeys().get(0)?.toBase58();
+    if (payer) payers.add(payer);
+  }
+  log(`fee payers on this fight: ${[...payers].join(", ")}`);
 }
 
 main().catch((e) => {
