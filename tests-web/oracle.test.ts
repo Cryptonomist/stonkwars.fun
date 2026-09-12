@@ -5,11 +5,11 @@ import { expect } from "chai";
 import { Keypair } from "@solana/web3.js";
 
 import {
-  medianAtBoundary,
   priceAtBoundary,
   quoteMessage,
   signedQuoteInstruction,
   sourceAt,
+  trimmedMeanAtBoundary,
   QUOTE_LEN,
 } from "../src/lib/oracle";
 import { nyToMs } from "../src/lib/market";
@@ -80,41 +80,53 @@ describe("oracle", () => {
    * The exchange shuts and the pool does not, which is the argument for
    * putting a share on a chain at all. The defence against a thin minute being
    * bought is that the price is the median of fifteen of them. */
-  describe("medianAtBoundary", () => {
+  describe("trimmedMeanAtBoundary", () => {
     /** A window of minute bars ending exactly at `boundary`. */
     const window = (closes: (number | null)[], boundary = 900) => ({
       t: closes.map((_, i) => boundary - (closes.length - i) * 60),
       c: closes,
     });
+    const at = (bars: ReturnType<typeof window>) => trimmedMeanAtBoundary(bars, 900);
 
-    it("takes the middle close of the window, as of the boundary", () => {
+    it("averages the middle of the window, as of the boundary", () => {
+      // Nine closes: one off each end, mean of the middle seven.
       const bars = window([10, 12, 11, 13, 9, 10, 11, 12, 10]);
-      expect(medianAtBoundary(bars, 900)).to.deep.equal({ price: 110_000n, publishTime: 900 });
+      expect(at(bars)).to.deep.equal({ price: 108_571n, publishTime: 900 });
     });
 
-    it("cannot be moved by one minute, however far that minute goes", () => {
+    it("discards a bought minute outright", () => {
       const honest = [100, 100, 101, 100, 99, 100, 100, 101, 100, 100, 99, 100, 100, 100, 101];
-      const before = medianAtBoundary(window(honest), 900)!.price;
-      // Somebody empties a thin pool in the last minute before the bell.
-      expect(medianAtBoundary(window([...honest.slice(0, -1), 140]), 900)!.price).to.equal(before);
-      // Three bought minutes still do not reach the middle of fifteen.
-      expect(medianAtBoundary(window([...honest.slice(0, -3), 140, 141, 139]), 900)!.price).to.equal(before);
+      const before = at(window(honest))!.price;
+      // One minute taken to the moon is trimmed away and changes nothing.
+      expect(at(window([...honest.slice(0, -1), 900]))!.price).to.equal(before);
+      // So is one taken to the floor.
+      expect(at(window([...honest.slice(0, -1), 1]))!.price).to.equal(before);
     });
 
-    it("averages the two middle closes, so a sort cannot decide it", () => {
-      expect(medianAtBoundary(window([10, 20, 30, 40, 50, 60]), 900)!.price).to.equal(350_000n);
+    /* THE FAULT THAT SENT US HERE.
+     *
+     * A median is whichever close sits in the middle, so a window that slides
+     * a little often reports the same number twice and the fight is declared a
+     * draw. An average of the middle moves whenever the market does. */
+    it("moves when the market moves, which a median would not have", () => {
+      const start = [100, 100, 101, 100, 99, 100, 100, 101, 100, 100, 99, 100, 100, 100, 101];
+      // Two minutes pass and the price drifts up; the middle sample is still 100.
+      const later = [...start.slice(2), 102, 103];
+      const a = at(window(start))!.price;
+      const b = at(window(later))!.price;
+      expect(b > a, `${b} should be above ${a}`).to.equal(true);
     });
 
     it("ignores minutes older than the window, and anything at or after the boundary", () => {
       const bars = { t: [0, 60, 120, 840, 900, 960], c: [1, 1, 1, 50, 999, 999] };
       // Only the bar ending at 900 is inside the window, which is too few.
-      expect(medianAtBoundary(bars, 900)).to.equal(null);
+      expect(trimmedMeanAtBoundary(bars, 900)).to.equal(null);
     });
 
     it("gives nothing when the pool barely traded", () => {
-      expect(medianAtBoundary(window([10, null, null, 11, null, null, 12]), 900)).to.equal(null);
-      expect(medianAtBoundary(window([10, 0, -1, 11, null]), 900)).to.equal(null);
-      expect(medianAtBoundary({ t: [], c: [] }, 900)).to.equal(null);
+      expect(at(window([10, null, null, 11, null, null, 12]))).to.equal(null);
+      expect(at(window([10, 0, -1, 11, null]))).to.equal(null);
+      expect(trimmedMeanAtBoundary({ t: [], c: [] }, 900)).to.equal(null);
     });
   });
 

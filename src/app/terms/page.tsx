@@ -66,8 +66,9 @@ export default function Terms() {
         </p>
         <p>
           While a US stock&apos;s own market is open, from 4am to 8pm New York time, that market is where the oracle reads.
-          Outside those hours, for stocks whose Solana pool clears a liquidity and volume floor, the price is the median
-          of the last fifteen one-minute closes on that pool as of the moment in question. Off-hours pool prices are
+          Outside those hours, for stocks whose Solana pool clears a liquidity and volume floor, the price is taken from
+          the last fifteen one-minute closes on that pool as of the moment in question, discarding the highest fifth and
+          the lowest fifth and averaging the rest. Off-hours pool prices are
           thinner than an exchange print and can differ from where the stock next opens, which is the trade for being
           able to fight at all while the exchange is shut. The pool for each stock is pinned and published, so anyone
           can read the same number from the same public source.

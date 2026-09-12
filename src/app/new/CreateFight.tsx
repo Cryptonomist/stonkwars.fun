@@ -228,9 +228,10 @@ export function CreateFight() {
               </p>
               {roundDef.secs && roundDef.secs < OFFHOURS_WINDOW * 60 ? (
                 <p className="mt-2 text-sm text-dim">
-                  An out-of-hours price is the median of the last {OFFHOURS_WINDOW} minutes, which is what makes it hard
-                  to push. A round shorter than that shares most of its window with its own start, so both sides will
-                  barely move and a draw is likely. {OFFHOURS_WINDOW} minutes or longer gives a real fight.
+                  An out-of-hours price is read from the last {OFFHOURS_WINDOW} minutes on the pool, which is what makes
+                  it hard to push. A round shorter than that shares most of its window with its own start, so it settles
+                  on the move across {OFFHOURS_WINDOW} minutes rather than {span(roundDef.secs)}. A real fight either
+                  way; just not the one the clock says.
                 </p>
               ) : null}
             </>

@@ -19,7 +19,7 @@ import {
 } from "@/lib/duel";
 import { clock, shares, shortAddress, span } from "@/lib/format";
 import { movePct, stakeValue, type Quotes } from "@/lib/prices";
-import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
+import { pricedAt, STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
 
 export function FightRow({ d, now, quotes }: { d: DuelView; now: number; quotes?: Quotes }) {
   const t1 = tickerForMint(d.creatorMint) ?? "?";
@@ -82,7 +82,10 @@ function statusLine(d: DuelView, now: number): string {
     case STATUS_OPEN:
       return now && d.expiresTs <= now ? "expired" : d.durationSecs ? `${span(d.durationSecs)} round` : "to the bell";
     case STATUS_ACCEPTED:
-      return "locking prices";
+      /* "Locking prices" reads as broken when it lasts all weekend. If the
+       * market that prices either side is shut, say that instead: the fight is
+       * fine, it is the exchange that is closed. */
+      return waitingForMarket(d, now) ? "waiting for the open" : "locking prices";
     case STATUS_LIVE:
       return now && d.endTs > now ? clock(d.endTs - now) : "at the bell";
     case STATUS_SETTLED:
@@ -94,6 +97,13 @@ function statusLine(d: DuelView, now: number): string {
     default:
       return "";
   }
+}
+
+/** True when neither side can be priced yet because its market is shut. */
+export function waitingForMarket(d: DuelView, now: number): boolean {
+  if (!now) return false;
+  const tickers = [tickerForMint(d.creatorMint), tickerForMint(d.opponentMint)].filter((t): t is string => !!t);
+  return tickers.length > 0 && tickers.some((t) => pricedAt(t, now) === "waits");
 }
 
 export { statusLine };

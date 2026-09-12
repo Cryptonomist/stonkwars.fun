@@ -21,6 +21,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 
 import { FaucetButton } from "@/components/FaucetButton";
+import { waitingForMarket } from "@/components/FightRow";
 import { Combo, Damage, Knockout, useFightFeel, useKnockout } from "@/components/FightFx";
 import { HealthBars } from "@/components/HealthBars";
 import { Move } from "@/components/Ticker";
@@ -156,7 +157,9 @@ function StatusStrip({ d, now }: { d: DuelView; now: number }) {
       tone = "text-ink";
       break;
     case STATUS_ACCEPTED:
-      text = "Fight on · locking the starting prices";
+      text = waitingForMarket(d, now)
+        ? "Fight on · waiting for the market that prices it to open"
+        : "Fight on · locking the starting prices";
       tone = "text-ink";
       break;
     case STATUS_LIVE:

@@ -40,7 +40,7 @@ const TRUST = [
   },
   {
     title: "One price counts",
-    body: "Each boundary has exactly one price: Pyth's first update at or after it, or the close of the stock's first one-minute bar at or after it. Outside market hours, the median of the token's last fifteen minutes on its own pool. The program takes that one and refuses the rest.",
+    body: "Each boundary has exactly one price: Pyth's first update at or after it, or the close of the stock's first one-minute bar at or after it. Outside market hours, the token's last fifteen minutes on its own pool, extremes discarded and the rest averaged. The program takes that one and refuses the rest.",
   },
   {
     title: "Anyone can settle",

@@ -142,11 +142,14 @@ export async function fetchBars(symbol: string, from: number, to: number): Promi
 
 const GECKO = "https://api.geckoterminal.com/api/v2";
 
-/** How many one-minute closes the off-hours median is taken over. */
+/** How many one-minute closes the off-hours price is taken over. */
 export const OFFHOURS_WINDOW = 15;
 
 /** Fewer minutes than this actually traded, and there is no price to give. */
 export const OFFHOURS_MIN_BARS = 5;
+
+/** Share of the window discarded at each end before averaging. */
+export const OFFHOURS_TRIM = 0.2;
 
 /** The source refused us for asking too often; try again later, not harder. */
 export class RateLimited extends Error {}
@@ -194,9 +197,26 @@ export async function fetchPoolBars(pool: string, before: number): Promise<Bars>
   throw new Error(`pool ${pool.slice(0, 8)}: on-chain data ${last}`);
 }
 
-/** The median of the closes in the window ending at `boundary`, or null if too
- *  few minutes traded in it. */
-export function medianAtBoundary(bars: Bars, boundary: number): { price: bigint; publishTime: number } | null {
+/* A TRIMMED MEAN, NOT A MEDIAN.
+ *
+ * A median is whichever close sits in the middle, so it moves in jumps: shift
+ * the window by two minutes and the middle sample often does not change at
+ * all. Both sides of a short fight then report exactly the same price as they
+ * started with and the program, correctly, calls a draw. A price that says
+ * "nothing happened" when something did is the wrong price, however
+ * unpushable it is.
+ *
+ * So: throw away the highest fifth and the lowest fifth of the window, and
+ * average what is left. It answers with a real number that moves whenever the
+ * market does, and it still ignores an outlier outright rather than letting it
+ * pull the answer. Somebody buying one minute has their minute discarded;
+ * moving the result means holding the price away from fair value across most
+ * of the window while arbitrage trades against them.
+ *
+ * That is a deliberate trade. A median resists a determined push harder. It
+ * also declares a draw on fights that had a winner, which is a certain fault
+ * against a costly and hypothetical one. */
+export function trimmedMeanAtBoundary(bars: Bars, boundary: number): { price: bigint; publishTime: number } | null {
   const window: number[] = [];
   for (let i = 0; i < bars.t.length; i++) {
     const end = bars.t[i] + 60;
@@ -207,11 +227,11 @@ export function medianAtBoundary(bars: Bars, boundary: number): { price: bigint;
   if (window.length < OFFHOURS_MIN_BARS) return null;
 
   window.sort((a, b) => a - b);
-  const mid = window.length >> 1;
-  // An even count takes the mean of the two middle closes, so the answer does
-  // not depend on which of them the sort happened to put first.
-  const median = window.length % 2 ? window[mid] : (window[mid - 1] + window[mid]) / 2;
-  return { price: BigInt(Math.round(median * 10 ** -QUOTE_EXPO)), publishTime: boundary };
+  // At least one off each end, so a single bought minute never counts.
+  const cut = Math.max(1, Math.floor(window.length * OFFHOURS_TRIM));
+  const kept = window.slice(cut, window.length - cut);
+  const mean = kept.reduce((sum, c) => sum + c, 0) / kept.length;
+  return { price: BigInt(Math.round(mean * 10 ** -QUOTE_EXPO)), publishTime: boundary };
 }
 
 /* EVERY PRICE IN DOLLARS.
@@ -295,7 +315,7 @@ export async function quoteAt(opts: {
       if (e instanceof RateLimited) return null;
       throw e;
     }
-    const m = medianAtBoundary(bars, opts.boundary);
+    const m = trimmedMeanAtBoundary(bars, opts.boundary);
     if (m) {
       return {
         feed: opts.feed.replace(/^0x/, "").toLowerCase(),
