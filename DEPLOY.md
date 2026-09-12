@@ -98,13 +98,49 @@ certificate issuance. Use Vercel's values if its dashboard shows different ones.
 
 **(you)** https://cron-job.org (free) → Create cronjob:
 
-- URL: `https://stonkwars.fun/api/crank`
-- Schedule: every minute
-- Advanced → Headers: `Authorization: Bearer <CRON_SECRET>`
+- URL: the **production** origin, `/api/crank`. Use the `.vercel.app` one until
+  the custom domain actually resolves: `https://stonkwarsfun-six.vercel.app/api/crank`.
+  Exactly that: `https`, no trailing slash. This job is the only thing that reads
+  it, so point it at the alias that is live rather than the one you plan to have.
+- Schedule: every minute. Method: **GET**.
+- Common → **Save responses in job history**: ON. It is off by default, which
+  means a failing job shows a bare status code and nothing else. Everything
+  below is unreadable without this.
+- Advanced → Headers. There are two boxes, a key and a value, and cron-job.org
+  supplies the colon between them:
+
+  | box | what goes in it |
+  | --- | --- |
+  | Key | `Authorization` |
+  | Value | `Bearer ` then the secret, with exactly one space after `Bearer` |
+
+  So the word `Bearer` belongs in the **value** box, not the key box. Click away
+  from the field before saving: the inputs commit on blur, so a correction that
+  still has the cursor in it never reaches the form.
+- Advanced → **Requires HTTP authentication**: OFF. It generates a competing
+  `Authorization: Basic` header that displaces this one.
 
 Check it: the job's history should show HTTP 200 with `{"results": [...]}`.
-Without it, fights still settle: anyone can press **Settle it yourself** on a
-fight page after the bell, and the result is the same whoever does.
+
+If it shows 401, read the saved response body, which now names the mistake:
+
+- A JSON body with a `why` field means the route itself answered, so the secret
+  or the header shape is wrong and `why` says which. Our 401 also carries an
+  `x-stonkwars-crank: 1` header.
+- Anything else, especially HTML or a `set-cookie: _vercel_sso_nonce`, means
+  Vercel answered before the route ran. The job is pointed at a preview or
+  branch URL, where deployment protection 401s everything regardless of the
+  header. Point it at the production alias.
+- An empty body means the method is HEAD rather than GET.
+
+Two things that make a fixed job look still-broken: cron-job.org disables a job
+after enough consecutive failures, so re-enable it after correcting anything;
+and its **Test run** button executes what is currently on screen including
+unsaved edits, so a green test run is not evidence about what the scheduler
+sends. Reload the page and confirm the header row is still there.
+
+Without any of this, fights still settle: anyone can press **Settle it yourself**
+on a fight page after the bell, and the result is the same whoever does.
 
 ## 8. Blinks on X (optional)
 

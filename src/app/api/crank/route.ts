@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { Connection, Keypair } from "@solana/web3.js";
 
 import { crankOnce } from "@/lib/crank";
+import { authorise } from "@/lib/crankAuth.server";
 import { hermes } from "@/lib/hermes.server";
 import { oracleKeypair } from "@/lib/oracleKey.server";
 import { quoteSymbolFor } from "@/lib/stocks";
@@ -21,8 +22,15 @@ const JOBS_PER_CALL = 5;
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = authorise(req.headers.get("authorization"), secret);
+  if (!auth.ok) {
+    return NextResponse.json(
+      { error: "unauthorized", why: auth.why },
+      /* Proof this 401 came from the application and not from Vercel's own
+       * deployment protection, which refuses preview URLs before any of this
+       * runs and looks identical from the outside. */
+      { status: 401, headers: { "x-stonkwars-crank": "1" } },
+    );
   }
   const key = process.env.CRANK_SECRET_KEY;
   if (!key) return NextResponse.json({ error: "CRANK_SECRET_KEY is not set" }, { status: 503 });
