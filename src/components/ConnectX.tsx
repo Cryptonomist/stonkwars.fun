@@ -11,7 +11,7 @@
  * The handle lands on chain in public, permanently. The page says so before
  * anyone starts, not after. */
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -22,7 +22,18 @@ import { buildUnlinkHandle, profilePda, decodeProfile } from "@/lib/duel";
 import { useProfiles } from "@/lib/hooks";
 import { sendAndConfirm } from "@/lib/send";
 
+/* Reading the query string opts a page out of being rendered ahead of time,
+ * and Next wants that boundary drawn explicitly. The leaderboard around it
+ * stays static; only this panel waits for the browser. */
 export function ConnectX() {
+  return (
+    <Suspense fallback={<section className="card mt-6 p-5 text-dim">Loading...</section>}>
+      <ConnectPanel />
+    </Suspense>
+  );
+}
+
+function ConnectPanel() {
   const params = useSearchParams();
   const router = useRouter();
   const { connection } = useConnection();
