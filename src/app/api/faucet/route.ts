@@ -83,7 +83,18 @@ export async function POST(req: NextRequest) {
   }
   recent.set(owner.toBase58(), Date.now());
 
-  const faucet = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(secret) as number[]));
+  /* A key that will not parse used to throw here, which a serverless host
+   * turns into an empty 500 with nothing to read. An environment variable is
+   * typed by a person, so say what is wrong with it. */
+  let faucet: Keypair;
+  try {
+    faucet = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(secret) as number[]));
+  } catch {
+    return NextResponse.json(
+      { error: "FAUCET_SECRET_KEY is not a 64-number JSON array. Paste the key file's contents exactly." },
+      { status: 503 },
+    );
+  }
   const connection = new Connection(process.env.RPC_URL || "https://api.devnet.solana.com", "confirmed");
 
   // Live prices size the drip; without one, a single share.

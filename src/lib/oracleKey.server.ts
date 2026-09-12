@@ -14,5 +14,13 @@ export function oracleKeypair(): Keypair | undefined {
     const file = path.join(process.cwd(), "keys", `oracle-${cluster}.json`);
     if (fs.existsSync(file)) raw = fs.readFileSync(file, "utf8");
   }
-  return raw ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(raw) as number[])) : undefined;
+  if (!raw) return undefined;
+  try {
+    return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(raw) as number[]));
+  } catch {
+    /* A mistyped variable is a missing oracle, not a crash: the caller already
+     * knows how to say there is no oracle here, and a thrown parse error on a
+     * serverless host arrives as an empty 500 nobody can read. */
+    return undefined;
+  }
 }
