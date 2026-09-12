@@ -17,12 +17,13 @@
 import {
   ComputeBudgetProgram,
   Transaction,
+  VersionedTransaction,
   sendAndConfirmTransaction,
   type Connection,
   type Keypair,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { Wallet } from "@coral-xyz/anchor";
+import type { Wallet } from "@coral-xyz/anchor";
 import type { HermesClient } from "@pythnetwork/hermes-client";
 import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 
@@ -55,6 +56,29 @@ export type QuoteSymbol = (
 
 /** A job that cannot run yet and should be retried, not reported as broken. */
 export class NotYet extends Error {}
+
+/* THE PYTH RECEIVER WANTS A WALLET, NOT A KEYPAIR.
+ *
+ * Anchor ships one, but only as a CommonJS export: bundled for the server as
+ * ESM, `Wallet` comes through undefined and constructing it throws, which is a
+ * failure that shows up in production and nowhere else. It is three methods,
+ * so we write them here and depend on nothing.
+ *
+ * It signs whatever it is handed and holds no policy: the caller decides what
+ * a crank sends. */
+function keypairWallet(payer: Keypair): Wallet {
+  const sign = <T extends Transaction | VersionedTransaction>(tx: T): T => {
+    if (tx instanceof VersionedTransaction) tx.sign([payer]);
+    else tx.partialSign(payer);
+    return tx;
+  };
+  return {
+    publicKey: payer.publicKey,
+    payer,
+    signTransaction: async (tx) => sign(tx),
+    signAllTransactions: async (txs) => txs.map(sign),
+  } as Wallet;
+}
 
 /** Seconds past a boundary before trying: Pyth has to print, Hermes to index. */
 export const GRACE_SECS = 3;
@@ -160,7 +184,7 @@ export async function postAndRun(opts: {
     return [await sendAndConfirmTransaction(conn, tx, [payer], { commitment: "confirmed" })];
   }
 
-  const receiver = new PythSolanaReceiver({ connection: conn, wallet: new Wallet(payer) });
+  const receiver = new PythSolanaReceiver({ connection: conn, wallet: keypairWallet(payer) });
   const txs = await crankTransactions({
     conn,
     receiver,
