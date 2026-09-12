@@ -22,6 +22,10 @@ import { quoteValue } from "@/lib/pricemath";
 import { byTicker, STAKEABLE, tokensFor, type Stock } from "@/lib/stocks";
 
 export const dynamic = "force-dynamic";
+/* Minting to a new wallet means talking to the chain and waiting for a
+ * confirmation, which outlives the default ten seconds often enough to matter.
+ * A visitor's first click must not be the one that fails. */
+export const maxDuration = 60;
 
 /* TEST CLUSTERS ONLY. Tops a wallet up to about $250 of the test stocks it
  * asks for (the two in the fight it is about to make or take, usually), and to
@@ -85,29 +89,50 @@ export async function POST(req: NextRequest) {
   // Live prices size the drip; without one, a single share.
   const quotes = await liveQuotes(stocks).catch(() => ({}) as Awaited<ReturnType<typeof liveQuotes>>);
 
-  const instructions: TransactionInstruction[] = [];
-  const topped: string[] = [];
-  for (const stock of stocks) {
+  /* Everything the chain has to tell us, asked at once.
+   *
+   * One balance at a time was a round trip each, and with the SOL balance
+   * after them the whole thing outlived the function before it had sent
+   * anything. Nothing here depends on the answer before it. */
+  const wanted = stocks.map((stock) => {
     const token = tokensFor(stock.ticker)[0];
     const mint = new PublicKey(token.mint);
     const program = new PublicKey(token.tokenProgram);
-    const ata = getAssociatedTokenAddressSync(mint, owner, false, program);
     const price = quoteValue(quotes[stock.ticker]);
     const shares = price ? TARGET_USD / price : 1;
-    const target = BigInt(Math.floor(shares * 10 ** token.decimals));
-    const have = await connection
-      .getTokenAccountBalance(ata)
-      .then((b) => BigInt(b.value.amount))
-      .catch(() => BigInt(0));
-    if (have * BigInt(2) >= target) continue;
-    instructions.push(
-      createAssociatedTokenAccountIdempotentInstruction(faucet.publicKey, ata, owner, mint, program),
-      createMintToInstruction(mint, ata, faucet.publicKey, target - have, [], program),
-    );
-    topped.push(token.symbol);
-  }
+    return {
+      token,
+      mint,
+      program,
+      ata: getAssociatedTokenAddressSync(mint, owner, false, program),
+      target: BigInt(Math.floor(shares * 10 ** token.decimals)),
+    };
+  });
 
-  const lamports = await connection.getBalance(owner);
+  const [balances, lamports] = await Promise.all([
+    Promise.all(
+      wanted.map((w) =>
+        connection
+          .getTokenAccountBalance(w.ata)
+          .then((b) => BigInt(b.value.amount))
+          .catch(() => BigInt(0)),
+      ),
+    ),
+    connection.getBalance(owner),
+  ]);
+
+  const instructions: TransactionInstruction[] = [];
+  const topped: string[] = [];
+  wanted.forEach((w, i) => {
+    const have = balances[i];
+    if (have * BigInt(2) >= w.target) return;
+    instructions.push(
+      createAssociatedTokenAccountIdempotentInstruction(faucet.publicKey, w.ata, owner, w.mint, w.program),
+      createMintToInstruction(w.mint, w.ata, faucet.publicKey, w.target - have, [], w.program),
+    );
+    topped.push(w.token.symbol);
+  });
+
   const topUp = lamports < SOL_FLOOR ? SOL_FLOOR - lamports : 0;
   if (topUp) instructions.unshift(SystemProgram.transfer({ fromPubkey: faucet.publicKey, toPubkey: owner, lamports: topUp }));
 

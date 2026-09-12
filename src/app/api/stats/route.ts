@@ -5,6 +5,8 @@ import { dailyCloses } from "@/lib/marketHistory.server";
 import { byTicker, type Stock } from "@/lib/stocks";
 
 export const dynamic = "force-dynamic";
+/** It waits on a market data source, so give it more than the default ten. */
+export const maxDuration = 30;
 
 /* A month of daily closes for the stocks a pick screen is showing:
  * /api/stats?t=TSLA,NVDA. Daily bars change once a day, so one fetch is shared

@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { bareFeed, hermes, isFeedId } from "@/lib/hermes.server";
 
 export const dynamic = "force-dynamic";
+/** It waits on Hermes, which is not always quick. */
+export const maxDuration = 60;
 
 /* The signed Pyth update for a boundary: for each feed, the first price
  * published at or after `t`. This is what a browser posts to settle a fight

@@ -8,6 +8,8 @@ import { oracleKeypair } from "@/lib/oracleKey.server";
 import { quoteSymbolFor } from "@/lib/stocks";
 
 export const dynamic = "force-dynamic";
+/** Reads an exchange or a pool before it can sign anything. */
+export const maxDuration = 60;
 
 /* The oracle's signed quotes for one fight's signed sides at one of its
  * boundaries, for anyone who wants to post them: the fight page's "settle it

@@ -6,6 +6,8 @@ import { byTicker, type Stock } from "@/lib/stocks";
 import type { Quote, Quotes } from "@/lib/pricemath";
 
 export const dynamic = "force-dynamic";
+/** It waits on a market data source, so give it more than the default ten. */
+export const maxDuration = 30;
 
 /* Prices for the stocks a page shows: /api/prices?t=TSLA,NVDA. Each price is
  * shared for a few seconds per server instance, so a stock everyone is
