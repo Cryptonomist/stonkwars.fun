@@ -19,7 +19,7 @@ import {
   type DuelView,
 } from "@/lib/duel";
 import { BRAND } from "@/lib/brand";
-import { shares } from "@/lib/format";
+import { pct, shares } from "@/lib/format";
 import { loadGoogleFont } from "@/lib/ogFont";
 import { PALETTE } from "@/lib/palette";
 import { movePct } from "@/lib/pricemath";
@@ -45,7 +45,10 @@ async function readDuel(address: string): Promise<DuelView | null> {
   }
 }
 
-const pctText = (n: number) => `${n > 0 ? "+" : n < 0 ? "-" : ""}${Math.abs(n).toFixed(2)}%`;
+/* The card is the only version of a result most people ever see, so a weekend
+ * move must not round away to nothing on it. pct widens past two decimals only
+ * when two would print a real move as zero. */
+const pctText = (n: number) => pct(n);
 
 export default async function Image({ params }: { params: Promise<{ duel: string }> }) {
   const { duel } = await params;

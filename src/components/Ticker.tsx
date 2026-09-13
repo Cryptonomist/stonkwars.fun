@@ -1,5 +1,6 @@
 /* A stock's badge: the ticker set big, in its side's colour. */
 
+import { pct } from "@/lib/format";
 import { byTicker } from "@/lib/stocks";
 
 export function TickerBadge({
@@ -29,11 +30,7 @@ export function TickerBadge({
 export function Move({ value, className = "" }: { value: number | null; className?: string }) {
   if (value === null || !Number.isFinite(value)) return <span className={`text-dim ${className}`}>--</span>;
   const tone = value > 0 ? "text-up" : value < 0 ? "text-down" : "text-dim";
-  const s = Math.abs(value).toFixed(2);
-  return (
-    <span className={`font-mono ${tone} ${className}`}>
-      {value > 0 ? "+" : value < 0 ? "-" : ""}
-      {s}%
-    </span>
-  );
+  /* pct widens past two decimals only when two would print a real move as
+   * zero, which is what a quiet weekend does to these numbers. */
+  return <span className={`font-mono ${tone} ${className}`}>{pct(value)}</span>;
 }

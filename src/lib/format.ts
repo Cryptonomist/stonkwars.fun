@@ -18,11 +18,50 @@ export function usd(n: number, opts?: { cents?: boolean }): string {
   });
 }
 
-/** "+3.12%", "-0.85%", "0.00%" */
+/* A MOVE THAT HAPPENED MUST NOT PRINT AS ZERO.
+ *
+ * Two decimals suit a trading day and lie on a quiet weekend. With the
+ * exchanges shut the whole result can live in the fourth decimal place: one
+ * settled fight was won with the sides at -0.0108% and -0.0046%, which at two
+ * decimals reads "-0.01%" against "-0.00%". A number shown as zero beside the
+ * words "winner takes both" looks like a bug in the thing that decided it.
+ *
+ * So the width is the smallest that still shows something, and only widens
+ * when it has to: an ordinary move prints as it always did. Genuine zero, which
+ * the program treats as a tie, still prints as zero, because there it is true.
+ */
+/* "Non-zero" is not the test. 0.0062 survives two decimals as "0.01", which is
+ * not zero and is still wrong: it is the whole margin of a fight reported as
+ * something else. The test is significant figures. Below a tenth of a point,
+ * two decimals cannot carry even two of them, so the width grows until it can
+ * and trailing zeros the growth added come back off. */
+const magnitude = (n: number, digits: number, max = 6): number => {
+  const a = Math.abs(n);
+  if (a === 0 || a >= 0.1) return digits;
+  return Math.max(digits, Math.min(max, -Math.floor(Math.log10(a)) + 1));
+};
+
+function fixed(n: number, digits: number): string {
+  const a = Math.abs(n);
+  const d = magnitude(n, digits);
+  const s = a.toFixed(d);
+  if (d === digits) return s;
+  const trimmed = s.replace(/0+$/, "");
+  const kept = trimmed.length - trimmed.indexOf(".") - 1;
+  return kept < digits ? a.toFixed(digits) : trimmed;
+}
+
+/** "+3.12%", "-0.85%", "0.00%", and "-0.0046%" rather than "-0.00%". */
 export function pct(n: number, digits = 2): string {
-  const s = Math.abs(n).toFixed(digits);
+  if (n === 0) return `0.${"0".repeat(digits)}%`;
+  const s = fixed(n, digits);
   if (Number(s) === 0) return `0.${"0".repeat(digits)}%`;
   return `${n > 0 ? "+" : "-"}${s}%`;
+}
+
+/** The gap between two moves, in percentage points: "1.23", "0.0062". */
+export function points(gap: number, digits = 2): string {
+  return fixed(gap, digits);
 }
 
 /** Base units of a token to a short decimal string: 14000000n (8 dp) -> "0.14". */

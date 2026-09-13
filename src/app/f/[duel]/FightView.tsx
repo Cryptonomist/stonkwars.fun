@@ -48,7 +48,7 @@ import {
   STATUS_VOID,
   type DuelView,
 } from "@/lib/duel";
-import { clock, etTime, pythToNumber, shares, shortAddress, span, usd } from "@/lib/format";
+import { clock, etTime, pct, points, pythToNumber, shares, shortAddress, span, usd } from "@/lib/format";
 import { explorerAddress, useDuel, useSend, useTokenBalance } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
 import { sourceAt } from "@/lib/oracle";
@@ -275,7 +275,7 @@ function Center({
           <Combo combo={combo} />
           {m1 !== null && m2 !== null ? (
             <span className="text-sm text-dim">
-              {Math.abs(m1 - m2) < 0.005 ? "Dead even" : `${m1 > m2 ? "Challenger" : "Answer"} leads by ${Math.abs(m1 - m2).toFixed(2)} pts`}
+              {Math.abs(m1 - m2) < 0.005 ? "Dead even" : `${m1 > m2 ? "Challenger" : "Answer"} leads by ${points(m1 - m2)} pts`}
             </span>
           ) : null}
         </>
@@ -287,7 +287,7 @@ function Center({
       ) : null}
       {done && m1 !== null && m2 !== null ? (
         <span className="text-center text-sm text-dim">
-          {d.outcome === OUTCOME_TIE ? "Identical moves, to the last digit." : `Won by ${Math.abs(m1 - m2).toFixed(2)} points`}
+          {d.outcome === OUTCOME_TIE ? "Identical moves, to the last digit." : `Won by ${points(m1 - m2)} points`}
         </span>
       ) : null}
     </div>
@@ -488,7 +488,10 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
   } else if (d.status === STATUS_SETTLED && m1 !== null && m2 !== null) {
     const [win, lose, mw, ml] = d.outcome === OUTCOME_CREATOR ? [t1, t2, m1, m2] : [t2, t1, m2, m1];
     const by = d.creatorSource === SOURCE_PYTH && d.opponentSource === SOURCE_PYTH ? "by Pyth " : "";
-    text = `${lose} got cooked. ${win} ${mw >= 0 ? "+" : ""}${mw.toFixed(2)}% vs ${lose} ${ml >= 0 ? "+" : ""}${ml.toFixed(2)}%, settled ${by}on Solana.`;
+    /* pct rather than toFixed(2): this is the sentence that gets posted, and
+     * "NVDA -0.00%" in public reads as a broken site rather than a quiet
+     * weekend. */
+    text = `${lose} got cooked. ${win} ${pct(mw)} vs ${lose} ${pct(ml)}, settled ${by}on Solana.`;
   } else if (d.status === STATUS_LIVE) {
     text = `${t1} vs ${t2} is live on ${BRAND.name}. Watch it:`;
   } else {
