@@ -40,7 +40,7 @@ const TRUST = [
   },
   {
     title: "One price counts",
-    body: "Each boundary has exactly one price: Pyth's first update at or after it, or the close of the stock's first one-minute bar at or after it. Outside market hours, the token's last fifteen minutes on its own pool, extremes discarded and the rest averaged. The program takes that one and refuses the rest.",
+    body: "Each boundary has exactly one price: Pyth's first update at or after it, or the close of the stock's first one-minute bar at or after it. Once the exchange shuts, the same rule reads whichever market is still open, which for most of them is the stock's perpetual future. For the few with only a Solana pool it is the token's last fifteen minutes there, extremes discarded and the rest averaged. The program takes that one and refuses the rest.",
   },
   {
     title: "Anyone can settle",

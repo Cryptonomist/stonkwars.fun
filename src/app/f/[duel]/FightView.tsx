@@ -543,7 +543,8 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
 }
 
 /* Which market the oracle read for a price, worked out the same way it was:
- * the stock's own exchange while it was trading, its Solana pool otherwise. */
+ * the stock's own exchange while it was trading, and once that shuts, its
+ * perpetual future, or its Solana pool for the few stocks with no perp. */
 function oracleRead(feed: string, publishTime: number): string {
   const market = quoteSymbolFor(feed);
   if (!market) return "Oracle";

@@ -50,7 +50,7 @@ const RULES: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "What if the market is closed?",
-    a: "For a stock priced by its pool, nothing changes: the fight runs and settles on schedule. For the rest, and for listings outside the US, a fight taken while their market is shut starts at the first price when trading resumes. If that is more than five days away, or it lands inside the last minute of a fixed-end round, the fight is void and both stakes go home.",
+    a: "For the 37 that fight around the clock, nothing changes: the fight runs and settles on schedule, priced by the stock's perpetual future or, for a few with none, by its own Solana pool. For the rest, and for listings outside the US, a fight taken while their market is shut starts at the first price when trading resumes. If that is more than five days away, or it lands inside the last minute of a fixed-end round, the fight is void and both stakes go home.",
   },
   {
     q: "What if nobody takes my fight?",
