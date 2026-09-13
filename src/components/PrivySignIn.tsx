@@ -14,6 +14,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 
 import { SITE_URL } from "@/lib/brand";
 
@@ -40,6 +41,13 @@ export function PrivySignIn({ children }: { children: ReactNode }) {
         ethereum: { createOnLogin: "off" },
         showWalletUIs: true,
       },
+      /* Without this Privy does no Solana wallet detection whatsoever, so it
+       * never sees an installed Phantom and offers the download page instead
+       * of opening the extension. Its own docstring is the giveaway: the
+       * factory "wraps the wallet detection logic" from the Wallet Standard
+       * packages. Naming wallets in walletList only decides what is drawn;
+       * this is what makes them connectable. */
+      externalWallets: { solana: { connectors: toSolanaWalletConnectors() } },
       /* The same cyan as the "Pick a fight" button, so the sign-in reads as
        * part of the app. Pink belongs to player two and orange means cooked;
        * borrowing either here would blunt what they mean everywhere else. */
