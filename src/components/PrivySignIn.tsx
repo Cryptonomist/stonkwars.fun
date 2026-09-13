@@ -16,6 +16,7 @@ import { useMemo, type ReactNode } from "react";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 
+import { PrivyStandardBridge } from "@/components/PrivyStandardBridge";
 import { SITE_URL } from "@/lib/brand";
 
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -73,6 +74,10 @@ export function PrivySignIn({ children }: { children: ReactNode }) {
   if (!PRIVY_APP_ID) return <>{children}</>;
   return (
     <PrivyProvider appId={PRIVY_APP_ID} config={config}>
+      {/* Inside the provider because it needs Privy's hooks, but outside
+       * WalletProvider is fine: registration is a window event, and
+       * wallet-adapter listens for late arrivals. */}
+      <PrivyStandardBridge />
       {children}
     </PrivyProvider>
   );
