@@ -9,11 +9,12 @@
  *
  * A pool below the floors is left out and its stock keeps exchange hours. The
  * floors are not about honesty of the price, they are about what it costs to
- * push one: the off-hours price is the median of fifteen one-minute closes, so
- * a manipulator has to hold the price away from fair value across eight
- * separate minutes while arbitrage trades against them. Against a hundred
- * thousand dollars of depth that costs orders of magnitude more than any stake
- * in this game.
+ * push one: the off-hours price is a trimmed mean of up to fifteen one-minute
+ * closes, discarding the highest fifth and the lowest fifth, so a bought minute
+ * lands in the part that is thrown away and counts for nothing. Moving the
+ * answer means holding the price away from fair value across most of the sample
+ * while arbitrage trades against you. Against a hundred thousand dollars of
+ * depth that costs orders of magnitude more than any stake in this game.
  *
  * Re-run it when the market changes. Pools move; this file is a snapshot and
  * says when it was taken. */

@@ -2,13 +2,20 @@
  *
  *   DEVNET=1 npx tsx scripts/devnet-fight.ts TSLA NVDA [round seconds]
  *
- * The point of this one is the hour. With the exchange shut, these settle on
- * the median of each token's last fifteen one-minute closes on its own Solana
- * pool, which is the whole argument for a share being on a chain. During the
- * session they settle on the exchange, and nothing else changes.
+ * The point of this one is the hour. With the exchange shut, a fight settles on
+ * whichever market is still open: a perpetual futures market on the stock for
+ * most of them, and for a handful with no perp, a trimmed mean of the token's
+ * own recent one-minute closes on its Solana pool. During the session it is the
+ * exchange, and nothing else changes. That a fight can run at all at 3am is the
+ * whole argument for a share being on a chain.
  *
  * It prints the prices the program recorded next to the ones the source gives
- * when asked again, so the claim is checkable rather than asserted. */
+ * when asked again, so the claim is checkable rather than asserted.
+ *
+ * HANDS_OFF=1 creates the fight and then touches nothing, which turns this into
+ * a test of the DEPLOYED settler rather than of the program: if the fight
+ * reaches a result, something else did the work, and the fee payers printed at
+ * the end say which something. */
 
 import fs from "fs";
 import os from "os";

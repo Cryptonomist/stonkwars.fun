@@ -87,10 +87,14 @@ export function CreateFight() {
   const endsAt = endTs || (now ? now + (roundDef.secs ?? 0) : 0);
   const sides = [p1, p2].filter((t): t is string => !!t);
   const waiting = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "waits") : [];
-  const onPools = endsAt ? sides.filter((t) => pricedAt(t, endsAt) !== "waits" && pricedAt(t, endsAt) !== "exchange") : [];
-  /* Only a pool needs the window caveat; a perpetual market prints every
-   * minute and settles on the ordinary rule. */
+  /* Both sources that keep going once the exchange shuts, kept apart because
+   * they are not the same claim and telling somebody the wrong one, next to
+   * the button that takes their shares, is the worst place in the app to be
+   * vague. Most round-the-clock fights settle on a perpetual futures market,
+   * not on a Solana pool. */
+  const onPerp = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "perp") : [];
   const onPoolOnly = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "pool") : [];
+  const roundTheClock = [...onPerp, ...onPoolOnly];
   const short = balance.data !== undefined && balance.data !== null && balance.data < amount1;
   const noAccount = balance.data === null;
 
@@ -224,10 +228,16 @@ export function CreateFight() {
               {waiting.length === 1 ? "is priced by it" : "are priced by it"}, so this fight would sit until trading
               resumes. {AROUND_THE_CLOCK ? `${AROUND_THE_CLOCK} stocks fight around the clock if you want one now.` : ""}
             </p>
-          ) : onPools.length ? (
+          ) : roundTheClock.length ? (
             <>
               <p className="mt-2 text-sm text-up">
-                The exchange is shut, so {onPools.join(" and ")} settle on their own Solana pools. This fight runs now.
+                The exchange is shut, so this fight runs now.{" "}
+                {onPerp.length
+                  ? `${onPerp.join(" and ")} settle on a perpetual futures market that never closes${onPoolOnly.length ? ", and " : "."}`
+                  : ""}
+                {onPoolOnly.length
+                  ? `${onPerp.length ? "" : "The "}${onPoolOnly.join(" and ")} settle on ${onPoolOnly.length === 1 ? "its" : "their"} own Solana pool.`
+                  : ""}
               </p>
               {onPoolOnly.length && roundDef.secs && roundDef.secs < OFFHOURS_WINDOW * 60 ? (
                 <p className="mt-2 text-sm text-dim">

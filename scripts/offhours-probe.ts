@@ -4,9 +4,10 @@
  *
  * Reads the same functions the oracle reads, so what it prints is what a fight
  * settling at this moment would be signed for. Prints the window it used, so
- * the median can be checked by eye against the minutes it came from. */
+ * the answer can be checked by eye against the minutes it came from, including
+ * which of them the trim throws away. */
 
-import { fetchPoolBars, medianAtBoundary, OFFHOURS_WINDOW, QUOTE_EXPO, quoteAt } from "../src/lib/oracle";
+import { fetchPoolBars, OFFHOURS_TRIM, OFFHOURS_WINDOW, QUOTE_EXPO, quoteAt, trimmedMeanAtBoundary } from "../src/lib/oracle";
 
 // TSLAx / USDC, the deepest pool at the time of writing.
 const POOL = process.argv[2] ?? "";
@@ -25,8 +26,21 @@ async function main() {
   console.log(`\nthe window (${used.length} minutes that traded, of ${OFFHOURS_WINDOW}):`);
   for (const b of used) console.log(`  ${new Date((b.t + 60) * 1000).toISOString()}  ${b.c!.toFixed(2)}`);
 
-  const m = medianAtBoundary(bars, boundary);
-  console.log(`\nmedian: ${m ? (Number(m.price) * 10 ** QUOTE_EXPO).toFixed(4) : "not enough minutes traded"}`);
+  /* Show the trim doing its work: the same sort the oracle does, with the ends
+   * it discards marked, so a bought minute can be seen landing in the part
+   * that counts for nothing. */
+  const sorted = used.map((b) => b.c!).sort((a, b) => a - b);
+  const cut = Math.max(1, Math.floor(sorted.length * OFFHOURS_TRIM));
+  if (sorted.length) {
+    console.log(`\nsorted, ${cut} discarded from each end:`);
+    for (const [i, c] of sorted.entries()) {
+      const kept = i >= cut && i < sorted.length - cut;
+      console.log(`  ${c.toFixed(2)}  ${kept ? "kept" : "thrown away"}`);
+    }
+  }
+
+  const m = trimmedMeanAtBoundary(bars, boundary);
+  console.log(`\ntrimmed mean: ${m ? (Number(m.price) * 10 ** QUOTE_EXPO).toFixed(4) : "not enough minutes traded"}`);
 
   // And through the real entry point, as a fight would ask for it.
   const q = await quoteAt({

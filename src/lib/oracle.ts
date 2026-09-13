@@ -175,11 +175,13 @@ const perpBars = new Map<string, Bars>();
  *
  * ONE MINUTE OF IT WOULD NOT BE SAFE. Off-hours a pool can trade thirty
  * dollars in a minute, and a single swap would set that minute's close. So the
- * price is the MEDIAN of the last fifteen one-minute closes before the
- * boundary. A median cannot be moved by one trade: pushing it means holding
- * the price away from fair value across eight separate minutes, while every
- * arbitrageur on Solana trades against you, which costs orders of magnitude
- * more than any stake here is worth.
+ * price is a TRIMMED MEAN of up to fifteen one-minute closes before the
+ * boundary, discarding the highest fifth and the lowest fifth and averaging
+ * what is left. A bought minute lands in the part that is thrown away and
+ * counts for nothing; moving the answer means holding the price away from fair
+ * value across most of the sample, while every arbitrageur on Solana trades
+ * against you, which costs orders of magnitude more than any stake here is
+ * worth. See trimmedMeanAtBoundary below for why this replaced a median.
  *
  * It stays a fact about the past, so it is as repeatable as the exchange bars:
  * the pool is pinned in the roster, the window is fixed, and anyone can ask
