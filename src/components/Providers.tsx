@@ -58,12 +58,16 @@ export function Providers({ children }: { children: ReactNode }) {
     [],
   );
 
-  /* Privy sits outside, because its wallet announces itself to the page the
-   * way an extension does, and WalletProvider has to be listening by then.
-   * Without an app id it is not there at all. */
+  /* Privy sits outside because it has to be mounted for its wallet to exist at
+   * all, and because it takes the same endpoint: wallet-adapter names no chain
+   * when it asks for a signature, so Privy needs telling which cluster this is
+   * or it assumes mainnet and refuses. It does NOT announce itself the way an
+   * extension does, whatever an earlier version of this comment claimed;
+   * PrivyStandardBridge is what puts it in front of WalletProvider.
+   * Without an app id none of it is there at all. */
   return (
     <QueryClientProvider client={queryClient}>
-      <PrivySignIn>
+      <PrivySignIn endpoint={endpoint}>
         <ConnectionProvider endpoint={endpoint} config={config}>
           <WalletProvider wallets={wallets} autoConnect>
             {children}

@@ -15,6 +15,7 @@
 import { useMemo, type ReactNode } from "react";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
+import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
 import { PrivyStandardBridge } from "@/components/PrivyStandardBridge";
 import { SITE_URL } from "@/lib/brand";
@@ -28,10 +29,32 @@ export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
  * with nothing to remember to change on the day. */
 const origin = () => (typeof window === "undefined" ? SITE_URL : window.location.origin);
 
-export function PrivySignIn({ children }: { children: ReactNode }) {
+/* Every Solana chain pointed at the one cluster this deployment runs on.
+ *
+ * Not laziness. wallet-adapter names a chain when it SENDS a transaction, and
+ * names none when it merely signs one, which is all this app ever asks for.
+ * Privy then falls back to its own default, mainnet, and refuses to sign at all
+ * with "No RPC configuration found for chain solana:mainnet".
+ *
+ * There is no setting for Privy's default chain, so the only way through is to
+ * answer for whichever chain it decides to ask about. Since the app talks to
+ * exactly one cluster at a time, answering with that cluster is right whatever
+ * it asks: on devnet Privy previews a devnet transaction against devnet, and
+ * the day CLUSTER becomes mainnet the same code previews mainnet against
+ * mainnet. The alternative, naming each chain honestly, would have Privy
+ * simulate our devnet transactions against the real mainnet and show the user
+ * nonsense. */
+function rpcsFor(endpoint: string) {
+  const ws = endpoint.replace(/^http/, "ws");
+  const one = () => ({ rpc: createSolanaRpc(endpoint), rpcSubscriptions: createSolanaRpcSubscriptions(ws) });
+  return { "solana:mainnet": one(), "solana:devnet": one(), "solana:testnet": one() };
+}
+
+export function PrivySignIn({ children, endpoint }: { children: ReactNode; endpoint: string }) {
   const config = useMemo<PrivyClientConfig>(() => {
     const here = origin();
     return {
+      solana: { rpcs: rpcsFor(endpoint) },
       /* Wallet first, then the ways in for people who have never held one.
        * One door, both kinds of arrival, which is what Fomo does. */
       loginMethods: ["wallet", "twitter", "google", "email"],
@@ -69,7 +92,7 @@ export function PrivySignIn({ children }: { children: ReactNode }) {
         privacyPolicyUrl: `${here}/privacy`,
       },
     } satisfies PrivyClientConfig;
-  }, []);
+  }, [endpoint]);
 
   if (!PRIVY_APP_ID) return <>{children}</>;
   return (
