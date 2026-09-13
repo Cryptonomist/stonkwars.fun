@@ -4,7 +4,7 @@ export const BRAND = {
   name: "Stonk Wars",
   short: "STONK WARS",
   domain: "stonkwars.fun",
-  x: "@stonkwars",
+  x: "@stonkwarsfun",
   tagline: "Win, and you own their stock.",
   pitch:
     "Stake real tokenized shares of your stock. They stake theirs. At the bell, whichever moved more in percent takes every share on the table. Signed prices decide it, anyone can settle it, and no house takes a cut.",
