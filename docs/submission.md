@@ -432,12 +432,19 @@ Settled with the owner on 13 September:
 3. **How AI was used.** No rule requires disclosure and there is no field for
    it. Stated anyway as voluntary candor: built with Claude Code as the pair,
    the owner directing, testing and holding every key.
-4. **DNS.** `stonkwars.fun` goes live Tuesday or Wednesday, once coding settles,
-   rather than on submission day. Earlier is better: the Blink registration at
-   dial.to wants the live domain, and whichever URL is in the form on Friday has
-   to resolve.
+4. **DNS. Done, 13 September.** `stonkwars.fun` is live and primary, `www`
+   redirects to it, certificates valid on both. Every page, the API, the share
+   card, the fight cards and the Blink icons check out on the new domain, all
+   under 0.4s. The card and Blink followed by themselves, because they read
+   Vercel's production domain rather than a value anybody has to remember.
+   Going five days early rather than on submission day is what left room to
+   find that the whole thing had been unfurling broken.
 
 Still to do:
+
+- **Register the Blink at dial.to.** Unblocked now the domain resolves and
+  `actions.json` serves. It is what lets somebody take a fight from inside an X
+  post, which is a demo beat worth having.
 
 - **Register and link a Solana wallet** on the hackathon site. Both are
   prerequisites rather than the submission itself; a Google-only account cannot

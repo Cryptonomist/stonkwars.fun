@@ -84,24 +84,50 @@ Deploy. You get a `*.vercel.app` URL straight away.
 ## 6. The domain
 
 **(you)** Vercel → Project → Settings → Domains → add `stonkwars.fun` and
-`www.stonkwars.fun`. Then in Cloudflare → stonkwars.fun → DNS:
+`www.stonkwars.fun`. Vercel then shows the records it wants. **Use those, not
+any written here.** It no longer hands out the shared `76.76.21.21` apex A
+record; each project now gets its own hostname and both names are a CNAME to
+it, something like:
 
 | Type | Name | Content | Proxy |
 |---|---|---|---|
-| A | `@` | `76.76.21.21` | **DNS only** |
-| CNAME | `www` | `cname.vercel-dns.com` | **DNS only** |
+| CNAME | `@` | `<project hash>.vercel-dns-nnn.com` | **DNS only** |
+| CNAME | `www` | the same value | **DNS only** |
 
-Grey cloud, not orange: Cloudflare's proxy in front of Vercel breaks Vercel's
-certificate issuance. Use Vercel's values if its dashboard shows different ones.
+A CNAME on the apex is normally illegal; Cloudflare allows it by flattening,
+which is why this works there and would not everywhere.
+
+Grey cloud, not orange, on both. Cloudflare's proxy in front of Vercel breaks
+Vercel's certificate issuance.
+
+Then set **`stonkwars.fun` as the primary domain** in Vercel, so `www`
+redirects to it rather than the other way round. Whichever is primary is the
+one Vercel reports as the production domain, and that is what the app uses to
+build og:image and every Blink icon, so it wants to be the name on the brand.
+
+Two things follow the domain and one does not:
+
+- The share card and Blink icons move on their own, but only on the next
+  deployment, because the production domain is read at build time. **Redeploy
+  after the domain resolves** or every share still names the old host.
+- Privy's allowed origins must list whichever hostnames people can reach,
+  including `www` if it is reachable at all. That list drives a CSP
+  `frame-ancestors` header, so a host missing from it cannot show the login
+  iframe at all.
+- Privy's **HttpOnly cookies / app domain stays off** until the app is actually
+  served from that domain, and there is no reason to switch it on before the
+  wallet work is deployed. See `docs/submission.md` and the note in
+  `src/components/PrivySignIn.tsx` on the branch.
 
 ## 7. The settler, once a minute
 
 **(you)** https://cron-job.org (free) → Create cronjob:
 
-- URL: the **production** origin, `/api/crank`. Use the `.vercel.app` one until
-  the custom domain actually resolves: `https://stonkwarsfun-six.vercel.app/api/crank`.
-  Exactly that: `https`, no trailing slash. This job is the only thing that reads
-  it, so point it at the alias that is live rather than the one you plan to have.
+- URL: the **primary** origin, `/api/crank`, so
+  `https://stonkwars.fun/api/crank`. Exactly that: `https`, no trailing slash,
+  and the primary name rather than a redirecting one. A redirect is the usual
+  way an `Authorization` header goes missing in transit, and the `.vercel.app`
+  alias still answers if the custom domain is not up yet.
 - Schedule: every minute. Method: **GET**.
 - Common → **Save responses in job history**: ON. It is off by default, which
   means a failing job shows a bare status code and nothing else. Everything

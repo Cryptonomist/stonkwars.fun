@@ -49,6 +49,7 @@ import {
   STATUS_SETTLED,
   type DuelView,
 } from "../src/lib/duel";
+import { SITE_URL } from "../src/lib/brand";
 import { quoteAt, sourceAt } from "../src/lib/oracle";
 import { byTicker, quoteSymbolFor, stakeAssetFor, STAKE_DECIMALS } from "../src/lib/stocks";
 
@@ -197,7 +198,7 @@ async function main() {
   const open = decodeDuel(duel, (await conn.getAccountInfo(duel))!.data);
   await send([buildAcceptDuel(open, bob.publicKey)], [bob]);
   log(`${t1} vs ${t2}: ${duel.toBase58()}`);
-  log(`${process.env.SITE_URL ?? "https://stonkwarsfun-six.vercel.app"}/f/${duel.toBase58()}`);
+  log(`${process.env.SITE_URL ?? SITE_URL}/f/${duel.toBase58()}`);
 
   /* HANDS_OFF=1 makes this a test of the DEPLOYED settler rather than of the
    * program. Nothing here touches the fight after it is accepted, so if it
