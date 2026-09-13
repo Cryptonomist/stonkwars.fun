@@ -10,4 +10,22 @@ export const BRAND = {
     "Stake real tokenized shares of your stock. They stake theirs. At the bell, whichever moved more in percent takes every share on the table. Signed prices decide it, anyone can settle it, and no house takes a cut.",
 } as const;
 
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || `https://${BRAND.domain}`;
+/* The origin this deployment actually answers on, which is not always the one
+ * we intend to own.
+ *
+ * This string is not decoration. It is the base for og:image and for the icon
+ * on every Blink, so pointing it at a domain that does not resolve does not
+ * degrade anything gracefully: X unfurls a broken image and the Blink loses its
+ * art, on exactly the shares meant to bring people in. Defaulting to the brand
+ * domain did that for as long as the DNS was held back.
+ *
+ * Vercel names the production domain in the environment, and renames it when a
+ * custom domain is assigned. Reading it means the preview is right today, right
+ * the moment stonkwars.fun starts resolving, and right without anybody
+ * remembering to change a variable on the day. An explicit NEXT_PUBLIC_SITE_URL
+ * still wins, for anyone hosting this somewhere else; if one is set on Vercel
+ * it is worth deleting, because this works out the answer on its own. */
+const vercelProduction = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+export const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (vercelProduction ? `https://${vercelProduction}` : `https://${BRAND.domain}`);

@@ -70,7 +70,7 @@ Production and Preview:
 |---|---|
 | `NEXT_PUBLIC_CLUSTER` | `devnet` |
 | `NEXT_PUBLIC_RPC_URL` | `https://api.devnet.solana.com` (or a Helius devnet URL behind a proxy; never a raw keyed URL) |
-| `NEXT_PUBLIC_SITE_URL` | `https://stonkwars.fun` |
+| `NEXT_PUBLIC_SITE_URL` | **leave unset on Vercel.** It is the base for og:image and for every Blink's icon, so a value pointing at a domain that does not resolve yet unfurls broken on X. Unset, the app reads Vercel's own production domain and tracks it through the custom-domain switch. Set it only when hosting somewhere else |
 | `RPC_URL` | same as above, or a keyed RPC: this one stays on the server |
 | `PYTH_API_KEY` | from step 4 |
 | `HERMES_URL` | `https://hermes.pyth.network` |
