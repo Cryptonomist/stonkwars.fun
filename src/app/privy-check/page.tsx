@@ -41,11 +41,18 @@ function Report() {
 
   return (
     <div className="flex flex-col gap-6 py-10">
-      <div>
+      <div className="max-w-2xl">
         <p className="label">Spike</p>
-        <h1 className="display mt-2 text-5xl">Does wallet-adapter see Privy?</h1>
+        <h1 className="display mt-2 text-5xl">Can the app use a Privy wallet?</h1>
+        <p className="mt-3 text-dim">
+          Eight files in this app ask a wallet to sign things, and all of them read one list. Phantom, Solflare and
+          Backpack put themselves on that list by announcing to the page. The question is whether the wallet Privy
+          makes for someone who signed in with an email does the same.
+        </p>
         <p className="mt-2 text-dim">
-          Sign in below. The question is whether the wallet Privy makes shows up in the list this app already reads.
+          <strong className="text-ink">Sign in below, then read the green or red line.</strong> Green means every
+          existing signing path works for a Privy wallet with no new code. Red means each one needs a second path
+          written for it by hand.
         </p>
       </div>
 
@@ -61,32 +68,59 @@ function Report() {
         )}
       </div>
 
-      <dl className="card grid grid-cols-[14rem_1fr] gap-x-4 gap-y-2 p-5 font-mono text-sm">
-        <dt className="text-dim">privy ready</dt>
-        <dd>{String(ready)}</dd>
-        <dt className="text-dim">authenticated</dt>
-        <dd>{String(authenticated)}</dd>
+      {/* The answer, in a sentence, before any of the detail behind it. */}
+      <div
+        className={`card border-2 p-5 ${
+          !authenticated ? "border-line" : privyVisible ? "border-up text-up" : "border-down text-down"
+        }`}
+      >
+        <p className="display text-3xl">
+          {!authenticated
+            ? "Not signed in yet"
+            : privyVisible
+              ? "Yes. The app can use it."
+              : "No. The app cannot see it."}
+        </p>
+        <p className="mt-2 text-sm text-dim">
+          {!authenticated
+            ? "Sign in above and this line will answer the question."
+            : privyVisible
+              ? "Privy announced its wallet the way an extension does, so every place that already signs with Phantom will sign with this too. Nothing else has to change."
+              : "Privy made a wallet, but it is not on the list the app reads. Each signing path would need a second version written for it."}
+        </p>
+      </div>
+
+      <dl className="card grid grid-cols-[16rem_1fr] gap-x-4 gap-y-2 p-5 font-mono text-sm">
+        <dt className="label col-span-2 text-dim">Who you are</dt>
+        <dt className="text-dim">signed in</dt>
+        <dd>{ready ? String(authenticated) : "still loading"}</dd>
         <dt className="text-dim">signed in as</dt>
         <dd className="truncate">{user?.google?.email ?? user?.twitter?.username ?? user?.email?.address ?? "nobody"}</dd>
-        <dt className="text-dim">privy solana wallets</dt>
-        <dd className="truncate">{privyWallets.map((w: { address: string }) => w.address).join(", ") || "none yet"}</dd>
 
-        <dt className="mt-3 text-dim">wallets adapter can see</dt>
-        <dd className="mt-3 truncate">{seenByAdapter.join(", ") || "none"}</dd>
-        <dt className={privyVisible ? "text-up" : "text-down"}>PRIVY VISIBLE TO ADAPTER</dt>
-        <dd className={privyVisible ? "text-up" : "text-down"}>{privyVisible ? "YES" : "NO"}</dd>
+        <dt className="label col-span-2 mt-4 text-dim">Wallets Privy knows about</dt>
+        <dd className="col-span-2 truncate">
+          {privyWallets.map((w: { address: string }) => w.address).join(", ") || "none yet"}
+        </dd>
 
-        <dt className="mt-3 text-dim">adapter connected</dt>
-        <dd className="mt-3">{String(connected)}</dd>
-        <dt className="text-dim">adapter wallet</dt>
+        <dt className="label col-span-2 mt-4 text-dim">Wallets the app can see</dt>
+        <dd className="col-span-2 truncate">{seenByAdapter.join(", ") || "none"}</dd>
+        <dt className={privyVisible ? "text-up" : "text-down"}>is Privy among them?</dt>
+        <dd className={privyVisible ? "text-up" : "text-down"}>{privyVisible ? "yes" : "no"}</dd>
+
+        <dt className="label col-span-2 mt-4 text-dim">Which one the app is using</dt>
+        <dt className="text-dim">connected</dt>
+        <dd>{String(connected)}</dd>
+        <dt className="text-dim">wallet</dt>
         <dd>{wallet?.adapter.name ?? "none"}</dd>
-        <dt className="text-dim">adapter public key</dt>
+        <dt className="text-dim">address</dt>
         <dd className="truncate">{publicKey?.toBase58() ?? "none"}</dd>
       </dl>
 
-      <p className="text-sm text-dim">
-        If PRIVY VISIBLE TO ADAPTER says YES, the plan holds and nothing else in the app has to change. If it says NO
-        after signing in, the wallet needs registering by hand and the job is bigger.
+      <p className="max-w-2xl text-sm text-dim">
+        Worth trying both ways in: sign in with an email, which makes a wallet from nothing, and separately connect
+        Phantom through Privy rather than through the site&rsquo;s own Connect button. If the address under{" "}
+        <em>wallets Privy knows about</em> matches the one under <em>which one the app is using</em>, the two routes to
+        the same extension have converged and the Connect button can eventually go away.
       </p>
     </div>
   );
