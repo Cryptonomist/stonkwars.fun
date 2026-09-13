@@ -14,6 +14,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useWallets as usePrivySolanaWallets } from "@privy-io/react-auth/solana";
 
 import { PRIVY_APP_ID } from "@/components/PrivySignIn";
+import { usePrivyStandardDebug } from "@/components/PrivyStandardBridge";
 
 /* usePrivy() throws outright when no provider is above it, and without an app
  * id there is no provider. That is not a runtime problem, it is a build one:
@@ -35,6 +36,7 @@ function Report() {
   const { ready, authenticated, user, login, logout } = usePrivy();
   const { wallets: privyWallets } = usePrivySolanaWallets();
   const { wallets, wallet, publicKey, connected } = useWallet();
+  const dbg = usePrivyStandardDebug();
 
   const seenByAdapter = wallets.map((w) => w.adapter.name);
   const privyVisible = seenByAdapter.some((n) => /privy/i.test(n));
@@ -114,6 +116,22 @@ function Report() {
         <dd>{wallet?.adapter.name ?? "none"}</dd>
         <dt className="text-dim">address</dt>
         <dd className="truncate">{publicKey?.toBase58() ?? "none"}</dd>
+
+        {/* Connecting throws WalletAccountError when accounts is empty, and
+         * the thrown error says nothing about why. These rows say why. */}
+        <dt className="label col-span-2 mt-4 text-dim">What the bridge sees</dt>
+        <dt className="text-dim">privy standard wallet</dt>
+        <dd>{dbg.found ? "found" : "not found"}</dd>
+        <dt className={dbg.accounts ? "text-dim" : "text-down"}>accounts on it</dt>
+        <dd className={dbg.accounts ? "" : "text-down"}>
+          {dbg.accounts} {dbg.accounts === 0 ? " <- connecting cannot work until this is 1 or more" : ""}
+        </dd>
+        <dt className="text-dim">its addresses</dt>
+        <dd className="truncate">{dbg.addresses.join(", ") || "none"}</dd>
+        <dt className="text-dim">its chains</dt>
+        <dd className="truncate">{dbg.chains.join(", ") || "none"}</dd>
+        <dt className="text-dim">its features</dt>
+        <dd className="truncate">{dbg.features.join(", ") || "none"}</dd>
       </dl>
 
       <p className="max-w-2xl text-sm text-dim">

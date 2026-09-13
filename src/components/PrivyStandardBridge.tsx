@@ -40,9 +40,32 @@ export function PrivyStandardBridge() {
      * Only ours is missing from the registry, so only ours goes in. */
     const own = wallets.find((w) => (w as { isPrivyWallet?: boolean }).isPrivyWallet);
     if (!own) return;
+    /* And not until it has an account. wallet-adapter calls standard:connect
+     * only when the list is already empty, then takes accounts[0] and throws
+     * WalletAccountError if it is still missing. Announcing early therefore
+     * publishes a wallet that can never connect, and the registry has no way
+     * to withdraw it. Privy fills these in after sign-in, so this effect just
+     * waits: `wallets` is rebuilt as they arrive, and it runs again. */
+    if (!own.accounts.length) return;
     registerWallet(own);
     announced.current = true;
   }, [ready, wallets]);
 
   return null;
+}
+
+/** What the bridge can see, for the spike page. Not for production use. */
+export function usePrivyStandardDebug() {
+  const { ready, wallets } = useStandardWallets();
+  const own = wallets.find((w) => (w as { isPrivyWallet?: boolean }).isPrivyWallet);
+  return {
+    ready,
+    count: wallets.length,
+    names: wallets.map((w) => w.name),
+    found: Boolean(own),
+    accounts: own?.accounts.length ?? 0,
+    addresses: own?.accounts.map((a) => a.address) ?? [],
+    chains: own ? [...own.chains] : [],
+    features: own ? Object.keys(own.features) : [],
+  };
 }
