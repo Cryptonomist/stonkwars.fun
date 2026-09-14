@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Big_Shoulders, Big_Shoulders_Stencil, Geist, Geist_Mono } from "next/font/google";
 
+import { BottomNav } from "@/components/BottomNav";
+import { CommandPalette } from "@/components/CommandPalette";
+import { FightWatcher } from "@/components/FightWatcher";
 import { Providers } from "@/components/Providers";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
+import { Toaster } from "@/components/ui/Toast";
 import { BRAND, SITE_URL } from "@/lib/brand";
 import "./globals.css";
 
@@ -55,11 +59,19 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${display.variable} ${stencil.variable} ${body.variable} ${mono.variable}`}>
-      <body className="arena min-h-dvh antialiased">
+      <body className="arena has-bottom-nav min-h-dvh antialiased">
         <Providers>
           <SiteNav />
-          <main className="mx-auto max-w-6xl px-4">{children}</main>
+          {/* The phone's bottom bar is fixed over the end of the page. Its
+            * height is reserved once, under the footer (see SiteFooter), since
+            * the footer always follows main: reserving it here as well would
+            * only open a 56px hole between every page and its footer. */}
+          <main className="mx-auto max-w-7xl px-4 pb-4">{children}</main>
           <SiteFooter />
+          <Toaster />
+          <FightWatcher />
+          <CommandPalette />
+          <BottomNav />
         </Providers>
       </body>
     </html>

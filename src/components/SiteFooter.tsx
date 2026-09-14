@@ -1,33 +1,54 @@
 import Link from "next/link";
 
 import { Mark } from "@/components/Logo";
+import { Badge } from "@/components/ui/Badge";
+import { ExplorerLink } from "@/components/ui/ExplorerLink";
+import { BRAND } from "@/lib/brand";
 import { PROGRAM_ID } from "@/lib/duel";
 import { CLUSTER } from "@/lib/stocks";
 
+/* The footer: which chain this build talks to, the program that holds every
+ * stake (one click from its account on Explorer), and the reading pages.
+ *
+ * On a phone the fixed bottom bar sits over the end of the page, so the footer
+ * reserves its height (--bottom-nav-h, zero from 640px up) below its own
+ * content. That keeps the last line of every page clear of the bar without
+ * adding a gap between a page and its footer. */
+
+const CLUSTER_NAME: Record<typeof CLUSTER, string> = {
+  devnet: "Solana devnet",
+  localnet: "Solana localnet",
+  "mainnet-beta": "Solana mainnet",
+};
+
 export function SiteFooter() {
-  const explorer = `https://explorer.solana.com/address/${PROGRAM_ID.toBase58()}${
-    CLUSTER === "devnet" ? "?cluster=devnet" : ""
-  }`;
+  const x = `https://x.com/${BRAND.x.replace(/^@/, "")}`;
   return (
-    <footer className="mt-24 border-t border-line">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-dim sm:flex-row sm:items-center">
-        <div className="flex items-center gap-3">
+    <footer className="mt-16 border-t border-line pb-[calc(var(--bottom-nav-h)+env(safe-area-inset-bottom))]">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-sm text-dim lg:flex-row lg:items-center lg:gap-6">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
           <Mark size={20} />
-          <span>
-            Prices by <a className="text-ink underline decoration-line underline-offset-4" href="https://pyth.network" target="_blank" rel="noreferrer">Pyth</a>{" "}
-            and the <Link href="/how" className="text-ink underline decoration-line underline-offset-4">Stonk Wars oracle</Link>.
-            Settled on Solana. No one holds the stakes but the program.
+          <Badge variant="neutral">{CLUSTER_NAME[CLUSTER]}</Badge>
+          <span className="inline-flex min-w-0 items-center gap-2">
+            <span className="label">Program</span>
+            <ExplorerLink kind="address" value={PROGRAM_ID.toBase58()} className="text-meta" />
           </span>
+          <span className="text-meta">No one holds the stakes but the program.</span>
         </div>
-        <div className="flex flex-wrap gap-4 sm:ml-auto">
-          <Link href="/how" className="hover:text-ink">How it works</Link>
-          <Link href="/privacy" className="hover:text-ink">Privacy</Link>
-          <Link href="/terms" className="hover:text-ink">Terms</Link>
-          <a href={explorer} target="_blank" rel="noreferrer" className="hover:text-ink">
-            Program
+        <nav aria-label="Site" className="flex flex-wrap gap-x-4 gap-y-2 lg:ml-auto">
+          <Link href="/how" className="link">
+            How it works
+          </Link>
+          <Link href="/privacy" className="link">
+            Privacy
+          </Link>
+          <Link href="/terms" className="link">
+            Terms
+          </Link>
+          <a href={x} target="_blank" rel="noreferrer" className="link">
+            X<span className="sr-only"> ({BRAND.x}), opens in a new tab</span>
           </a>
-          <span className="label self-center">{CLUSTER}</span>
-        </div>
+        </nav>
       </div>
     </footer>
   );
