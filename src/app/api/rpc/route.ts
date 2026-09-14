@@ -10,13 +10,13 @@ import { NextResponse, type NextRequest } from "next/server";
  *
  * This is a relay, not an open RPC. It carries only the methods the app
  * actually calls, only from this site's own pages, and only bodies small
- * enough to be one of ours. None of that is a wall — an Origin header is
- * whatever the caller says it is — but it keeps the endpoint from being a
+ * enough to be one of ours. None of that is a wall (an Origin header is
+ * whatever the caller says it is), but it keeps the endpoint from being a
  * free node somebody else builds on, and the method list means a stranger
  * cannot bill us for the expensive calls we never make.
  *
  * Subscriptions are deliberately absent: a serverless function cannot hold a
- * websocket. Nothing in the app needs one — see lib/confirm.ts. */
+ * websocket. Nothing in the app needs one; see lib/confirm.ts. */
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 20;
@@ -33,6 +33,8 @@ const ALLOWED = new Set([
   "getBlockHeight",
   "getSlot",
   "getSignatureStatuses",
+  // The fight receipt lists every transaction that touched a duel account.
+  "getSignaturesForAddress",
   "getTransaction",
   "getMinimumBalanceForRentExemption",
   "getFeeForMessage",
