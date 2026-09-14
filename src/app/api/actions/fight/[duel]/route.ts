@@ -4,7 +4,7 @@ import { actionError, actionJson, ACTION_HEADERS } from "@/lib/actions.server";
 import { SITE_URL } from "@/lib/brand";
 import { ataFor, buildAcceptDuel, decodeDuel, isInviteOnly, PROGRAM_ID, STATUS_OPEN, type DuelView } from "@/lib/duel";
 import { shares, span } from "@/lib/format";
-import { STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import { mixedHoursAt, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +69,12 @@ export async function GET(_req: Request, { params }: Params) {
   const t2 = tickerForMint(d.opponentMint) ?? "?";
   const now = Math.floor(Date.now() / 1000);
   const open = d.status === STATUS_OPEN && d.expiresTs > now;
+  /* The site refuses a fight where one side would start days after the other,
+   * because the weekend gap would decide it rather than the round. An Actions
+   * client is only another way in, so it refuses the same fight for the same
+   * reason, instead of being the back door around the rule. */
+  const mixed = open ? mixedHoursAt(t1, t2, now) : null;
+  const takeable = open && !mixed;
   const round = d.durationSecs ? `${span(d.durationSecs)} round` : "to the bell";
   const stake = `${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)}`;
 
@@ -83,11 +89,11 @@ export async function GET(_req: Request, { params }: Params) {
     ]
       .filter(Boolean)
       .join(" "),
-    label: open ? `Take it: stake ${stake}` : "Fight closed",
-    disabled: !open,
-    ...(open
+    label: takeable ? `Take it: stake ${stake}` : mixed ? "Not now" : "Fight closed",
+    disabled: !takeable,
+    ...(takeable
       ? { links: { actions: [{ type: "transaction", label: `Take it: stake ${stake}`, href: `/api/actions/fight/${duel}` }] } }
-      : { error: { message: "This fight has already been taken, or it expired." } }),
+      : { error: { message: mixed ?? "This fight has already been taken, or it expired." } }),
   });
 }
 
@@ -112,6 +118,8 @@ export async function POST(req: Request, { params }: Params) {
   if (d.status !== STATUS_OPEN || d.expiresTs <= now) return actionError("This fight is no longer open.");
   if (account.equals(d.creator)) return actionError("You cannot take your own fight.");
   if (isInviteOnly(d) && !account.equals(d.invitee)) return actionError("This fight is addressed to someone else.");
+  const mixed = mixedHoursAt(tickerForMint(d.creatorMint) ?? "", tickerForMint(d.opponentMint) ?? "", now);
+  if (mixed) return actionError(mixed);
 
   const conn = connection();
   const t2 = tickerForMint(d.opponentMint) ?? "?";
