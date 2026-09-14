@@ -31,11 +31,28 @@ async function readDuel(address: string): Promise<DuelView | null> {
   return decodeDuel(key, info.data);
 }
 
+/* An RPC that is down or rate limiting throws out of every chain call here.
+ * Left uncaught, Next answers a bare 500 carrying none of the Action headers,
+ * and an Actions client reads that as a CORS failure rather than a reason. So
+ * each call that touches the chain ends here instead, as a proper error body
+ * with the headers still on it. */
+const unreachable = () => actionError("Could not reach Solana just now. Try again in a moment.", 503);
+
+/* A token account that was never created makes getTokenAccountBalance throw,
+ * and for that case zero is the true balance. Every other failure is the RPC,
+ * where "you need more shares" would be a lie told to somebody who has them. */
+const neverCreated = (e: unknown) => /could not find account/i.test(String((e as Error)?.message ?? e));
+
 export const OPTIONS = () => new Response(null, { headers: ACTION_HEADERS });
 
 export async function GET(_req: Request, { params }: Params) {
   const { duel } = await params;
-  const d = await readDuel(duel);
+  let d: DuelView | null;
+  try {
+    d = await readDuel(duel);
+  } catch {
+    return unreachable();
+  }
   const icon = `${SITE_URL}/f/${duel}/opengraph-image`;
   if (!d) {
     return actionJson({
@@ -84,7 +101,12 @@ export async function POST(req: Request, { params }: Params) {
     return actionError("Send { account } as a Solana address.");
   }
 
-  const d = await readDuel(duel);
+  let d: DuelView | null;
+  try {
+    d = await readDuel(duel);
+  } catch {
+    return unreachable();
+  }
   if (!d) return actionError("No fight at that address.", 404);
   const now = Math.floor(Date.now() / 1000);
   if (d.status !== STATUS_OPEN || d.expiresTs <= now) return actionError("This fight is no longer open.");
@@ -93,17 +115,27 @@ export async function POST(req: Request, { params }: Params) {
 
   const conn = connection();
   const t2 = tickerForMint(d.opponentMint) ?? "?";
-  const balance = await conn
-    .getTokenAccountBalance(ataFor(account, d.opponentMint, d.opponentTokenProgram))
-    .then((b) => BigInt(b.value.amount))
-    .catch(() => BigInt(0));
+  let balance: bigint;
+  try {
+    balance = await conn
+      .getTokenAccountBalance(ataFor(account, d.opponentMint, d.opponentTokenProgram))
+      .then((b) => BigInt(b.value.amount));
+  } catch (e) {
+    if (!neverCreated(e)) return unreachable();
+    balance = BigInt(0);
+  }
   if (balance < d.opponentAmount) {
     return actionError(
       `You need ${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)} to take this. Get some at ${SITE_URL.replace(/^https?:\/\//, "")}.`,
     );
   }
 
-  const latest = await conn.getLatestBlockhash("confirmed");
+  let latest: Awaited<ReturnType<Connection["getLatestBlockhash"]>>;
+  try {
+    latest = await conn.getLatestBlockhash("confirmed");
+  } catch {
+    return unreachable();
+  }
   const tx = new Transaction({ feePayer: account, ...latest })
     .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }))
     .add(buildAcceptDuel(d, account));

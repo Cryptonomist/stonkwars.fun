@@ -44,7 +44,7 @@ Two issuers' tokens of one stock (TSLAx and TSLAon) share one feed id, and the p
 ## A fight, start to finish
 
 1. **Call it.** Pick your fighter, theirs, a stake ($25 each, sized in integers from the live price), and a round: 5 minutes, an hour, the next closing bell, or Friday's. Add a taunt; it is written on chain with the fight.
-2. **They answer.** The link unfurls on X as a VS card, and as a Blink. Whoever takes it stakes exactly the terms offered. A fight can be open to anyone or addressed to one wallet.
+2. **They answer.** The link unfurls on X as a VS card, and every fight is also a standard Solana Action any Actions client can take. Whoever takes it stakes exactly the terms offered. A fight can be open to anyone or addressed to one wallet.
 3. **The round runs** from each stock's first price at least two seconds after the accept. The fight page is a fighting-game HUD: live moves, health bars that drain with the gap between the two stocks, a clock to the bell.
 4. **The bell.** Each stock's first price at or after the end. Bigger percentage move wins both stakes; an exact tie refunds each side. The settler posts it within a minute, and anyone can post it from the fight page.
 

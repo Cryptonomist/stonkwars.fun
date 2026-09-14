@@ -168,12 +168,22 @@ sends. Reload the page and confirm the header row is still there.
 Without any of this, fights still settle: anyone can press **Settle it yourself**
 on a fight page after the bell, and the result is the same whoever does.
 
-## 8. Blinks on X (optional)
+## 8. Solana Actions (no step required)
 
-Fight links already serve a Solana Action (`/actions.json`,
-`/api/actions/fight/<duel>`). For X to unfurl them as Blinks for wallet users,
-register the domain at https://dial.to/register. Until then, every fight page
-has a **Preview the Blink** link that opens it on dial.to.
+Every fight serves a Solana Action with nothing to configure: `/actions.json`
+maps `/f/*` onto `/api/actions/fight/*`, where GET describes the fight and POST
+returns an unsigned `accept_duel` for the wallet to sign. Any Actions client can
+take a fight through it.
+
+What no longer exists, as of September 2026, is a way to make that unfurl as a
+Blink inside X. Wallets only render Blinks for domains on Dialect's registry,
+and that path is gone: `dial.to` and its `/register` page return a paused Vercel
+deployment, Dialect briefly published and then withdrew a notice that it was
+sunsetting Blinks, and the registry has not changed since spring. A fight link
+still unfurls on X, as the ordinary VS card from its OpenGraph image, which does
+not depend on any of this.
+
+If a registry reappears, nothing in the app needs to change to use it.
 
 ## Smoke test after deploy
 

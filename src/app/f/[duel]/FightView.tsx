@@ -499,11 +499,12 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
   }
 
   const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
-  /* The same fight as a Blink: a wallet-enabled viewer can take it without
-   * leaving the post. dial.to renders any Action URL, registered or not. */
-  const blink = `https://dial.to/?action=${encodeURIComponent(
-    `solana-action:${window.location.origin}/api/actions/fight/${d.address.toBase58()}`,
-  )}${CLUSTER === "mainnet-beta" ? "" : "&cluster=devnet"}`;
+  /* There used to be a "Preview the Blink" link here, to dial.to, which
+   * rendered any Action URL as a card. Dialect paused dial.to in 2026 and the
+   * Blinks registry has been frozen since spring, so the link went nowhere.
+   * The fight is still a valid Solana Action at /api/actions/fight/<duel>;
+   * there is just no public previewer to send anyone to, and the page this
+   * section sits on already does everything a Blink would. */
 
   return (
     <section className={`card mx-auto mt-6 max-w-2xl p-5 ${fresh && d.status === STATUS_OPEN ? "ring-2 ring-p1" : ""}`}>
@@ -533,14 +534,6 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
           Post on X
         </a>
       </div>
-      {d.status === STATUS_OPEN ? (
-        <p className="mt-3 text-xs text-dim">
-          Wallets that read Blinks can take this fight straight from the post.{" "}
-          <a href={blink} target="_blank" rel="noreferrer" className="text-ink underline decoration-line underline-offset-4">
-            Preview the Blink
-          </a>
-        </p>
-      ) : null}
     </section>
   );
 }

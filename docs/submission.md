@@ -109,10 +109,10 @@ database: it reads profiles from the chain like everything else.
 
 **Built for the trenches.** The front page is a board, not a pitch: a live tape,
 what is in the ring, what is moving, who is winning. A fight link unfurls on X
-as a VS card and, for wallet users, as a Blink taken from the feed without
-leaving it. The fight page plays like a fighting game, over numbers that are
-real: every price lands as a hit, a run of them is a combo, the bell is a
-knockout. A guest wallet and a faucet put a stranger in a fight within a
+as a VS card, and every fight is a standard Solana Action any client can take.
+The fight page plays like a fighting game, over numbers
+that are real: every price lands as a hit, a run of them is a combo, the bell
+is a knockout. A guest wallet and a faucet put a stranger in a fight within a
 minute, no extension and no SOL.
 
 Built on Anchor, Pyth, Solana's Ed25519 program and LiteSVM, over the issuers'
@@ -127,8 +127,8 @@ own token lists, Hyperliquid's HIP-3 markets, GeckoTerminal and Yahoo bars.
   below is a fight nobody touched.
 - **Why it belongs on Solana.** Stakes are held by a program rather than a
   counterparty, paid out in shares rather than cash, settled permissionlessly by
-  anyone, and taken from inside X as a Blink. The 24/7 part exists only because
-  the share is a token.
+  anyone, and exposed as a standard Solana Action any client can take. The 24/7
+  part exists only because the share is a token.
 - **Quality of execution.** 128 tests across three suites, every off-hours price
   checked against its source afterwards, and the limits below stated in the app
   before anybody stakes.
@@ -136,7 +136,7 @@ own token lists, Hyperliquid's HIP-3 markets, GeckoTerminal and Yahoo bars.
 ## What was built in the window (Sept 11 to 18)
 
 All of it. The duel program and its tests, the Next.js app and brand, the
-oracle and its off-hours pricing, pools and then perps, the settler, the Blink,
+oracle and its off-hours pricing, pools and then perps, the settler, the Solana Action,
 the share cards, X handle linking, the devnet deployment. Wallet plumbing (the
 React 19 connect button, phone wallet hand-off, honest transaction confirmation)
 is carried over from the same author's Commish.
@@ -254,9 +254,18 @@ read. Nothing on screen shows a keypair, a seed phrase or a `.env`.
     fight around the clock: thirty one on a perpetual market, each one checked
     against its own share's price to be the same company, and six on their own
     Solana pool."*
-11. **2:47 to 3:00. Close.** The Blink inside X, a fight taken from the feed
-    without leaving it. Cut to the wordmark. *"Your stock against theirs. Winner
-    takes both. Stonk Wars."*
+11. **2:47 to 3:00. From the feed to the fight.** On a phone: an X post of an
+    open fight showing its VS card. Tap it. The fight page opens, a guest wallet
+    takes the fight with no extension and no SOL, and the round starts. Cut to
+    the wordmark. *"Your stock against theirs. Winner takes both. Stonk Wars."*
+
+    This beat replaced an earlier one that took a fight as a Blink inside X.
+    Dialect paused dial.to and the Blinks registry has been frozen since spring
+    2026, so wallets will not render an unregistered domain's Blink and there is
+    no longer a way to register one. Filming it would have needed a homemade
+    extension and an on-screen disclaimer. The replacement runs entirely on the
+    live site, and "no extension needed" is the stronger claim anyway. Check the
+    VS card renders on a real X post the day you film.
 
 ## Technical video: 5 minutes
 
@@ -434,17 +443,22 @@ Settled with the owner on 13 September:
    the owner directing, testing and holding every key.
 4. **DNS. Done, 13 September.** `stonkwars.fun` is live and primary, `www`
    redirects to it, certificates valid on both. Every page, the API, the share
-   card, the fight cards and the Blink icons check out on the new domain, all
-   under 0.4s. The card and Blink followed by themselves, because they read
+   card, the fight cards and the Action icons check out on the new domain, all
+   under 0.4s. The card and icons followed by themselves, because they read
    Vercel's production domain rather than a value anybody has to remember.
    Going five days early rather than on submission day is what left room to
-   find that the whole thing had been unfurling broken.
+   find that the whole thing had been unfurling broken. `hello@stonkwars.fun`
+   routes to the project Gmail through Cloudflare Email Routing.
+5. **Blinks on X. Dropped, 13 September.** dial.to returns a paused Vercel
+   deployment on every path, Dialect posted and then withdrew a notice in July
+   2026 that it was sunsetting Blinks, and its registry has not changed since
+   spring. Wallets render only registered domains inside X, so a new domain
+   cannot get a Blink to unfurl there, and there is no public previewer left to
+   link to. The fight is still a spec-compliant Solana Action at
+   `/api/actions/fight/<duel>`, which is the claim the submission now makes and
+   the only one that is true. Do not say "registered" anywhere.
 
 Still to do:
-
-- **Register the Blink at dial.to.** Unblocked now the domain resolves and
-  `actions.json` serves. It is what lets somebody take a fight from inside an X
-  post, which is a demo beat worth having.
 
 - **Register and link a Solana wallet** on the hackathon site. Both are
   prerequisites rather than the submission itself; a Google-only account cannot
