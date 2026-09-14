@@ -245,7 +245,8 @@ describe("fights across trading hours", () => {
         darkStart("VOO", "Wednesday 8:00 PM", "Thursday 8:00 PM", "Thursday's 8:01 PM ET"),
       );
       expect(pricedAt("VOO", nov(26, 21, 0))).to.equal("pyth");
-      expect(pricedAt("NVDA", nov(26, 12, 0))).to.equal("perp");
+      // After COMPOSITE_FROM, NVDA is pinned in venues247.json: the composite prices its shut hours.
+      expect(pricedAt("NVDA", nov(26, 12, 0))).to.equal("composite");
     });
 
     it("keeps Pyth's 8 PM on New York's clock across daylight saving changes", () => {
@@ -358,8 +359,8 @@ describe("fights across trading hours", () => {
       expect(pricedAt("NFLX", nov(27, 16, 30))).to.equal("exchange");
       expect(firstPriceAt("NFLX", nov(27, 17, 30))).to.equal(nov(30, 4, 0));
       expect(mixedHoursAt("NFLX", "NVDA", nov(27, 17, 30))).to.match(/^NFLX waits for its exchange to open but NVDA trades now, so their start prices would be days apart\./);
-      // Thanksgiving itself: nothing on the exchange, the perp as ever.
-      expect(pricedAt("NVDA", nov(26, 12, 0))).to.equal("perp");
+      // Thanksgiving itself: nothing on the exchange, and NVDA, pinned in venues247.json, on the composite.
+      expect(pricedAt("NVDA", nov(26, 12, 0))).to.equal("composite");
       expect(firstPriceAt("NFLX", nov(26, 12, 0))).to.equal(nov(27, 4, 0));
     });
 

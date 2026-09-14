@@ -62,6 +62,32 @@ const INSTRUMENT: Record<VenueId, RegExp> = {
   bingx: /^NCSK[A-Z0-9]{1,24}-USDT$/, // NCSKTSLA2USD-USDT
 };
 
+/* NEVER PINNED, WHATEVER THE PRICE SAYS.
+ *
+ * A market can trade near a stock's price and still be something else, so
+ * these ids are refused when the file is read, not only when it is built
+ * (scripts/build-247.ts refuses the same symbols by name):
+ *
+ *   CL, BZ       crude oil wherever a futures venue lists them; the roster's
+ *                CL is Colgate-Palmolive and BZ is Kanzhun
+ *   SHEIN, SKHX  a Hong Kong listing and a Korean share priced through FX
+ *   collisions   crypto markets whose symbol is a roster ticker. At Lighter the
+ *                ids are its market_id, read from orderBookDetails on 14 Sep
+ *                2026 (16 SUI, 50 ARB, 95 MET, 104 STRK, 120 LIT, 127 DASH, 230
+ *                SHEIN). At Binance a bStock is TICKER + B, so ARB and DGB
+ *                would read as AR and DG. */
+export const DENIED_247: Record<VenueId, readonly string[]> = {
+  hyperliquid: ["xyz:CL", "xyz:SHEIN", "xyz:SKHX"],
+  okx: ["SHEIN-USDT-SWAP"],
+  bitget: ["CLUSDT", "BZUSDT", "SHEINUSDT"],
+  binance: ["ARBUSDT", "DGBUSDT"],
+  lighter: ["16", "50", "95", "104", "120", "127", "230"],
+  backpack: [],
+  gate: ["SHEIN_USDT"],
+  mexc: ["SHEINSTOCK_USDT"],
+  bingx: [],
+};
+
 /** Read and check a venues247 file. Throws, naming the first problem. */
 export function parseVenues247(raw: unknown): Venues247 {
   const file = raw as { rule?: unknown; tickers?: unknown };
@@ -80,6 +106,7 @@ export function parseVenues247(raw: unknown): Venues247 {
       if (typeof e.instrument !== "string" || !INSTRUMENT[venue].test(e.instrument)) {
         throw new Error(`${where}: ${JSON.stringify(e.instrument)} is not a ${VENUES[venue].name} instrument`);
       }
+      if (DENIED_247[venue].includes(e.instrument)) throw new Error(`${where}: ${VENUES[venue].name} ${e.instrument} is denied`);
       if (!Number.isSafeInteger(e.from) || (e.from as number) < 0) throw new Error(`${where}: from must be a boundary in unix seconds`);
       if (e.until !== undefined && (!Number.isSafeInteger(e.until) || (e.until as number) <= (e.from as number))) {
         throw new Error(`${where}: until must be a boundary after from`);

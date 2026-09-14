@@ -1,4 +1,585 @@
 {
   "rule": "composite-v1",
-  "tickers": {}
+  "tickers": {
+    "AAOI": [
+      { "venue": "hyperliquid", "instrument": "xyz:AAOI", "from": 1789600000 },
+      { "venue": "okx", "instrument": "AAOI-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "AAOIUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "AAOIBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "AAOI_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "AAOISTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKAAOI2USD-USDT", "from": 1789600000 }
+    ],
+    "AAPL": [
+      { "venue": "hyperliquid", "instrument": "xyz:AAPL", "from": 1789600000 },
+      { "venue": "okx", "instrument": "AAPL-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "AAPLUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "AAPLBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "113", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "AAPL.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "AAPL_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "AAPLSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKAAPL2USD-USDT", "from": 1789600000 }
+    ],
+    "ALAB": [
+      { "venue": "okx", "instrument": "ALAB-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "ALABUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "ALABBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "ALAB_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "ALABSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKALAB2USD-USDT", "from": 1789600000 }
+    ],
+    "AMD": [
+      { "venue": "hyperliquid", "instrument": "xyz:AMD", "from": 1789600000 },
+      { "venue": "okx", "instrument": "AMD-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "AMDUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "AMDBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "138", "from": 1789600000 },
+      { "venue": "gate", "instrument": "AMD_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "AMDSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKAMD2USD-USDT", "from": 1789600000 }
+    ],
+    "AMZN": [
+      { "venue": "hyperliquid", "instrument": "xyz:AMZN", "from": 1789600000 },
+      { "venue": "okx", "instrument": "AMZN-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "AMZNUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "AMZNBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "114", "from": 1789600000 },
+      { "venue": "gate", "instrument": "AMZN_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "AMZNSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKAMZN2USD-USDT", "from": 1789600000 }
+    ],
+    "ARM": [
+      { "venue": "hyperliquid", "instrument": "xyz:ARM", "from": 1789600000 },
+      { "venue": "okx", "instrument": "ARM-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "ARMUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "ARMBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "ARM_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "ARMSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKARM2USD-USDT", "from": 1789600000 }
+    ],
+    "ASTS": [
+      { "venue": "okx", "instrument": "ASTS-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "ASTSUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "ASTSBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "ASTS_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "ASTSSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKASTS2USD-USDT", "from": 1789600000 }
+    ],
+    "AVGO": [
+      { "venue": "hyperliquid", "instrument": "xyz:AVGO", "from": 1789600000 },
+      { "venue": "okx", "instrument": "AVGO-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "AVGOUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "AVGOBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "AVGO_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "AVGOSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKAVGO2USD-USDT", "from": 1789600000 }
+    ],
+    "AXTI": [
+      { "venue": "okx", "instrument": "AXTI-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "AXTIUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "AXTIBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "AXTI_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "AXTISTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKAXTI2USD-USDT", "from": 1789600000 }
+    ],
+    "BABA": [
+      { "venue": "hyperliquid", "instrument": "xyz:BABA", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "BABAUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "BABABUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "BABA_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "BABASTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKBABA2USD-USDT", "from": 1789600000 }
+    ],
+    "BE": [
+      { "venue": "hyperliquid", "instrument": "xyz:BE", "from": 1789600000 },
+      { "venue": "okx", "instrument": "BE-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "BEUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "BEBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "BE_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "BESTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKBE2USD-USDT", "from": 1789600000 }
+    ],
+    "BMNR": [
+      { "venue": "hyperliquid", "instrument": "xyz:BMNR", "from": 1789600000 },
+      { "venue": "okx", "instrument": "BMNR-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "BMNRUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "BMNRBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "BMNR_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "BMNRSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKBMNR2USD-USDT", "from": 1789600000 }
+    ],
+    "CBRS": [
+      { "venue": "hyperliquid", "instrument": "xyz:CBRS", "from": 1789600000 },
+      { "venue": "okx", "instrument": "CBRS-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "CBRSUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "CBRSBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "CBRS_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "CBRSSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKCBRS2USD-USDT", "from": 1789600000 }
+    ],
+    "COHR": [
+      { "venue": "okx", "instrument": "COHR-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "COHRUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "COHRBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "COHR_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "COHRSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKCOHR2USD-USDT", "from": 1789600000 }
+    ],
+    "COIN": [
+      { "venue": "hyperliquid", "instrument": "xyz:COIN", "from": 1789600000 },
+      { "venue": "okx", "instrument": "COIN-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "COINUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "COINBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "109", "from": 1789600000 },
+      { "venue": "gate", "instrument": "COIN_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "COINBASE_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKCOIN2USD-USDT", "from": 1789600000 }
+    ],
+    "CRCL": [
+      { "venue": "hyperliquid", "instrument": "xyz:CRCL", "from": 1789600000 },
+      { "venue": "okx", "instrument": "CRCL-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "CRCLUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "CRCLBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "121", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "CRCL.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "CRCL_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "CRCLSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKCRCL2USD-USDT", "from": 1789600000 }
+    ],
+    "CRDO": [
+      { "venue": "okx", "instrument": "CRDO-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "CRDOUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "CRDOBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "CRDO_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "CRDOSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKCRDO2USD-USDT", "from": 1789600000 }
+    ],
+    "CRWV": [
+      { "venue": "hyperliquid", "instrument": "xyz:CRWV", "from": 1789600000 },
+      { "venue": "okx", "instrument": "CRWV-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "CRWVUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "CRWVBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "CRWV_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "CRWVSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKCRWV2USD-USDT", "from": 1789600000 }
+    ],
+    "DELL": [
+      { "venue": "hyperliquid", "instrument": "xyz:DELL", "from": 1789600000 },
+      { "venue": "okx", "instrument": "DELL-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "DELLUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "DELLBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "DELL_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "DELLSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKDELL2USD-USDT", "from": 1789600000 }
+    ],
+    "DJT": [
+      { "venue": "bitget", "instrument": "DJTUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "DJTBUSDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "DJTSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKDJT2USD-USDT", "from": 1789600000 }
+    ],
+    "DRAM": [
+      { "venue": "hyperliquid", "instrument": "xyz:DRAM", "from": 1789600000 },
+      { "venue": "okx", "instrument": "DRAM-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "DRAMUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "DRAMBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "195", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "DRAM.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "DRAM_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "DRAM_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKDRAM2USD-USDT", "from": 1789600000 }
+    ],
+    "EWY": [
+      { "venue": "hyperliquid", "instrument": "xyz:EWY", "from": 1789600000 },
+      { "venue": "okx", "instrument": "EWY-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "EWYUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "EWYBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "EWY_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "EWY_USDT", "from": 1789600000 }
+    ],
+    "FLNC": [
+      { "venue": "okx", "instrument": "FLNC-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "FLNCUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "FLNCBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "FLNC_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "FLNCSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKFLNC2USD-USDT", "from": 1789600000 }
+    ],
+    "GLW": [
+      { "venue": "okx", "instrument": "GLW-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "GLWUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "GLWBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "GLW_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "GLWSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKGLW2USD-USDT", "from": 1789600000 }
+    ],
+    "GOOGL": [
+      { "venue": "hyperliquid", "instrument": "xyz:GOOGL", "from": 1789600000 },
+      { "venue": "okx", "instrument": "GOOGL-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "GOOGLUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "GOOGLBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "116", "from": 1789600000 },
+      { "venue": "gate", "instrument": "GOOGL_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "GOOGLSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKGOOGL2USD-USDT", "from": 1789600000 }
+    ],
+    "GPRO": [
+      { "venue": "okx", "instrument": "GPRO-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "GPROUSDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "GPROSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKGPRO2USD-USDT", "from": 1789600000 }
+    ],
+    "HOOD": [
+      { "venue": "hyperliquid", "instrument": "xyz:HOOD", "from": 1789600000 },
+      { "venue": "okx", "instrument": "HOOD-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "HOODUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "HOODBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "108", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "HOOD.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "HOOD_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "ROBINHOOD_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKHOOD2USD-USDT", "from": 1789600000 }
+    ],
+    "IBM": [
+      { "venue": "hyperliquid", "instrument": "xyz:IBM", "from": 1789600000 },
+      { "venue": "okx", "instrument": "IBM-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "IBMUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "IBMBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "IBM_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "IBMSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKIBMR2USD-USDT", "from": 1789600000 }
+    ],
+    "INTC": [
+      { "venue": "hyperliquid", "instrument": "xyz:INTC", "from": 1789600000 },
+      { "venue": "okx", "instrument": "INTC-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "INTCUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "INTCBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "137", "from": 1789600000 },
+      { "venue": "gate", "instrument": "INTC_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "INTCSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKINTC2USD-USDT", "from": 1789600000 }
+    ],
+    "INTW": [
+      { "venue": "okx", "instrument": "INTW-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "INTWUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "INTWBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "INTW_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "INTW_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKINTW2USD-USDT", "from": 1789600000 }
+    ],
+    "IREN": [
+      { "venue": "hyperliquid", "instrument": "xyz:IREN", "from": 1789600000 },
+      { "venue": "okx", "instrument": "IREN-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "IRENUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "IRENBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "IREN_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "IRENSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKIREN2USD-USDT", "from": 1789600000 }
+    ],
+    "KORU": [
+      { "venue": "hyperliquid", "instrument": "xyz:KORU", "from": 1789600000 },
+      { "venue": "okx", "instrument": "KORU-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "KORUUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "KORUBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "KORU_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "KORU_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKKORU2USD-USDT", "from": 1789600000 }
+    ],
+    "LITE": [
+      { "venue": "hyperliquid", "instrument": "xyz:LITE", "from": 1789600000 },
+      { "venue": "okx", "instrument": "LITE-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "LITEUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "LITEBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "LITE_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "LITESTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKLITE2USD-USDT", "from": 1789600000 }
+    ],
+    "META": [
+      { "venue": "hyperliquid", "instrument": "xyz:META", "from": 1789600000 },
+      { "venue": "okx", "instrument": "META-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "METAUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "METABUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "117", "from": 1789600000 },
+      { "venue": "gate", "instrument": "META_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "METASTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKMETA2USD-USDT", "from": 1789600000 }
+    ],
+    "MRVL": [
+      { "venue": "hyperliquid", "instrument": "xyz:MRVL", "from": 1789600000 },
+      { "venue": "okx", "instrument": "MRVL-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "MRVLUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "MRVLBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "174", "from": 1789600000 },
+      { "venue": "gate", "instrument": "MRVL_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "MRVLSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKMRVL2USD-USDT", "from": 1789600000 }
+    ],
+    "MSFT": [
+      { "venue": "hyperliquid", "instrument": "xyz:MSFT", "from": 1789600000 },
+      { "venue": "okx", "instrument": "MSFT-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "MSFTUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "MSFTBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "115", "from": 1789600000 },
+      { "venue": "gate", "instrument": "MSFT_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "MSFTSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKMSFT2USD-USDT", "from": 1789600000 }
+    ],
+    "MSTR": [
+      { "venue": "hyperliquid", "instrument": "xyz:MSTR", "from": 1789600000 },
+      { "venue": "okx", "instrument": "MSTR-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "MSTRUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "MSTRBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "122", "from": 1789600000 },
+      { "venue": "gate", "instrument": "MSTR_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "MSTRSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKMSTR2USD-USDT", "from": 1789600000 }
+    ],
+    "MU": [
+      { "venue": "hyperliquid", "instrument": "xyz:MU", "from": 1789600000 },
+      { "venue": "okx", "instrument": "MU-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "MUUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "MUBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "164", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "MU.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "MU_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "MUSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKMU2USD-USDT", "from": 1789600000 }
+    ],
+    "MUU": [
+      { "venue": "okx", "instrument": "MUU-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "MUUUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "MUUBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "MUU_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "MUU_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKMUU2USD-USDT", "from": 1789600000 }
+    ],
+    "MVLL": [
+      { "venue": "okx", "instrument": "MVLL-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "MVLLUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "MVLLBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "MVLL_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "MVLL_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKMVLL2USD-USDT", "from": 1789600000 }
+    ],
+    "NBIS": [
+      { "venue": "hyperliquid", "instrument": "xyz:NBIS", "from": 1789600000 },
+      { "venue": "okx", "instrument": "NBIS-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "NBISUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "NBISBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "189", "from": 1789600000 },
+      { "venue": "gate", "instrument": "NBIS_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "NBISSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKNBIS2USD-USDT", "from": 1789600000 }
+    ],
+    "NOK": [
+      { "venue": "hyperliquid", "instrument": "xyz:NOK", "from": 1789600000 },
+      { "venue": "okx", "instrument": "NOK-USDT-SWAP", "from": 1789600000 },
+      { "venue": "binance", "instrument": "NOKBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "NOK_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "NOKSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKNOK2USD-USDT", "from": 1789600000 }
+    ],
+    "NVDA": [
+      { "venue": "hyperliquid", "instrument": "xyz:NVDA", "from": 1789600000 },
+      { "venue": "okx", "instrument": "NVDA-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "NVDAUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "NVDABUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "110", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "NVDA.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "NVDA_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "NVIDIA_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKNVDA2USD-USDT", "from": 1789600000 }
+    ],
+    "ORCL": [
+      { "venue": "hyperliquid", "instrument": "xyz:ORCL", "from": 1789600000 },
+      { "venue": "okx", "instrument": "ORCL-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "ORCLUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "ORCLBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "ORCL_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "ORCLSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKORCL2USD-USDT", "from": 1789600000 }
+    ],
+    "PLTR": [
+      { "venue": "hyperliquid", "instrument": "xyz:PLTR", "from": 1789600000 },
+      { "venue": "okx", "instrument": "PLTR-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "PLTRUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "PLTRBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "111", "from": 1789600000 },
+      { "venue": "gate", "instrument": "PLTR_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "PLTRSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKPLTR2USD-USDT", "from": 1789600000 }
+    ],
+    "PURR": [
+      { "venue": "hyperliquid", "instrument": "xyz:PURRDAT", "from": 1789600000 },
+      { "venue": "okx", "instrument": "PURR-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "PURRUSDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKPURR2USD-USDT", "from": 1789600000 }
+    ],
+    "QCOM": [
+      { "venue": "hyperliquid", "instrument": "xyz:QCOM", "from": 1789600000 },
+      { "venue": "okx", "instrument": "QCOM-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "QCOMUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "QCOMBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "QCOM_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "QCOMSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKQCOM2USD-USDT", "from": 1789600000 }
+    ],
+    "QQQ": [
+      { "venue": "okx", "instrument": "QQQ-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "QQQUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "QQQBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "129", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "QQQ.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "QQQ_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "QQQSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKQQQ2USD-USDT", "from": 1789600000 }
+    ],
+    "RKLB": [
+      { "venue": "hyperliquid", "instrument": "xyz:RKLB", "from": 1789600000 },
+      { "venue": "okx", "instrument": "RKLB-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "RKLBUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "RKLBBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "RKLB_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "RKLBSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKRKLB2USD-USDT", "from": 1789600000 }
+    ],
+    "SKHY": [
+      { "venue": "hyperliquid", "instrument": "xyz:SKHY", "from": 1789600000 },
+      { "venue": "okx", "instrument": "SKHY-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SKHYUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SKHYBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "216", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SKHY_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SKHYSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSKHYP2USD-USDT", "from": 1789600000 }
+    ],
+    "SMCI": [
+      { "venue": "okx", "instrument": "SMCI-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SMCIUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SMCIBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SMCI_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SMCISTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSMCI2USD-USDT", "from": 1789600000 }
+    ],
+    "SMH": [
+      { "venue": "hyperliquid", "instrument": "xyz:SMH", "from": 1789600000 },
+      { "venue": "okx", "instrument": "SMH-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SMHUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SMHBUSDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SMH_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSMH2USD-USDT", "from": 1789600000 }
+    ],
+    "SNDK": [
+      { "venue": "hyperliquid", "instrument": "xyz:SNDK", "from": 1789600000 },
+      { "venue": "okx", "instrument": "SNDK-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SNDKUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SNDKBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "139", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "SNDK.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SNDK_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SNDKSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSNDK2USD-USDT", "from": 1789600000 }
+    ],
+    "SNXX": [
+      { "venue": "okx", "instrument": "SNXX-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SNXXUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SNXXBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SNXX_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SNXX_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSNXX2USD-USDT", "from": 1789600000 }
+    ],
+    "SOXL": [
+      { "venue": "hyperliquid", "instrument": "xyz:SOXL", "from": 1789600000 },
+      { "venue": "okx", "instrument": "SOXL-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SOXLUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SOXLBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "197", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SOXL_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SOXL_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSOXL2USD-USDT", "from": 1789600000 }
+    ],
+    "SOXS": [
+      { "venue": "okx", "instrument": "SOXS-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SOXSUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SOXSBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SOXS_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SOXS_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSOXS12USD-USDT", "from": 1789600000 }
+    ],
+    "SPCX": [
+      { "venue": "hyperliquid", "instrument": "xyz:SPCX", "from": 1789600000 },
+      { "venue": "okx", "instrument": "SPCX-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SPCXUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SPCXBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "194", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "SPCX.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SPCX_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SPCXSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSPCX2USD-USDT", "from": 1789600000 }
+    ],
+    "SPY": [
+      { "venue": "okx", "instrument": "SPY-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SPYUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SPYBUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "128", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "SPY.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SPY_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SPY_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSPY2USD-USDT", "from": 1789600000 }
+    ],
+    "SQQQ": [
+      { "venue": "okx", "instrument": "SQQQ-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "SQQQUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "SQQQBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "SQQQ_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "SQQQ_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKSQQQ2USD-USDT", "from": 1789600000 }
+    ],
+    "TQQQ": [
+      { "venue": "okx", "instrument": "TQQQ-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "TQQQUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "TQQQBUSDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "TQQQ_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKTQQQ2USD-USDT", "from": 1789600000 }
+    ],
+    "TSLA": [
+      { "venue": "hyperliquid", "instrument": "xyz:TSLA", "from": 1789600000 },
+      { "venue": "okx", "instrument": "TSLA-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "TSLAUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "TSLABUSDT", "from": 1789600000 },
+      { "venue": "lighter", "instrument": "112", "from": 1789600000 },
+      { "venue": "backpack", "instrument": "TSLA.US_USDC_PERP", "from": 1789600000 },
+      { "venue": "gate", "instrument": "TSLA_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "TESLA_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKTSLA2USD-USDT", "from": 1789600000 }
+    ],
+    "TSM": [
+      { "venue": "hyperliquid", "instrument": "xyz:TSM", "from": 1789600000 },
+      { "venue": "okx", "instrument": "TSM-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "TSMUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "TSMBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "TSM_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "TSMSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKTSMU2USD-USDT", "from": 1789600000 }
+    ],
+    "USAR": [
+      { "venue": "hyperliquid", "instrument": "xyz:USAR", "from": 1789600000 },
+      { "venue": "okx", "instrument": "USAR-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "USARUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "USARBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "USAR_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "USARSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKUSAR2USD-USDT", "from": 1789600000 }
+    ],
+    "WDC": [
+      { "venue": "hyperliquid", "instrument": "xyz:WDC", "from": 1789600000 },
+      { "venue": "okx", "instrument": "WDC-USDT-SWAP", "from": 1789600000 },
+      { "venue": "bitget", "instrument": "WDCUSDT", "from": 1789600000 },
+      { "venue": "binance", "instrument": "WDCBUSDT", "from": 1789600000 },
+      { "venue": "gate", "instrument": "WDC_USDT", "from": 1789600000 },
+      { "venue": "mexc", "instrument": "WDCSTOCK_USDT", "from": 1789600000 },
+      { "venue": "bingx", "instrument": "NCSKWDC2USD-USDT", "from": 1789600000 }
+    ]
+  }
 }
