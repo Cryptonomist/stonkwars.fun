@@ -111,8 +111,11 @@ export function RaceChart({
 
   return (
     <Plate as="section" pad="std" className={cx("flex flex-col gap-3", className)} aria-labelledby="race-title">
+      {/* The head sizes from its content (flex-auto, not flex-1), so on a phone
+        * the range toggle wraps under it. With a zero basis the head never
+        * forced the wrap and shrank instead, truncating "The race" to "T...". */}
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <SectionHead id="race-title" title="The race" count="% from each on-chain start" className="min-w-0 flex-1" />
+        <SectionHead id="race-title" title="The race" count="% from each on-chain start" className="min-w-0 flex-auto" />
         {zoomable ? (
           <div role="group" aria-label="Chart range" className="flex shrink-0 gap-1">
             {(["round", "recent"] as const).map((v) => (
