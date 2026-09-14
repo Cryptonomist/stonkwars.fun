@@ -28,7 +28,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { cx } from "@/components/ui/cx";
 import { isDecided, isRosterFight, loserTake, margin, moves, winnerSide } from "@/lib/derive";
 import { allDuels, type DuelView, type PricePoint } from "@/lib/duel";
-import { etWhen, points, pythToNumber, shares, usd } from "@/lib/format";
+import { etWhen, pctPair, points, pythToNumber, shares, usd } from "@/lib/format";
 import { useDuels } from "@/lib/hooks";
 import { decimalsForMint, tickerForMint, tokenSymbol } from "@/lib/stocks";
 
@@ -46,7 +46,7 @@ function evenStakes(d: DuelView): boolean {
 }
 
 /** The fight the page explains, or null when no listed fight has a result. */
-function pickExample(duels: DuelView[]): DuelView | null {
+export function pickExample(duels: DuelView[]): DuelView | null {
   const decided = duels
     .filter((d) => isRosterFight(d) && isDecided(d) && moves(d) !== null)
     .sort((a, b) => b.endTs - a.endTs || a.address.toBase58().localeCompare(b.address.toBase58()));
@@ -77,6 +77,7 @@ export function WorkedExample({ className }: { className?: string }) {
   const t1 = tickerForMint(d.creatorMint) ?? "?";
   const t2 = tickerForMint(d.opponentMint) ?? "?";
   const [m1, m2] = moves(d)!;
+  const pair = pctPair(m1, m2);
   const gap = margin(d)!;
   const won = winnerSide(d)!;
   const take = loserTake(d)!;
@@ -111,8 +112,8 @@ export function WorkedExample({ className }: { className?: string }) {
       </div>
 
       <dl className="flex flex-col">
-        <SideRow side="p1" ticker={t1} start={d.creatorStart} end={d.creatorEnd} move={m1} won={won === "p1"} />
-        <SideRow side="p2" ticker={t2} start={d.opponentStart} end={d.opponentEnd} move={m2} won={won === "p2"} />
+        <SideRow side="p1" ticker={t1} start={d.creatorStart} end={d.creatorEnd} move={m1} text={pair[0]} won={won === "p1"} />
+        <SideRow side="p2" ticker={t2} start={d.opponentStart} end={d.opponentEnd} move={m2} text={pair[1]} won={won === "p2"} />
       </dl>
 
       <p className="text-sm text-ink">
@@ -137,6 +138,7 @@ function SideRow({
   start,
   end,
   move,
+  text,
   won,
 }: {
   side: "p1" | "p2";
@@ -144,6 +146,8 @@ function SideRow({
   start: PricePoint;
   end: PricePoint;
   move: number;
+  /** The move formatted beside its rival's (pctPair), so close moves differ. */
+  text: string;
   won: boolean;
 }) {
   /* One line from 640px: side, prices, move. On a phone the prices take a
@@ -167,7 +171,7 @@ function SideRow({
         {usd(pythToNumber(end.price, end.expo))}
       </dd>
       <dd className="col-start-2 row-start-1 justify-self-end sm:col-start-3">
-        <Move value={move} className="text-sm tabular-nums" />
+        <Move value={move} text={text} className="text-sm tabular-nums" />
       </dd>
     </div>
   );

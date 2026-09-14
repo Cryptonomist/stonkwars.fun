@@ -36,12 +36,21 @@ export type ReceiptEvent = {
   signature: string;
   /** The event's fields, pubkeys as base58 and integers as numbers. */
   data: Record<string, string | number | boolean>;
+  /** What the whole transaction paid the network, in lamports, as the cluster
+   *  recorded it; null when the node did not say. */
+  fee: number | null;
+  /** The slot the transaction landed in; null when the node did not say. */
+  slot: number | null;
+  /** Other fights whose events ride in the same transaction (a settler batch),
+   *  so a fee is never passed off as this fight's alone. */
+  sharedWith: number;
 };
 
 /** The parts of a getTransaction answer this reads, legacy or versioned. */
 export type TxLike = {
   blockTime?: number | null;
-  meta?: { err?: unknown; logMessages?: string[] | null } | null;
+  slot?: number | null;
+  meta?: { err?: unknown; fee?: number | null; logMessages?: string[] | null } | null;
   transaction: {
     signatures: string[];
     message: { staticAccountKeys?: { toBase58(): string }[]; accountKeys?: { toBase58(): string }[] };
@@ -73,6 +82,9 @@ function plain(value: unknown): string | number | boolean | undefined {
 export function classifyTx(tx: TxLike | null | undefined, duel?: string): ReceiptEvent | null {
   if (!tx || tx.meta?.err) return null;
   const logs = tx.meta?.logMessages ?? [];
+  /* Every fight event in the transaction first, so the one that names this
+   * duel can say how many other fights paid into the same fee. */
+  const found: { kind: ReceiptKind; data: ReceiptEvent["data"] }[] = [];
   for (const line of logs) {
     if (!line.startsWith(PREFIX)) continue;
     let decoded: Decoded | null;
@@ -88,17 +100,23 @@ export function classifyTx(tx: TxLike | null | undefined, duel?: string): Receip
       const p = plain(v);
       if (p !== undefined) data[k] = p;
     }
-    if (duel && data.duel !== duel) continue;
-    const keys = tx.transaction.message.staticAccountKeys ?? tx.transaction.message.accountKeys ?? [];
-    return {
-      kind: decoded.name as ReceiptKind,
-      blockTime: tx.blockTime ?? null,
-      feePayer: keys[0]?.toBase58() ?? null,
-      signature: tx.transaction.signatures[0] ?? "",
-      data,
-    };
+    found.push({ kind: decoded.name as ReceiptKind, data });
   }
-  return null;
+  const hit = found.find((e) => !duel || e.data.duel === duel);
+  if (!hit) return null;
+  const others = new Set(found.map((e) => e.data.duel).filter((k) => k !== hit.data.duel));
+  const keys = tx.transaction.message.staticAccountKeys ?? tx.transaction.message.accountKeys ?? [];
+  const fee = tx.meta?.fee;
+  return {
+    kind: hit.kind,
+    blockTime: tx.blockTime ?? null,
+    feePayer: keys[0]?.toBase58() ?? null,
+    signature: tx.transaction.signatures[0] ?? "",
+    data: hit.data,
+    fee: typeof fee === "number" && Number.isFinite(fee) ? fee : null,
+    slot: typeof tx.slot === "number" ? tx.slot : null,
+    sharedWith: others.size,
+  };
 }
 
 export type ReceiptStep = "called" | "taken" | "started" | "voided" | "settled" | "refunded" | "cancelled" | "bell";
@@ -113,6 +131,11 @@ export type ReceiptRow = {
   signature: string | null;
   /** Settled by a wallet that fought in neither corner. */
   spectator: boolean;
+  /** The transaction's network fee in lamports; null when it is not known. */
+  fee: number | null;
+  slot: number | null;
+  /** Other fights carried by the same transaction. */
+  sharedWith: number;
 };
 
 const LABEL: Record<ReceiptKind, [ReceiptStep, string]> = {
@@ -150,8 +173,61 @@ export function rowsFromEvents(events: readonly ReceiptEvent[], d: Pick<DuelView
         signer,
         signature: e.signature || null,
         spectator: e.kind === "DuelSettled" && !!e.feePayer && !fighters.has(e.feePayer),
+        fee: e.fee,
+        slot: e.slot,
+        sharedWith: e.sharedWith,
       };
     });
+}
+
+/* WHAT THE STEPS COST, FROM THE TRANSACTIONS THEMSELVES.
+ *
+ * The strongest reason this runs on Solana is on every receipt already: each
+ * step's fee, as the cluster charged it. So the total is the sum of the fees
+ * the node reported, one per transaction (two rows can share a signature), and
+ * it says how many of the steps it covers rather than filling a gap with a
+ * typical fee. A rebuilt receipt with no transactions has no total at all. */
+export type FeeTotal = { lamports: number; counted: number; steps: number; shared: boolean };
+
+export function feeTotal(rows: readonly ReceiptRow[]): FeeTotal | null {
+  const withTx = rows.filter((r) => r.signature);
+  if (withTx.length === 0) return null;
+  const seen = new Set<string>();
+  let lamports = 0;
+  let counted = 0;
+  let shared = false;
+  for (const r of withTx) {
+    if (r.fee === null) continue;
+    counted += 1;
+    if (r.sharedWith > 0) shared = true;
+    if (seen.has(r.signature!)) continue;
+    seen.add(r.signature!);
+    lamports += r.fee;
+  }
+  return counted ? { lamports, counted, steps: withTx.length, shared } : null;
+}
+
+/** Seconds from the bell to the block that settled it, from the chain's own
+ *  times; null without a settle row that recorded its block time. */
+export function settledAfterBell(rows: readonly ReceiptRow[], endTs: number): number | null {
+  const settled = rows.find((r) => r.step === "settled" && r.at > 0);
+  if (!settled || !endTs) return null;
+  return Math.max(0, settled.at - endTs);
+}
+
+/** Lamports as SOL, every digit kept: 5000 -> "0.000005". */
+export function solFromLamports(lamports: number): string {
+  return (lamports / 1e9).toLocaleString("en-US", { maximumFractionDigits: 9, minimumFractionDigits: 0 });
+}
+
+/** "21 s", "3 min 4 s", "2 h 5 min": a wait measured between two chain times. */
+export function waitWords(seconds: number): string {
+  const s = Math.round(seconds);
+  if (s < 60) return `${s} s`;
+  if (s < 3_600) return `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ""}`;
+  const h = Math.floor(s / 3_600);
+  const m = Math.floor((s % 3_600) / 60);
+  return `${h} h${m ? ` ${m} min` : ""}`;
 }
 
 /* WITHOUT HISTORY, FROM THE ACCOUNT ALONE. Some RPC nodes keep no transaction
@@ -161,7 +237,7 @@ export function rowsFromEvents(events: readonly ReceiptEvent[], d: Pick<DuelView
 export function rowsFromAccount(
   d: Pick<DuelView, "creator" | "opponent" | "createdTs" | "acceptedTs" | "startTs" | "endTs" | "creatorEnd">,
 ): ReceiptRow[] {
-  const none = { signature: null, spectator: false };
+  const none = { signature: null, spectator: false, fee: null, slot: null, sharedWith: 0 };
   const rows: ReceiptRow[] = [];
   if (d.createdTs) rows.push({ step: "called", label: "Called", at: d.createdTs, signer: d.creator.toBase58(), ...none });
   if (d.acceptedTs) rows.push({ step: "taken", label: "Taken", at: d.acceptedTs, signer: d.opponent.toBase58(), ...none });

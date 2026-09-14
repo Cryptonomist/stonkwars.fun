@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { AROUND_THE_CLOCK, ROSTER } from "@/lib/stocks";
 
 import { ContentsDetails, ContentsRail, type Contents } from "./OnThisPage";
+import { WhySolana } from "./WhySolana";
 import { WorkedExample } from "./WorkedExample";
 
 export const metadata: Metadata = { title: "How it works" };
@@ -154,7 +155,7 @@ const RULES: Rule[] = [
     id: "who-settles",
     label: "Who settles",
     q: "Who settles it?",
-    a: "Anyone. Our settler posts the prices within a minute of the bell, but any wallet can do the same from the fight page, and the result is identical whoever does it. Pyth prices need no key at all; the oracle's quotes are handed to anyone who asks, already signed.",
+    a: "Anyone. Our settler posts the prices as soon as they exist, usually within a couple of minutes of the bell. When it is late, the fight is marked Late on every board and any wallet can do the same from the fight page, and the result is identical whoever does it. Pyth prices need no key at all; the oracle's quotes are handed to anyone who asks, already signed.",
   },
   {
     id: "market-closed",
@@ -188,7 +189,11 @@ const RULES: Rule[] = [
   },
 ];
 
-const CONTENTS: Contents = [{ id: "the-game", label: "The game in three" }, ...RULES.map((r) => ({ id: r.id, label: r.label }))];
+const CONTENTS: Contents = [
+  { id: "the-game", label: "The game in three" },
+  { id: "why-solana", label: "Why Solana" },
+  ...RULES.map((r) => ({ id: r.id, label: r.label })),
+];
 
 export default function HowPage() {
   return (
@@ -224,6 +229,9 @@ export default function HowPage() {
         </section>
 
         <WorkedExample className="mt-6" />
+
+        {/* Straight after the real fight, so its cost is the fight just read. */}
+        <WhySolana className="mt-10" />
 
         <div className="mt-10 flex flex-col">
           {RULES.map((r) => (

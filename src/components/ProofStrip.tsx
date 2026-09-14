@@ -14,20 +14,26 @@
  * with no such fight on chain the cell is left out rather than guessed. */
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { ExplorerLink } from "@/components/ui/ExplorerLink";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Tip } from "@/components/ui/Tip";
 import { cx } from "@/components/ui/cx";
+import { isRosterFight } from "@/lib/derive";
 import { allDuels, PROGRAM_ID, STATUS_SETTLED } from "@/lib/duel";
 import { useDuels } from "@/lib/hooks";
 import { tallyOf } from "@/lib/leaderboard";
-import { AROUND_THE_CLOCK, ROSTER, STAKE_DECIMALS } from "@/lib/stocks";
+import { feeTotal, rowsFromEvents, settledAfterBell, solFromLamports, waitWords } from "@/lib/receipt";
+import { AROUND_THE_CLOCK, ROSTER, STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
+import { useReceipt } from "@/lib/useReceipt";
 
 /** The default key: no oracle named. */
 const EMPTY_KEY = "11111111111111111111111111111111";
 
-type Cell = { label: string; body: ReactNode; href?: string };
+/* A tip sits outside the cell's link, above its stretched hit area, because a
+ * button inside an anchor is not a thing a browser or a screen reader can use. */
+type Cell = { label: string; body: ReactNode; href?: string; tip?: { trigger: string; label: string } };
 
 /* The last cell stretches to close its row at every width, as in StatStrip,
  * so three cells never leave a hole where a fourth failed to load. Spelled
@@ -44,6 +50,24 @@ export function ProofStrip() {
   const list = duels.data ?? [];
   const oracle = list.find((d) => d.oracle.toBase58() !== EMPTY_KEY)?.oracle.toBase58();
   const settled = list.filter((d) => d.status === STATUS_SETTLED).length;
+
+  /* WHAT THE NEWEST SETTLE COST, READ FROM ITS TRANSACTIONS. One settled fight
+   * is read once and kept (a final receipt never refetches), and the tip only
+   * appears once the cluster has reported a fee: no typical figure stands in. */
+  const latest = useMemo(
+    () =>
+      (duels.data ?? []).filter((d) => d.status === STATUS_SETTLED && isRosterFight(d)).sort((a, b) => b.endTs - a.endTs)[0] ??
+      null,
+    [duels.data],
+  );
+  const receipt = useReceipt(latest);
+  const latestRows = latest && receipt.data ? rowsFromEvents(receipt.data.events, latest) : [];
+  const latestFees = feeTotal(latestRows);
+  const latestDelay = latest ? settledAfterBell(latestRows, latest.endTs) : null;
+  const costTip =
+    latest && latestFees
+      ? `The newest, ${tickerForMint(latest.creatorMint) ?? "?"} vs ${tickerForMint(latest.opponentMint) ?? "?"}, paid ${solFromLamports(latestFees.lamports)} SOL in network fees across ${latestFees.counted} ${latestFees.counted === 1 ? "transaction" : "transactions"}${latestDelay !== null ? `, and settled ${waitWords(latestDelay)} after its bell` : ""}.`
+      : null;
 
   const cells: Cell[] = [
     {
@@ -68,6 +92,7 @@ export function ProofStrip() {
         <Skeleton className="h-4 w-24" />
       ),
       href: "/fights?tab=final",
+      tip: costTip ? { trigger: "What one cost", label: costTip } : undefined,
     },
     {
       label: "Escrow",
@@ -126,6 +151,11 @@ export function ProofStrip() {
               ) : (
                 c.body
               )}
+              {c.tip ? (
+                <span className="relative z-10 ml-2 text-meta text-dim">
+                  <Tip label={c.tip.label}>{c.tip.trigger}</Tip>
+                </span>
+              ) : null}
             </dd>
           </div>
         ))}

@@ -30,12 +30,22 @@ import {
   OUTCOME_TIE,
   SOURCE_PYTH,
   START_DELAY_SECS,
+  STATUS_SETTLED,
   type DuelView,
   type PricePoint,
 } from "@/lib/duel";
 import { ago, pythToNumber, shortAddress, usd } from "@/lib/format";
 import { sourceAt, type PriceSource } from "@/lib/oracle";
-import { etStamp, rowsFromAccount, rowsFromEvents, type ReceiptRow } from "@/lib/receipt";
+import {
+  etStamp,
+  feeTotal,
+  rowsFromAccount,
+  rowsFromEvents,
+  settledAfterBell,
+  solFromLamports,
+  waitWords,
+  type ReceiptRow,
+} from "@/lib/receipt";
 import { quoteSymbolFor } from "@/lib/stocks";
 import { useReceipt } from "@/lib/useReceipt";
 
@@ -43,10 +53,19 @@ export function Receipt({ d, t1, t2, now, className }: { d: DuelView; t1: string
   const receipt = useReceipt(d);
   const fromTx = receipt.data && receipt.data.events.length > 0;
   const rows: ReceiptRow[] = fromTx ? rowsFromEvents(receipt.data!.events, d) : rowsFromAccount(d);
+  const fees = feeTotal(rows);
+  const afterBell = d.status === STATUS_SETTLED ? settledAfterBell(rows, d.endTs) : null;
+
+  /* "4 steps · 0.000025 SOL in fees": every figure is one the cluster charged,
+   * and when a node left a fee out the count says which steps it covers. */
+  const stepWords = rows.length ? `${rows.length} ${rows.length === 1 ? "step" : "steps"}` : null;
+  const feeWords = fees
+    ? `${solFromLamports(fees.lamports)} SOL in fees${fees.counted < fees.steps ? ` for ${fees.counted} of ${fees.steps}` : ""}`
+    : null;
 
   return (
     <Plate as="section" pad="std" className={cx("flex flex-col gap-4", className)} aria-labelledby="receipt-title">
-      <SectionHead id="receipt-title" title="Receipt" count={rows.length ? `${rows.length} ${rows.length === 1 ? "step" : "steps"}` : null} />
+      <SectionHead id="receipt-title" title="Receipt" count={[stepWords, feeWords].filter(Boolean).join(" · ") || null} />
 
       {receipt.isLoading ? (
         <div aria-busy="true" className="flex flex-col gap-2">
@@ -61,9 +80,14 @@ export function Receipt({ d, t1, t2, now, className }: { d: DuelView; t1: string
         <>
           <ol className="flex flex-col">
             {rows.map((r) => (
-              <Step key={`${r.step}-${r.signature ?? r.at}`} row={r} d={d} t1={t1} t2={t2} now={now} />
+              <Step key={`${r.step}-${r.signature ?? r.at}`} row={r} d={d} t1={t1} t2={t2} now={now} afterBell={afterBell} />
             ))}
           </ol>
+          {fees?.shared ? (
+            <p className="text-meta text-dim">
+              A step marked shared ran in one transaction with other fights, and its fee is that whole transaction&apos;s.
+            </p>
+          ) : null}
           {receipt.data?.noHistory ? (
             <Notice tone="info" title="This RPC node keeps no transaction history for this account.">
               The steps above come from the fight account&apos;s own timestamps.
@@ -89,7 +113,21 @@ export function Receipt({ d, t1, t2, now, className }: { d: DuelView; t1: string
   );
 }
 
-function Step({ row, d, t1, t2, now }: { row: ReceiptRow; d: DuelView; t1: string; t2: string; now: number }) {
+function Step({
+  row,
+  d,
+  t1,
+  t2,
+  now,
+  afterBell,
+}: {
+  row: ReceiptRow;
+  d: DuelView;
+  t1: string;
+  t2: string;
+  now: number;
+  afterBell: number | null;
+}) {
   const outcome =
     row.step === "settled"
       ? d.outcome === OUTCOME_CREATOR
@@ -125,10 +163,18 @@ function Step({ row, d, t1, t2, now }: { row: ReceiptRow; d: DuelView; t1: strin
         ) : null}
         {row.spectator ? <Badge variant="neutral">Settled by a spectator</Badge> : null}
         {outcome ? <span className="text-meta text-ink">{outcome}</span> : null}
+        {row.step === "settled" && afterBell !== null ? (
+          <span className="text-meta text-dim">{waitWords(afterBell)} after the bell</span>
+        ) : null}
         {starts ? <span className="num text-meta text-dim">{starts}</span> : null}
       </div>
-      <div className="col-start-2 row-start-1 justify-self-end sm:col-start-3">
+      <div className="col-start-2 row-start-1 flex flex-col items-end justify-self-end sm:col-start-3">
         {row.signature ? <ExplorerLink kind="tx" value={row.signature} className="text-meta" /> : null}
+        {row.fee !== null ? (
+          <span className="num text-meta text-dim" title={row.slot !== null ? `Slot ${row.slot.toLocaleString("en-US")}` : undefined}>
+            fee {solFromLamports(row.fee)} SOL{row.sharedWith > 0 ? " · shared" : ""}
+          </span>
+        ) : null}
       </div>
     </li>
   );
@@ -188,6 +234,15 @@ function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
         · bell <span className="text-ink" title={new Date(d.endTs * 1000).toISOString()}>{etStamp(d.endTs)}</span> · fight
         account <ExplorerLink kind="address" value={d.address.toBase58()} />
       </p>
+      {/* A bell price stamped a minute after the bell read as late or wrong
+        * beside the round's own times, so the one-line reason sits right here. */}
+      {(d.creatorEnd.price > BigInt(0) && d.creatorEnd.publishTime > d.endTs) ||
+      (d.opponentEnd.price > BigInt(0) && d.opponentEnd.publishTime > d.endTs) ? (
+        <p className="text-meta text-dim">
+          A bell price stamped after the bell is not late: it is that stock&apos;s first price at or after the bell,
+          which is the one the rules take.
+        </p>
+      ) : null}
       <details className="group text-sm text-dim">
         <summary className="label cursor-pointer select-none py-2 hover:text-ink">How these prices were chosen</summary>
         <p className="mt-1 max-w-prose">

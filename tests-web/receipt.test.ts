@@ -9,7 +9,18 @@ import { PublicKey } from "@solana/web3.js";
 
 import idl from "../src/idl/duel.json";
 import { coder, OUTCOME_CREATOR } from "../src/lib/duel";
-import { classifyTx, etStamp, rowsFromAccount, rowsFromEvents, type TxLike } from "../src/lib/receipt";
+import {
+  classifyTx,
+  etStamp,
+  feeTotal,
+  rowsFromAccount,
+  rowsFromEvents,
+  settledAfterBell,
+  solFromLamports,
+  waitWords,
+  type ReceiptRow,
+  type TxLike,
+} from "../src/lib/receipt";
 
 const DUEL = PublicKey.unique();
 const OTHER_DUEL = PublicKey.unique();
@@ -145,6 +156,53 @@ describe("receipt", () => {
       ["Start prices posted", 260, null, null],
       ["Bell", 620, null, null],
     ]);
+  });
+
+  it("carries each transaction's fee and slot, and says when a fee was shared with other fights", () => {
+    const base = tx([settled(DUEL)], SETTLER, "sig-settle", 1_789_000_600);
+    const one: TxLike = { ...base, slot: 412_345_678, meta: { ...base.meta!, fee: 5_000 } };
+    const e = classifyTx(one, DUEL.toBase58())!;
+    expect(e.fee).to.equal(5_000);
+    expect(e.slot).to.equal(412_345_678);
+    expect(e.sharedWith).to.equal(0);
+
+    const both = tx([settled(OTHER_DUEL), settled(DUEL)], SETTLER, "sig-batch");
+    const batch: TxLike = { ...both, slot: 7, meta: { ...both.meta!, fee: 10_000 } };
+    expect(classifyTx(batch, DUEL.toBase58())!.sharedWith).to.equal(1);
+
+    // A node that leaves the fee out gives no fee, never a guessed one.
+    const bare = classifyTx(tx([settled(DUEL)], SETTLER, "sig-bare"), DUEL.toBase58())!;
+    expect(bare.fee).to.equal(null);
+    expect(bare.slot).to.equal(null);
+
+    const rows = rowsFromEvents([e], { creator: CREATOR, opponent: OPPONENT });
+    expect([rows[0].fee, rows[0].slot, rows[0].sharedWith]).to.deep.equal([5_000, 412_345_678, 0]);
+  });
+
+  it("totals only the fees the node reported, once per transaction, and times the settle from the bell", () => {
+    const row = (step: ReceiptRow["step"], signature: string | null, fee: number | null, at = 0): ReceiptRow => ({
+      step,
+      label: step,
+      at,
+      signer: null,
+      signature,
+      spectator: false,
+      fee,
+      slot: null,
+      sharedWith: 0,
+    });
+    const rows = [row("called", "a", 5_000), row("taken", "b", 5_000), row("started", "c", 10_000), row("settled", "d", 5_000, 1_000_064)];
+    expect(feeTotal(rows)).to.deep.equal({ lamports: 25_000, counted: 4, steps: 4, shared: false });
+    expect(solFromLamports(25_000)).to.equal("0.000025");
+
+    const gap = [row("called", "a", 5_000), row("taken", "b", null)];
+    expect(feeTotal(gap)).to.deep.equal({ lamports: 5_000, counted: 1, steps: 2, shared: false });
+    expect(feeTotal(rowsFromAccount({ creator: CREATOR, opponent: OPPONENT, createdTs: 1, acceptedTs: 0, startTs: 0, endTs: 0, creatorEnd: { price: BigInt(0), expo: 0, publishTime: 0 } }))).to.equal(null);
+
+    expect(settledAfterBell(rows, 1_000_000)).to.equal(64);
+    expect(settledAfterBell(rows.slice(0, 3), 1_000_000)).to.equal(null);
+    expect(waitWords(64)).to.equal("1 min 4 s");
+    expect(waitWords(21)).to.equal("21 s");
   });
 
   it("stamps a price's moment to the second on New York's clock", () => {
