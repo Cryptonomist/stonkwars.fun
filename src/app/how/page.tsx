@@ -14,7 +14,7 @@ const RULES: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Which stocks?",
-    a: `Every tokenized stock and ETF on Solana: ${ROSTER.length} today, from Apple to Hong Kong listings. Lookalike tokens that borrow a real one's name are left out; only the issuer's own mints can be staked.`,
+    a: `Every tokenized stock and ETF on Solana: ${ROSTER.length.toLocaleString("en-US")} today, from Apple to Hong Kong listings. Lookalike tokens that borrow a real one's name are left out; only the issuer's own mints can be staked.`,
   },
   {
     q: "How is the winner decided?",
@@ -34,11 +34,11 @@ const RULES: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Why not Pyth for everything?",
-    a: "This deployment's Pyth plan covers only a couple of equity feeds. Rather than lock out the rest of the market, the program takes a second source for the others and says so on every fight. When a stock gets a Pyth feed, one admin call switches it for new fights; fights already running keep the source they started with.",
+    a: "This deployment's Pyth plan covers only three equity feeds. Rather than lock out the rest of the market, the program takes a second source for the others and says so on every fight. When a stock gets a Pyth feed, one admin call switches it for new fights; fights already running keep the source they started with.",
   },
   {
     q: "Why not the token's price all the time?",
-    a: "Because while the stock's own market is open it is the better number by a distance: far deeper, far harder to move, and the thing the token is a claim on. The pool is the answer to a shut exchange, not a replacement for an open one.",
+    a: "Because while the stock's own market is open it is the better number by a distance: far deeper, far harder to move, and the thing the token is a claim on. The stock's perpetual future, or for the few without one its Solana pool, is the answer to a shut exchange, not a replacement for an open one.",
   },
   {
     q: "When does a round start?",

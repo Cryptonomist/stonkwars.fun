@@ -12,7 +12,7 @@ export default function Privacy() {
   return (
     <LegalPage
       title="Privacy"
-      updated="11 September 2026"
+      updated="13 September 2026"
       intro="Stonk Wars has no accounts, no signup and no email list. There is very little to say here, and most of what there is concerns a blockchain, which is public by design and which nobody can edit afterwards, including us."
     >
       <Section title="What we do not collect">
@@ -38,9 +38,10 @@ export default function Privacy() {
       <Section title="If you connect X">
         <p>Connecting an X account is optional. It puts a handle next to your record on the leaderboard, and that is all it does.</p>
         <p>
-          We use X&apos;s own sign-in. We ask for permission to read your public profile and nothing else: we never post,
-          never read your messages, never follow or unfollow anyone, and never see your password. We do not request
-          offline access, so X gives us no refresh token and we cannot act as you later.
+          We use X&apos;s own sign-in. We ask for read-only access to your profile, plus the permission to read posts that
+          X requires before it will hand over a profile, and nothing else. We never read your posts with it, never
+          post, never read your messages, never follow or unfollow anyone, and never see your password. We do not
+          request offline access, so X gives us no refresh token and we cannot act as you later.
         </p>
         <p>
           At the moment you connect we read two things, your numeric X account id and your handle. The access token

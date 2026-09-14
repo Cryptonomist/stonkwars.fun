@@ -5,7 +5,7 @@ import { Movers } from "@/components/Movers";
 import { SiteTally } from "@/components/SiteTally";
 import { TickerTape } from "@/components/TickerTape";
 import { TopFighters } from "@/components/TopFighters";
-import { AROUND_THE_CLOCK, ROSTER } from "@/lib/stocks";
+import { AROUND_THE_CLOCK, CLUSTER, ROSTER } from "@/lib/stocks";
 
 /* THE FRONT PAGE IS A BOARD, NOT A PITCH.
  *
@@ -19,7 +19,7 @@ const STEPS = [
   {
     n: "01",
     title: "Call it",
-    body: `Pick your stock from all ${ROSTER.length} tokenized on Solana, and the one it beats. Stake real shares of yours, set the round: five minutes, an hour, or to Friday's bell.`,
+    body: `Pick your stock from all ${ROSTER.length.toLocaleString("en-US")} tokenized on Solana, and the one it beats. Stake shares of yours, set the round: five minutes, an hour, or to Friday's bell.`,
   },
   {
     n: "02",
@@ -71,6 +71,13 @@ export default function Home() {
         <Link href="/new" className="btn btn-p1 ml-auto px-7 text-lg">
           Pick a fight
         </Link>
+        {/* Said where the stake is first mentioned, so nobody reads the hero as
+          * asking for their money. */}
+        {CLUSTER !== "mainnet-beta" ? (
+          <p className="w-full text-sm text-dim">
+            Live on Solana devnet: real market prices, free test shares, nothing real at stake.
+          </p>
+        ) : null}
       </section>
 
       <SiteTally />

@@ -12,7 +12,7 @@ export default function Terms() {
   return (
     <LegalPage
       title="Terms"
-      updated="11 September 2026"
+      updated="13 September 2026"
       intro="Stonk Wars is a demonstration of peer-to-peer escrow on Solana. Using it means accepting what follows. If you do not, do not use it."
     >
       <Section title="What this is">
@@ -87,8 +87,8 @@ export default function Terms() {
 
       <Section title="What you are taking on">
         <p>
-          The program has not been audited. It has tests, its source is open, and it is deployed where anyone can read
-          it, but software has bugs and this software may have some.
+          The program has not been audited. It has tests and it is deployed where anyone can read it, but software has
+          bugs and this software may have some.
         </p>
         <p>
           Every issuer of a tokenized stock keeps powers over its tokens, including ones sitting in a fight: freezing an

@@ -158,9 +158,14 @@ export function CreateFight() {
       <p className="label">New fight</p>
       <h1 className="display mt-2 text-6xl sm:text-7xl">Pick a fight</h1>
       <p className="mt-3 max-w-2xl text-dim">
-        Back a stock with real shares. Name the stock you think it beats. Whoever takes the other side
+        Back a stock with shares of it. Name the stock you think it beats. Whoever takes the other side
         stakes theirs, and the bigger move by the end of the round wins both stakes.
       </p>
+      {CLUSTER !== "mainnet-beta" ? (
+        <p className="mt-2 max-w-2xl text-sm text-dim">
+          Live on Solana devnet: real market prices, free test shares, nothing real at stake.
+        </p>
+      ) : null}
 
       <section className="mt-10">
         <h2 className="display text-3xl">
