@@ -23,6 +23,7 @@ import {
   type DuelView,
 } from "@/lib/duel";
 import { sendAndConfirm } from "@/lib/send";
+import { isListedDuel } from "@/lib/stocks";
 
 /** One duel, polled. `null` means the account does not exist (never did, or
  *  was cancelled and closed). */
@@ -40,7 +41,10 @@ export function useDuel(address: PublicKey | null, refetchMs = 3_000) {
   });
 }
 
-/** Many duels, by memcmp filter. Newest first. */
+/** Many duels, by memcmp filter. Newest first. Only fights between two listed
+ *  stocks: this is what every board and tally reads, so leaving out the old
+ *  test fights here leaves them out everywhere. A fight's own page reads its
+ *  account through useDuel and still loads. */
 export function useDuels(key: string, filters: GetProgramAccountsFilter[] | null, refetchMs = 10_000) {
   const { connection } = useConnection();
   return useQuery<DuelView[]>({
@@ -54,7 +58,8 @@ export function useDuels(key: string, filters: GetProgramAccountsFilter[] | null
       const out: DuelView[] = [];
       for (const a of accounts) {
         try {
-          out.push(decodeDuel(a.pubkey, a.account.data));
+          const d = decodeDuel(a.pubkey, a.account.data);
+          if (isListedDuel(d)) out.push(d);
         } catch {
           /* An account that does not decode is not a duel this client knows. */
         }

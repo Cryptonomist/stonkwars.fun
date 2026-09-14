@@ -21,7 +21,7 @@ import { PublicKey } from "@solana/web3.js";
 import perpsJson from "@/data/perps.json";
 import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
-import { type StakeAsset } from "@/lib/duel";
+import { type DuelView, type StakeAsset } from "@/lib/duel";
 import { session } from "@/lib/market";
 
 export type Stock = {
@@ -164,6 +164,21 @@ export function tokenForMint(mint: PublicKey | string): Token | undefined {
 
 export const tickerForMint = (mint: PublicKey | string) => tokenForMint(mint)?.ticker;
 export const decimalsForMint = (mint: PublicKey | string) => tokenForMint(mint)?.decimals ?? STAKE_DECIMALS;
+
+/* WHETHER A FIGHT IS BETWEEN TWO LISTED STOCKS.
+ *
+ * The program takes any mint, and early test fights were staked in test BTC,
+ * ETH and SOL, or in mints this cluster's token list no longer names at all.
+ * They stay on chain, but they are not stock fights: counted, they swamp the
+ * tally with test crypto and fill the boards with "? VS ?" rows. Both sides
+ * must map to a token here and that token's ticker must be on the roster. */
+export function isListedDuel(d: Pick<DuelView, "creatorMint" | "opponentMint">): boolean {
+  const listed = (mint: PublicKey) => {
+    const ticker = tickerForMint(mint);
+    return !!ticker && !!byTicker(ticker);
+  };
+  return listed(d.creatorMint) && listed(d.opponentMint);
+}
 
 /** "NVDAx": the symbol of the token a stock is staked as here. */
 export const tokenSymbol = (ticker: string) => tokensFor(ticker)[0]?.symbol ?? `${ticker}x`;

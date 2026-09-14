@@ -5,7 +5,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { FightView } from "./FightView";
 import { decodeDuel, PROGRAM_ID } from "@/lib/duel";
 import { shares } from "@/lib/format";
-import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
+import { isListedDuel, STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
 import { BRAND } from "@/lib/brand";
 
 type Props = { params: Promise<{ duel: string }> };
@@ -23,12 +23,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ]);
     if (!info || !info.owner.equals(PROGRAM_ID)) return { title: "Fight" };
     const d = decodeDuel(key, info.data);
+    /* An old test fight on a mint that is not a listed stock would unfurl as
+     * "? vs ?". Name it for what it is; the page itself still loads. */
+    const listed = isListedDuel(d);
     const t1 = tickerForMint(d.creatorMint) ?? "?";
     const t2 = tickerForMint(d.opponentMint) ?? "?";
-    const title = `${t1} vs ${t2}`;
-    const description = d.taunt
-      ? `"${d.taunt}" ${shares(d.creatorAmount, STAKE_DECIMALS)} ${t1}x vs ${shares(d.opponentAmount, STAKE_DECIMALS)} ${t2}x on ${BRAND.name}.`
-      : `${shares(d.creatorAmount, STAKE_DECIMALS)} ${t1}x vs ${shares(d.opponentAmount, STAKE_DECIMALS)} ${t2}x. Bigger move at the bell takes both.`;
+    const title = listed ? `${t1} vs ${t2}` : "Retired test fight";
+    const description = !listed
+      ? `A fight staked in test tokens, not listed stocks, on ${BRAND.name}.`
+      : d.taunt
+        ? `"${d.taunt}" ${shares(d.creatorAmount, STAKE_DECIMALS)} ${t1}x vs ${shares(d.opponentAmount, STAKE_DECIMALS)} ${t2}x on ${BRAND.name}.`
+        : `${shares(d.creatorAmount, STAKE_DECIMALS)} ${t1}x vs ${shares(d.opponentAmount, STAKE_DECIMALS)} ${t2}x. Bigger move at the bell takes both.`;
     /* Next replaces the layout's twitter object rather than merging it, so the
      * card type and site handle are restated here or X falls back to the small
      * summary card instead of the large VS image. */

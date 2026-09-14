@@ -23,7 +23,7 @@ import { pct, shares } from "@/lib/format";
 import { loadGoogleFont } from "@/lib/ogFont";
 import { PALETTE } from "@/lib/palette";
 import { movePct } from "@/lib/pricemath";
-import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
+import { isListedDuel, STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
 
 export const runtime = "nodejs";
 export const alt = "A Stonk Wars fight";
@@ -32,6 +32,7 @@ export const contentType = "image/png";
 export const revalidate = 30;
 
 const C = PALETTE;
+const RETIRED = "Retired test fight";
 
 async function readDuel(address: string): Promise<DuelView | null> {
   try {
@@ -56,6 +57,9 @@ export default async function Image({ params }: { params: Promise<{ duel: string
 
   const t1 = d ? tickerForMint(d.creatorMint) ?? "?" : "???";
   const t2 = d ? tickerForMint(d.opponentMint) ?? "?" : "???";
+  /* An old test fight on a mint that is not a listed stock has no tickers to
+   * put in the corners, only "?". The card says what it is instead. */
+  const retired = !!d && !isListedDuel(d);
   const settled = d && (d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE));
   const m1 = d && settled ? movePct(d.creatorStart, d.creatorEnd) : null;
   const m2 = d && settled ? movePct(d.opponentStart, d.opponentEnd) : null;
@@ -76,7 +80,7 @@ export default async function Image({ params }: { params: Promise<{ duel: string
 
   const taunt = d?.taunt ? `“${d.taunt}”` : "";
   // The card uppercases most of its text, so the subset needs both cases.
-  const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}VS COOKED staked${status}${taunt}0123456789.+-%$ ·`;
+  const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}VS COOKED staked${RETIRED}${status}${taunt}0123456789.+-%$ ·`;
   const text = `${raw}${raw.toUpperCase()}${raw.toLowerCase()}`;
   const [display, stencil] = await Promise.all([
     loadGoogleFont("Big Shoulders", 900, text),
@@ -176,11 +180,17 @@ export default async function Image({ params }: { params: Promise<{ duel: string
           <div style={{ color: C.dim, fontSize: 30 }}>{status}</div>
         </div>
 
-        <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "space-between" }}>
-          {corner("p1")}
-          <div style={{ fontSize: 110, color: C.ink }}>VS</div>
-          {corner("p2")}
-        </div>
+        {retired ? (
+          <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontSize: 120, color: C.dim }}>{RETIRED}</div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "space-between" }}>
+            {corner("p1")}
+            <div style={{ fontSize: 110, color: C.ink }}>VS</div>
+            {corner("p2")}
+          </div>
+        )}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div style={{ fontSize: 36, color: C.ink, textTransform: "none", maxWidth: 860 }}>{taunt}</div>
