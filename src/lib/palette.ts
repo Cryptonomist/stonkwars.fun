@@ -1,16 +1,29 @@
 /* The palette as hex, for the places CSS variables cannot reach: share cards
- * and brand images. Must match @theme in globals.css. No yellow. */
+ * and brand images. Every key but `cabinet` is a --color token in @theme in
+ * globals.css, spelled in camelCase (panel2 is --color-panel-2), and
+ * tests-web/palette.test.ts fails the moment the two disagree: a share card in
+ * a colour the site no longer uses reads as a different product. No yellow. */
 
 export const PALETTE = {
   void: "#07070b",
   panel: "#0e0e16",
+  panel2: "#15151f",
+  panel3: "#1c1c29",
   line: "#25253a",
+  lineStrong: "#34344f",
   ink: "#f3f3f8",
   dim: "#9090a8",
+  faint: "#5c5c74",
   p1: "#2fe0ff",
+  p1Deep: "#0b4a57",
+  p1Tint: "#11232d",
   p2: "#ff3ea5",
+  p2Deep: "#5a1239",
+  p2Tint: "#261324",
   up: "#35f28b",
+  upTint: "#132924",
   down: "#ff4d5e",
+  downTint: "#2b161f",
   cooked: "#ff7a1a",
   /** The mark's ground: a cabinet's violet, so the circle keeps an edge on a
    *  black timeline, where a near-black logo would have none. */
