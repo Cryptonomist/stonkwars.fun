@@ -455,6 +455,14 @@ function Actions({
   }
 
   const hints: string[] = [];
+  /* A shared link is the first page a newcomer sees, so an open challenge says
+   * the rule before it asks for a stake, and off mainnet it says the stake is
+   * free. The taker's corner is the second ticker. Once the challenge expires
+   * nobody can take it, so the invitation goes quiet. */
+  if (d.status === STATUS_OPEN && !expired) {
+    hints.push(`Take ${t2} against ${t1}. Whichever moves more, in percent, over the round takes both stakes, paid in shares.`);
+    if (testCluster) hints.push("Devnet: free test shares from the faucet, nothing real at stake.");
+  }
   if (mixedHours) hints.push(mixedHours);
   if (canTake && !publicKey) hints.push("Connect a wallet to take this fight.");
   if (canTake && publicKey && short)
