@@ -51,7 +51,7 @@ import {
 import { clock, etTime, pct, points, pythToNumber, shares, shortAddress, span, usd } from "@/lib/format";
 import { explorerAddress, useDuel, useSend, useTokenBalance } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
-import { sourceAt } from "@/lib/oracle";
+import { sourceAt, type PriceSource } from "@/lib/oracle";
 import { byTicker, CLUSTER, mixedHoursAt, pricedAt, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 import { BRAND } from "@/lib/brand";
@@ -573,10 +573,14 @@ function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: stri
 /* Which market the oracle read for a price, worked out the same way it was:
  * the stock's own exchange while it was trading, and once that shuts, its
  * perpetual future, or its Solana pool for the few stocks with no perp. */
-function oracleRead(feed: string, publishTime: number): string {
+function oracleSource(feed: string, publishTime: number): PriceSource | undefined {
   const market = quoteSymbolFor(feed);
-  if (!market) return "Oracle";
-  const from = sourceAt(publishTime, market);
+  return market ? sourceAt(publishTime, market) : undefined;
+}
+
+function oracleRead(feed: string, publishTime: number): string {
+  const from = oracleSource(feed, publishTime);
+  if (!from) return "Oracle";
   return from === "perp" ? "Oracle · perp" : from === "pool" ? "Oracle · pool" : "Oracle · exchange";
 }
 
@@ -599,11 +603,25 @@ function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
         <td className="py-2 pr-3 font-mono">{usd(pythToNumber(p.price, p.expo))}</td>
         <td className="py-2 pr-3 font-mono text-dim">{new Date(p.publishTime * 1000).toISOString().replace(".000Z", "Z")}</td>
         <td className="py-2 pr-3 text-xs">{source === SOURCE_PYTH ? "Pyth" : oracleRead(feed, p.publishTime)}</td>
-        <td className="py-2 font-mono text-xs text-dim">{feed.slice(0, 8)}...</td>
+        <td className="py-2 font-mono text-xs text-dim" title={feed}>
+          {feed.slice(0, 8)}...
+        </td>
       </tr>
     ) : null;
   const pyth = d.creatorSource === SOURCE_PYTH || d.opponentSource === SOURCE_PYTH;
   const signed = d.creatorSource !== SOURCE_PYTH || d.opponentSource !== SOURCE_PYTH;
+  /* A pool price is not the one-bar close the sentence above describes, so it
+   * gets its own line, but only when a row the table shows was priced that way. */
+  const pooled = (
+    [
+      [d.creatorFeed, d.creatorSource, d.creatorStart],
+      [d.opponentFeed, d.opponentSource, d.opponentStart],
+      [d.creatorFeed, d.creatorSource, d.creatorEnd],
+      [d.opponentFeed, d.opponentSource, d.opponentEnd],
+    ] as const
+  ).some(
+    ([feed, source, p]) => source !== SOURCE_PYTH && p.price > BigInt(0) && oracleSource(feed, p.publishTime) === "pool",
+  );
   return (
     <section className="mx-auto mt-10 max-w-3xl">
       <p className="label">The prices that decided it</p>
@@ -622,9 +640,22 @@ function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
             so anyone can hold it against the market&apos;s record.
           </>
         ) : null}
+        {pooled
+          ? " A pool price is the average of the middle 60% of up to 15 one-minute closes in the hour before the boundary, so one trade cannot set it."
+          : null}
       </p>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
+          <thead>
+            <tr className="label text-left">
+              <th scope="col" className="py-2 pr-3 font-normal">Boundary</th>
+              <th scope="col" className="py-2 pr-3 font-normal">Stock</th>
+              <th scope="col" className="py-2 pr-3 font-normal">Price</th>
+              <th scope="col" className="py-2 pr-3 font-normal">Published (UTC)</th>
+              <th scope="col" className="py-2 pr-3 font-normal">Priced by</th>
+              <th scope="col" className="py-2 font-normal">Feed</th>
+            </tr>
+          </thead>
           <tbody>
             {row("Start", t1, d.creatorFeed, d.creatorSource, d.creatorStart)}
             {row("Start", t2, d.opponentFeed, d.opponentSource, d.opponentStart)}
