@@ -87,7 +87,7 @@ function statusLine(d: DuelView, now: number): string {
        * fine, it is the exchange that is closed. */
       return waitingForMarket(d, now) ? "waiting for the open" : "locking prices";
     case STATUS_LIVE:
-      return now && d.endTs > now ? clock(d.endTs - now) : "at the bell";
+      return now && d.endTs > now ? clock(d.endTs - now) : waitingForMarket(d, now) ? "waiting for the open" : "at the bell";
     case STATUS_SETTLED:
       return "final";
     case STATUS_VOID:

@@ -53,6 +53,12 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     const error = e instanceof Error ? e.message : "Hermes request failed";
     const status = /404|not found/i.test(error) ? 404 : 503;
-    return NextResponse.json({ error }, { status });
+    /* Hermes answers a boundary it has no later price for with a 404 and its
+     * own wording, which the page used to print in red as if something broke.
+     * Nothing did: the feed stops with its market and resumes at the open. */
+    return NextResponse.json(
+      { error: status === 404 ? "Pyth has no price after that moment yet. Its market is shut." : error },
+      { status },
+    );
   }
 }

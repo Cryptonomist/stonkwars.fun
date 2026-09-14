@@ -70,9 +70,11 @@ export default async function Image({ params }: { params: Promise<{ duel: string
     ? "Fight"
     : d.status === STATUS_OPEN
       ? "Open challenge · take the other side"
-      : d.status === STATUS_ACCEPTED || d.status === STATUS_LIVE
-        ? "Round live"
-        : d.status === STATUS_SETTLED
+      : d.status === STATUS_ACCEPTED
+        ? "Fight on · starts at the next price"
+        : d.status === STATUS_LIVE
+          ? "Round live"
+          : d.status === STATUS_SETTLED
           ? "Final · settled on Solana"
           : d.outcome === OUTCOME_TIE
             ? "Dead heat"

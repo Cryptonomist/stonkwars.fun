@@ -52,7 +52,7 @@ import { clock, etTime, pct, points, pythToNumber, shares, shortAddress, span, u
 import { explorerAddress, useDuel, useSend, useTokenBalance } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
 import { sourceAt } from "@/lib/oracle";
-import { byTicker, CLUSTER, mixedHoursAt, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import { byTicker, CLUSTER, mixedHoursAt, pricedAt, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 import { BRAND } from "@/lib/brand";
 
@@ -163,7 +163,12 @@ function StatusStrip({ d, now }: { d: DuelView; now: number }) {
       tone = "text-ink";
       break;
     case STATUS_LIVE:
-      text = now && d.endTs > now ? "Round live" : "Bell rung · settling";
+      text =
+        now && d.endTs > now
+          ? "Round live"
+          : waitingForMarket(d, now)
+            ? "Bell rung · waiting for the market that prices it to open"
+            : "Bell rung · settling";
       tone = "text-up";
       break;
     case STATUS_SETTLED:
@@ -357,8 +362,14 @@ function Actions({
    * It stays takeable once the hours line up again. */
   const mixedHours = canTake && now ? mixedHoursAt(t1, t2, now) : null;
 
-  const startDue = d.status === STATUS_ACCEPTED && now >= d.acceptedTs + START_DELAY_SECS + 20;
-  const settleDue = d.status === STATUS_LIVE && now >= d.endTs + 20;
+  /* While the market that prices a side is shut, its next price does not exist
+   * yet, so neither the settler nor anyone else can lock a start or an end. A
+   * button then only leads to a wallet popup and a failed request, right under
+   * the status line that says the fight is waiting. */
+  const waiting = waitingForMarket(d, now);
+  const startDue = d.status === STATUS_ACCEPTED && !waiting && now >= d.acceptedTs + START_DELAY_SECS + 20;
+  const settleDue = d.status === STATUS_LIVE && !waiting && now >= d.endTs + 20;
+  const shut = waiting ? [...new Set([t1, t2])].filter((t) => t !== "?" && pricedAt(t, now) === "waits") : [];
   const stalled =
     (d.status === STATUS_ACCEPTED && now >= d.acceptedTs + STALL_REFUND_SECS) ||
     (d.status === STATUS_LIVE && now >= d.endTs + STALL_REFUND_SECS);
@@ -452,7 +463,14 @@ function Actions({
     );
   if (d.status === STATUS_OPEN && !canTake && !isCreator && isInviteOnly(d) && !expired)
     hints.push(`This one is for ${shortAddress(d.invitee.toBase58())}. Only that wallet can take it.`);
-  if (d.status === STATUS_ACCEPTED && !startDue)
+  const waitingFor = d.status === STATUS_ACCEPTED ? "starts" : d.status === STATUS_LIVE && now >= d.endTs ? "ends" : null;
+  if (waitingFor && shut.length)
+    hints.push(
+      shut.length > 1
+        ? `${shut.join(" and ")} are priced by their exchanges, which are shut. The round ${waitingFor} at their first prices when trading resumes.`
+        : `${shut[0]} is priced by its exchange, which is shut. The round ${waitingFor} at its first price when trading resumes.`,
+    );
+  if (d.status === STATUS_ACCEPTED && !startDue && !waiting)
     hints.push("The start is each stock's first price at least two seconds after the accept. Posting it now.");
   if (d.status === STATUS_LIVE && now < d.endTs) hints.push(`${t1} vs ${t2}: whichever moves more, in percent, by the bell takes both stakes.`);
   if ((startDue || settleDue) && !busy) hints.push("The settler normally does this within a minute. Anyone can, and the result is the same whoever does.");
