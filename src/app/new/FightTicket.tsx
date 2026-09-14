@@ -59,6 +59,9 @@ export type FightTicketProps = {
   inviteError: string | null;
   inviteValid: boolean;
   pricesError: boolean;
+  /** What the connected wallet holds of its own stock, and its worth now; null
+   *  with no wallet or before the balance is read. */
+  held?: { raw: bigint; usd: number | null } | null;
   /** The primary action and anything said right under it. */
   action: ReactNode;
   actionRef?: Ref<HTMLDivElement>;
@@ -68,11 +71,14 @@ export type FightTicketProps = {
 export function FightTicket(t: FightTicketProps) {
   const priced = t.amount1 > BigInt(0) && t.amount2 > BigInt(0);
   const win = t.p1 && t.p2 && priced ? winPreview(t.amount1, t.amount2, t.p1, t.p2, t.q2) : null;
+  /* Max is everything the wallet holds of its stock, rounded down to the
+   * dollar so the shares it sizes never come to more than are there. */
+  const maxUsd = t.held?.usd != null && t.held.usd >= 1 ? Math.min(MAX_STAKE_USD, Math.floor(t.held.usd)) : null;
 
   return (
     <Plate as="section" notch rope pad="std" aria-label="Fight ticket" className={cx("flex flex-col gap-4", t.className)}>
       <Versus
-        left={<Corner side="p1" ticker={t.p1} quote={t.q1} amount={t.amount1} />}
+        left={<Corner side="p1" ticker={t.p1} quote={t.q1} amount={t.amount1} held={t.held} />}
         center={<span className="display text-hud-sm text-ink">VS</span>}
         right={<Corner side="p2" ticker={t.p2} quote={t.q2} amount={t.amount2} />}
         className="items-start"
@@ -92,6 +98,16 @@ export function FightTicket(t: FightTicketProps) {
               ${s}
             </button>
           ))}
+          {maxUsd !== null ? (
+            <button
+              type="button"
+              aria-pressed={t.dollars === maxUsd}
+              onClick={() => t.onDollars(maxUsd)}
+              className={cx("btn btn-sm", t.dollars === maxUsd ? "btn-light" : "btn-ghost")}
+            >
+              Max <span className="num">${maxUsd}</span>
+            </button>
+          ) : null}
           <label className="flex min-w-0 items-center gap-1.5">
             <span className="num text-sm text-dim" aria-hidden="true">
               $
@@ -263,11 +279,13 @@ function Corner({
   ticker,
   quote,
   amount,
+  held,
 }: {
   side: "p1" | "p2";
   ticker: string | null;
   quote: Quote | undefined;
   amount: bigint;
+  held?: { raw: bigint; usd: number | null } | null;
 }) {
   const right = side === "p2";
   const stock = ticker ? byTicker(ticker) : null;
@@ -307,6 +325,13 @@ function Corner({
               {usd(price)}
             </FlashNum>
           </span>
+          {/* Whether the wallet can cover the stake, before the button says so. */}
+          {held ? (
+            <span className="num max-w-full truncate text-meta text-dim">
+              You hold {shares(held.raw, STAKE_DECIMALS)} {tokenSymbol(ticker)}
+              {held.usd !== null && held.raw > BigInt(0) ? ` · ${usd(held.usd)}` : ""}
+            </span>
+          ) : null}
         </>
       ) : ticker ? (
         <span className={cx("mt-2 flex flex-col gap-1.5", right && "items-end")} aria-hidden="true">

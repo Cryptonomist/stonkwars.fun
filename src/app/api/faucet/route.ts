@@ -17,6 +17,7 @@ import {
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
+import { FAUCET_TARGET_USD } from "@/lib/faucet";
 import { liveQuotes } from "@/lib/marketPrices.server";
 import { quoteValue } from "@/lib/pricemath";
 import { byTicker, STAKEABLE, tokensFor, type Stock } from "@/lib/stocks";
@@ -36,7 +37,7 @@ export const maxDuration = 60;
  * in-memory cooldown on top only stops hammering. The faucet key is mint
  * authority over TEST mints and nothing else. */
 
-const TARGET_USD = 250;
+const TARGET_USD = FAUCET_TARGET_USD;
 const SOL_FLOOR = 0.05 * LAMPORTS_PER_SOL;
 const MAX_STOCKS = 4;
 /** What a wallet gets when it does not say. Every one trades around the

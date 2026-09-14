@@ -42,9 +42,10 @@ import { cx } from "@/components/ui/cx";
 import { requestConnect } from "@/components/ui/intents";
 import { useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, randomSeed } from "@/lib/duel";
-import { etTime, shares, span } from "@/lib/format";
+import { FAUCET_TARGET_USD, faucetWouldTopUp } from "@/lib/faucet";
+import { etTime, shares, span, usd } from "@/lib/format";
 import { OFFHOURS_WINDOW } from "@/lib/oracle";
-import { stakeForDollars, usePrices } from "@/lib/prices";
+import { stakeForDollars, stakeValue, usePrices } from "@/lib/prices";
 import {
   byTicker,
   CLUSTER,
@@ -189,6 +190,23 @@ export function CreateFight() {
   const balanceKnown = balance.data !== undefined;
   const noAccount = balance.data === null;
   const short = typeof balance.data === "bigint" && balance.data < amount1;
+
+  /* WHAT YOU HOLD, AND WHAT THE FAUCET CAN REACH. The ticket says how many
+   * shares of your stock the wallet has (the same balance read that gates the
+   * button) and offers them all as the stake. On a test cluster a stake above
+   * what a faucet top-up reaches used to offer "Get test AAPLx" anyway, a
+   * button that could never cover $5,000; it now says so and offers the most
+   * that works. A top-up reaches about FAUCET_TARGET_USD, and happens only
+   * while the wallet holds under half of it; after a top-up the suggestion
+   * keeps 4% of room for the price moving between the mint and the stake. */
+  const heldRaw = typeof balance.data === "bigint" ? balance.data : balance.data === null ? BigInt(0) : null;
+  const heldUsd = heldRaw !== null && q1 ? stakeValue(heldRaw, STAKE_DECIMALS, q1) : null;
+  const held = publicKey && p1 && heldRaw !== null ? { raw: heldRaw, usd: heldUsd } : null;
+  const topUpHelps = faucetWouldTopUp(heldUsd);
+  const reachUsd = topUpHelps ? FAUCET_TARGET_USD : (heldUsd ?? 0);
+  // Shares already held are sized at today's price, so they need no margin.
+  const safeStake = Math.max(1, Math.floor(topUpHelps ? reachUsd * 0.96 : reachUsd));
+  const beyondFaucet = testCluster && (short || noAccount) && dollars > reachUsd;
 
   let inviteKey: PublicKey | undefined;
   let inviteError: string | null = null;
@@ -356,6 +374,35 @@ export function CreateFight() {
       );
     }
     if (step === "faucet" && p1) {
+      if (testCluster && beyondFaucet) {
+        const lower = (
+          <button
+            type="button"
+            onClick={() => setDollars(safeStake)}
+            className={cx("btn btn-light", compact ? "btn-sm" : "w-full")}
+          >
+            Stake <span className="num">${safeStake}</span>
+          </button>
+        );
+        if (compact) return lower;
+        return (
+          <div className="flex min-w-0 flex-col gap-3">
+            <Notice
+              tone="warn"
+              title={
+                topUpHelps
+                  ? `The faucet tops a stock up to about $${FAUCET_TARGET_USD}.`
+                  : `You hold about ${heldUsd !== null ? usd(heldUsd) : "less than this"} of ${tokenSymbol(p1)}.`
+              }
+            >
+              {topUpHelps
+                ? `Prices move between the mint and the stake, so stake $${safeStake} or less to fight now.`
+                : `The faucet only tops up a wallet holding under half of $${FAUCET_TARGET_USD}, so stake what you hold to fight now.`}
+            </Notice>
+            {lower}
+          </div>
+        );
+      }
       if (testCluster) {
         return (
           <div className="flex min-w-0 flex-col gap-2">
@@ -491,6 +538,7 @@ export function CreateFight() {
             inviteError={inviteError}
             inviteValid={!!inviteKey}
             pricesError={pricesError}
+            held={held}
             action={action(false)}
             actionRef={actionRef}
           />
