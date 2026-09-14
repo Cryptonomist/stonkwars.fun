@@ -52,7 +52,7 @@ import { clock, etTime, pct, points, pythToNumber, shares, shortAddress, span, u
 import { explorerAddress, useDuel, useSend, useTokenBalance } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
 import { sourceAt } from "@/lib/oracle";
-import { byTicker, CLUSTER, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import { byTicker, CLUSTER, mixedHoursAt, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 import { BRAND } from "@/lib/brand";
 
@@ -351,6 +351,11 @@ function Actions({
   const expired = now > 0 && d.expiresTs <= now;
   const canTake = d.status === STATUS_OPEN && !expired && !isCreator && (!isInviteOnly(d) || d.invitee.toBase58() === me);
   const short = balance.data !== undefined && (balance.data === null || balance.data < d.opponentAmount);
+  /* Taking starts the round, so the hours that matter are this moment's. A
+   * challenge picked while both sides traded can be opened again after one
+   * exchange shuts, and taking it then would start the two sides days apart.
+   * It stays takeable once the hours line up again. */
+  const mixedHours = canTake && now ? mixedHoursAt(t1, t2, now) : null;
 
   const startDue = d.status === STATUS_ACCEPTED && now >= d.acceptedTs + START_DELAY_SECS + 20;
   const settleDue = d.status === STATUS_LIVE && now >= d.endTs + 20;
@@ -365,7 +370,7 @@ function Actions({
       <button
         key="take"
         type="button"
-        disabled={!publicKey || short || !!busy}
+        disabled={!publicKey || short || !!mixedHours || !!busy}
         onClick={() => run("take", () => send([buildAcceptDuel(d, publicKey!)]))}
         className="btn btn-p2 px-10 text-xl"
       >
@@ -439,6 +444,7 @@ function Actions({
   }
 
   const hints: string[] = [];
+  if (mixedHours) hints.push(mixedHours);
   if (canTake && !publicKey) hints.push("Connect a wallet to take this fight.");
   if (canTake && publicKey && short)
     hints.push(

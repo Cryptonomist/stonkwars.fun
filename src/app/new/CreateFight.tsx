@@ -24,6 +24,7 @@ import {
   AROUND_THE_CLOCK,
   byTicker,
   CLUSTER,
+  mixedHoursAt,
   pricedAt,
   sourceLabel,
   STAKE_DECIMALS,
@@ -51,7 +52,10 @@ export function CreateFight() {
   const send = useSend();
   const now = useNow(5_000);
 
-  const [p1, setP1] = useState<string | null>(byTicker(params.get("p1") ?? "")?.ticker ?? "TSLA");
+  /* The defaults both trade around the clock, so somebody who opens this page
+   * on a weekend and presses the button gets a fight that starts now, not one
+   * that sits until Monday. */
+  const [p1, setP1] = useState<string | null>(byTicker(params.get("p1") ?? "")?.ticker ?? "AAPL");
   const [p2, setP2] = useState<string | null>(byTicker(params.get("p2") ?? "")?.ticker ?? "NVDA");
   const prices = usePrices([p1, p2]);
   const [dollars, setDollars] = useState<number>(Number(params.get("usd")) || 25);
@@ -95,6 +99,11 @@ export function CreateFight() {
   const onPerp = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "perp") : [];
   const onPoolOnly = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "pool") : [];
   const roundTheClock = [...onPerp, ...onPoolOnly];
+  /* The round starts when somebody takes the challenge, and the nearest that
+   * can be is now. A pair with one side waiting for its exchange and the other
+   * trading would start days apart and be decided by that gap, so it cannot be
+   * picked. The fight page makes the same check again when it is taken. */
+  const mixedHours = p1 && p2 && now ? mixedHoursAt(p1, p2, now) : null;
   const short = balance.data !== undefined && balance.data !== null && balance.data < amount1;
   const noAccount = balance.data === null;
 
@@ -110,7 +119,7 @@ export function CreateFight() {
 
   const ready =
     !!publicKey && !!p1 && !!p2 && !!asset1 && !!asset2 && amount1 > BigInt(0) && amount2 > BigInt(0) &&
-    !short && !noAccount && !inviteError && !busy;
+    !short && !noAccount && !inviteError && !mixedHours && !busy;
 
   async function submit() {
     if (!publicKey || !asset1 || !asset2) return;
@@ -222,13 +231,9 @@ export function CreateFight() {
                 ? `Ends at the first prices after ${etTime(endTs)}.`
                 : ""}
           </p>
-          {waiting.length ? (
-            <p className="mt-2 text-sm text-cooked">
-              The exchange is shut, and {waiting.join(" and ")}{" "}
-              {waiting.length === 1 ? "is priced by it" : "are priced by it"}, so this fight would sit until trading
-              resumes. {AROUND_THE_CLOCK ? `${AROUND_THE_CLOCK} stocks fight around the clock if you want one now.` : ""}
-            </p>
-          ) : roundTheClock.length ? (
+          {/* A fight that waits, or one that cannot start fairly, is said next
+            * to the stake button instead, where it is read before signing. */}
+          {!waiting.length && !mixedHours && roundTheClock.length ? (
             <>
               <p className="mt-2 text-sm text-up">
                 The exchange is shut, so this fight runs now.{" "}
@@ -309,6 +314,18 @@ export function CreateFight() {
           ) : null}
           {prices.data?.error ? (
             <p className="text-sm text-down">Prices are unavailable: {prices.data.error}</p>
+          ) : null}
+          {/* Mixed hours disables the button, so it is the one to explain. A
+            * fight that waits for the open is still allowed, so that warning
+            * only says it will sit. */}
+          {mixedHours ? (
+            <p className="max-w-lg text-center text-sm text-cooked">{mixedHours}</p>
+          ) : waiting.length ? (
+            <p className="max-w-lg text-center text-sm text-cooked">
+              The exchange is shut, and {waiting.join(" and ")}{" "}
+              {waiting.length === 1 ? "is priced by it" : "are priced by it"}, so this fight would sit until trading
+              resumes. {AROUND_THE_CLOCK ? `${AROUND_THE_CLOCK} stocks fight around the clock if you want one now.` : ""}
+            </p>
           ) : null}
           <button type="button" disabled={!ready} onClick={submit} className="btn btn-p1 px-10 text-xl">
             {busy ? "Signing..." : `Stake ${shares(amount1, STAKE_DECIMALS)} ${p1 ? tokenSymbol(p1) : ""} and get the link`}

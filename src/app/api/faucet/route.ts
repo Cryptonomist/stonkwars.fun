@@ -39,8 +39,10 @@ export const maxDuration = 60;
 const TARGET_USD = 250;
 const SOL_FLOOR = 0.05 * LAMPORTS_PER_SOL;
 const MAX_STOCKS = 4;
-/** What a wallet gets when it does not say. */
-const STARTER = ["TSLA", "NVDA", "AAPL", "QQQ"];
+/** What a wallet gets when it does not say. Every one trades around the
+ *  clock, so a first fight picked from them on an evening or a weekend starts
+ *  now instead of waiting for an exchange to open. */
+const STARTER = ["AAPL", "NVDA", "MSFT", "GOOGL"];
 const COOLDOWN_MS = 10_000;
 const recent = new Map<string, number>();
 

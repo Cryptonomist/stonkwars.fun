@@ -146,6 +146,30 @@ export function pricedAt(ticker: string, boundary: number): "exchange" | "perp" 
   return PERPS[ticker] ? "perp" : "pool";
 }
 
+/* WHETHER TWO STOCKS CAN START A FIGHT FAIRLY AT `start`.
+ *
+ * Each side's start is its own first price after the boundary. When one stock
+ * waits for its exchange and the other trades now, those two prices land hours
+ * or days apart, and the fight is decided by the gap between them rather than
+ * by the round. Two that both wait start together at the open, and two that
+ * both trade start together now; either is fair. Returns the sentence that
+ * explains the unfair case, for the page to show beside the button it
+ * disables, or null when the pair can start.
+ *
+ * A ticker off the roster is left alone: pricedAt calls it a wait, but that
+ * says nothing about its hours. */
+export function mixedHoursAt(a: string, b: string, start: number): string | null {
+  if (!byTicker(a) || !byTicker(b)) return null;
+  const aWaits = pricedAt(a, start) === "waits";
+  const bWaits = pricedAt(b, start) === "waits";
+  if (aWaits === bWaits) return null;
+  const [waits, trades] = aWaits ? [a, b] : [b, a];
+  return (
+    `${waits} waits for its exchange to open but ${trades} trades now, so their start prices would be days apart. ` +
+    "Pick two that both trade now, or two that both wait."
+  );
+}
+
 /** How many of the roster can, for the pages that say so. */
 export const AROUND_THE_CLOCK = ROSTER.filter((s) => tradesAroundTheClock(s.ticker)).length;
 
