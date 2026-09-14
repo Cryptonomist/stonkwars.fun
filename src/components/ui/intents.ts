@@ -50,6 +50,16 @@ export function watchedFights(): string[] {
   }
 }
 
+/** Stop following a fight: no more toasts for it until it is opened again. */
+export function unwatchFight(address: string): void {
+  if (typeof window === "undefined" || !address) return;
+  try {
+    window.localStorage.setItem(WATCH_KEY, JSON.stringify(watchedFights().filter((a) => a !== address)));
+  } catch {
+    /* Storage refused: nothing was being followed anyway. */
+  }
+}
+
 /** Remember that this viewer opened a fight. Keeps the newest 30, unique. */
 export function watchFight(address: string): void {
   if (typeof window === "undefined" || !address) return;

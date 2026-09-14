@@ -4,10 +4,11 @@
  *
  * One line, from /api/bars: the exchange's minute bars while it trades
  * (pre-market and after-hours included), and the stock's perp once it shuts.
- * The line is green when the last bar is at or above the first and red when
- * below, because that is what the price did over the window; the only other
- * colour is the crosshair's move against the previous close. The dashed line is the previous session's close from
- * the live quote, the number today's move is measured against.
+ * The line's colour is the day's move: green when the last bar is at or above
+ * the previous session's close and red when below, so it always agrees with
+ * the "% today" in the page's header (with no close to hand, it falls back to
+ * the window's first bar against its last). The dashed line is that previous
+ * close, from the live quote, the number today's move is measured against.
  *
  * WHAT IT DOES NOT DRAW. A stretch with no bars (a stock with no perp while
  * its exchange is shut, or half an hour nobody traded) breaks the line rather
@@ -209,7 +210,11 @@ function Chart({ ticker, bars, prevClose, width }: { ticker: string; bars: Bars;
     const move = i === 0 || t[i] - t[i - 1] > GAP_SECS ? "M" : "L";
     d += `${move}${x(t[i]).toFixed(1)},${y(c[i]).toFixed(1)}`;
   }
-  const up = n > 1 ? c[n - 1] >= c[0] : true;
+  /* The day's move against the previous close, the same number the page's
+   * headline prints. Measured from the first bar of the window, the line drew
+   * green directly under "-2.77% today" whenever the stock had fallen before
+   * the window began. The window's own ends are the fallback with no close. */
+  const up = prevClose !== null && n > 0 ? c[n - 1] >= prevClose : n > 1 ? c[n - 1] >= c[0] : true;
   const tone = up ? "text-up" : "text-down";
 
   /* A lone bar between two gaps draws no segment, so every bar also gets a

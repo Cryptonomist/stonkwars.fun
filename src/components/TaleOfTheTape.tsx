@@ -58,7 +58,7 @@ export function TaleOfTheTape({ p1, p2, className }: { p1: string | null; p2: st
 
       <p className="mt-4 text-sm text-dim">
         {f1 && f2
-          ? tale(f1, f2)
+          ? tale(f1, f2, p1, p2)
           : isLoading
             ? "Reading the last month of closes..."
             : "Not enough closes this month to compare these two."}

@@ -36,7 +36,8 @@ import { Notice } from "@/components/ui/Notice";
 import { Plate } from "@/components/ui/Plate";
 import { TxButton } from "@/components/ui/TxButton";
 import { cx } from "@/components/ui/cx";
-import { requestConnect } from "@/components/ui/intents";
+import { requestConnect, unwatchFight, watchedFights, watchFight } from "@/components/ui/intents";
+import { Skeleton } from "@/components/ui/Skeleton";
 import {
   ataFor,
   buildAcceptDuel,
@@ -57,7 +58,7 @@ import {
   STATUS_VOID,
   type DuelView,
 } from "@/lib/duel";
-import { shares, shortAddress } from "@/lib/format";
+import { shares, shortAddress, usd } from "@/lib/format";
 import { useProfiles, useSend, useTokenBalance } from "@/lib/hooks";
 import { roundClock, shutSides } from "@/lib/roundClock";
 import { byTicker, CLUSTER, decimalsForMint, firstPriceAt, mixedHoursAt, openingWords, tokenSymbol } from "@/lib/stocks";
@@ -147,31 +148,100 @@ export function Actions({
 
   /* ── The primary action ─────────────────────────────────────────────── */
 
+  const iFought = isCreator || (hasOpponent(d) && me === d.opponent.toBase58());
+  const symbol1 = tokenSymbol(t1);
+  const stake1 = shares(d.creatorAmount, decimalsForMint(d.creatorMint));
+
+  /* WHAT THE TAKER WINS, said before they stake, the way the ticket on /new
+   * says it for the challenger: their own shares back plus the challenger's,
+   * valued at the challenger's live price. */
+  const winLine = canTake ? (
+    <>
+      If you win: your {stake2} {symbol2} back plus their {stake1} {symbol1}
+      {stakeUsd !== null ? <> (worth {usd(stakeUsd)} now)</> : null}.
+    </>
+  ) : null;
+
   let primary: React.ReactNode = null;
+  /** The one button the phone bar carries, when it is not `primary` itself. */
+  let barAction: React.ReactNode = null;
   if (canTake) {
+    const takeButton = (
+      <TxButton
+        run={take}
+        disabled={short || !!mixedHours}
+        successTitle={`You took it. ${t1} vs ${t2} is on.`}
+        className="btn-p2 w-full"
+        label={
+          short ? (
+            <>
+              Get <span className="normal-case">{symbol2}</span> first
+            </>
+          ) : (
+            <>
+              Take it · stake {stake2} <span className="normal-case">{symbol2}</span>
+            </>
+          )
+        }
+      />
+    );
     if (!publicKey) {
       primary = (
         <button type="button" onClick={requestConnect} className="btn btn-light w-full">
           Connect to take it
         </button>
       );
-    } else if (short && testCluster) {
-      primary = <FaucetPrimary ticker={t2} symbol={symbol2} />;
-    } else {
+    } else if (testCluster) {
+      /* TWO STEPS, BOTH IN SIGHT. A wallet without the stock used to see only
+       * "Get test HOODx" and two notices, so nobody could tell a second step
+       * existed or what it was for. Now the take button is always there, step
+       * two, disabled with the reason until step one is done, and step one
+       * turns into a checked line once the shares have arrived. */
+      const has = balance.data !== undefined && balance.data !== null && balance.data >= d.opponentAmount;
       primary = (
-        <TxButton
-          run={take}
-          disabled={short || !!mixedHours}
-          successTitle={`You took it. ${t1} vs ${t2} is on.`}
-          className="btn-p2 w-full"
-          label={
-            <>
-              Take it · stake {stake2} <span className="normal-case">{symbol2}</span>
-            </>
-          }
-        />
+        <ol className="flex flex-col gap-2" aria-label="Two steps to take it">
+          <li className="flex min-w-0 items-center gap-3">
+            <span className="micro num w-3 shrink-0 text-dim" aria-hidden="true">
+              1
+            </span>
+            <div className="min-w-0 flex-1">
+              {balance.data === undefined ? (
+                <Skeleton className="h-10 w-full" />
+              ) : has ? (
+                <p className="flex h-10 items-center gap-2 text-sm text-ink">
+                  <span aria-hidden="true">&#10003;</span>
+                  <span className="sr-only">Done: </span>
+                  You have {shares(balance.data!, decimalsForMint(d.opponentMint))} {symbol2}
+                </p>
+              ) : (
+                <FaucetPrimary ticker={t2} symbol={symbol2} />
+              )}
+            </div>
+          </li>
+          <li className="flex min-w-0 items-center gap-3">
+            <span className="micro num w-3 shrink-0 text-dim" aria-hidden="true">
+              2
+            </span>
+            <div className="min-w-0 flex-1">{takeButton}</div>
+          </li>
+        </ol>
       );
+      barAction = short ? <FaucetPrimary ticker={t2} symbol={symbol2} /> : takeButton;
+    } else {
+      primary = takeButton;
     }
+  } else if (d.status === STATUS_LIVE && !iFought) {
+    /* A SPECTATOR'S NEXT MOVE. Somebody watching a round had one sentence of
+     * rules here and nothing to do. The two things a watcher wants are this
+     * same fight for themselves, at this stake, and word of how it ends. */
+    primary = (
+      <>
+        <Link href={`/new?p1=${t1}&p2=${t2}&usd=${Math.max(1, Math.round(stakeUsd ?? 25))}`} className="btn btn-p1 w-full">
+          Pick this fight yourself
+        </Link>
+        <FollowButton address={d.address.toBase58()} />
+      </>
+    );
   }
 
   /* ── Secondary actions ──────────────────────────────────────────────── */
@@ -230,7 +300,6 @@ export function Actions({
    * and the other side still has to take it. When the viewer fought this one,
    * the new challenge names the wallet they fought. */
   const over = d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE);
-  const iFought = isCreator || (hasOpponent(d) && me === d.opponent.toBase58());
   const iLost =
     d.status === STATUS_SETTLED &&
     ((isCreator && d.outcome === OUTCOME_OPPONENT) || (!isCreator && iFought && d.outcome === OUTCOME_CREATOR));
@@ -271,7 +340,8 @@ export function Actions({
     });
   }
   if (mixedHours) hints.push({ title: "Not takeable right now.", body: mixedHours });
-  if (canTake && publicKey && short) {
+  /* On a test cluster the steps above already say it. */
+  if (canTake && publicKey && short && !testCluster) {
     hints.push({
       title: `You need ${stake2} ${symbol2}.`,
       body: testCluster ? "The faucet has test shares." : undefined,
@@ -334,8 +404,9 @@ export function Actions({
   return (
     <>
       <Plate rope pad="std" className={cx("flex flex-col gap-3", className)}>
-        <h2 className="label">{canTake ? "Your move" : over ? "Next" : "Actions"}</h2>
+        <h2 className="label">{canTake || (d.status === STATUS_LIVE && !iFought) ? "Your move" : over ? "Next" : "Actions"}</h2>
         {primary}
+        {winLine ? <p className="text-meta text-ink">{winLine}</p> : null}
         {rematch}
         {secondary}
         {hints.map((h) => (
@@ -344,7 +415,11 @@ export function Actions({
           </Notice>
         ))}
       </Plate>
-      {canTake && primary ? <PhoneBar pair={pair}>{primary}</PhoneBar> : null}
+      {canTake && primary ? (
+        <PhoneBar pair={pair} win={winLine}>
+          {barAction ?? primary}
+        </PhoneBar>
+      ) : null}
     </>
   );
 }
@@ -370,7 +445,7 @@ function FaucetPrimary({ ticker, symbol }: { ticker: string; symbol: string }) {
  * and the same height is reserved at the very end of the page (after the
  * footer, which is where a fixed bar would otherwise sit on top of content),
  * so it never covers anything else either. Phones only. */
-function PhoneBar({ pair, children }: { pair: string; children: React.ReactNode }) {
+function PhoneBar({ pair, win, children }: { pair: string; win?: React.ReactNode; children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
@@ -380,11 +455,43 @@ function PhoneBar({ pair, children }: { pair: string; children: React.ReactNode 
         className="rope fixed inset-x-0 z-35 flex items-center gap-3 bg-panel-2 px-4 py-2.5 shadow-overlay sm:hidden"
         style={{ bottom: "calc(var(--bottom-nav-h) + env(safe-area-inset-bottom))" }}
       >
-        <p className="num min-w-0 flex-1 truncate text-meta text-ink">{pair}</p>
+        <div className="min-w-0 flex-1">
+          <p className="num truncate text-meta text-ink">{pair}</p>
+          {win ? <p className="truncate text-meta text-dim">{win}</p> : null}
+        </div>
         <div className="min-w-0 shrink-0 [&_.btn]:w-auto [&_.btn]:px-4 [&_.btn]:text-sm">{children}</div>
       </div>
       <div aria-hidden="true" className="h-16 sm:hidden" />
     </>,
     document.body,
+  );
+}
+
+/* Following a fight means its toasts reach this viewer on any page
+ * (FightWatcher). Opening the page already follows it, so this mostly says
+ * so, and lets a watcher stop. */
+function FollowButton({ address }: { address: string }) {
+  const [following, setFollowing] = useState<boolean | null>(null);
+  useEffect(() => setFollowing(watchedFights().includes(address)), [address]);
+  if (following === null) return null;
+  return (
+    <button
+      type="button"
+      aria-pressed={following}
+      onClick={() => {
+        if (following) unwatchFight(address);
+        else watchFight(address);
+        setFollowing(!following);
+      }}
+      className="btn btn-ghost w-full"
+    >
+      {following ? (
+        <>
+          <span aria-hidden="true">&#10003;</span> Following · a toast at the bell
+        </>
+      ) : (
+        "Follow this fight"
+      )}
+    </button>
   );
 }

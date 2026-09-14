@@ -46,7 +46,7 @@ export function Receipt({ d, t1, t2, now, className }: { d: DuelView; t1: string
 
   return (
     <Plate as="section" pad="std" className={cx("flex flex-col gap-4", className)} aria-labelledby="receipt-title">
-      <SectionHead id="receipt-title" title="Receipt" count={rows.length ? `${rows.length} steps` : null} />
+      <SectionHead id="receipt-title" title="Receipt" count={rows.length ? `${rows.length} ${rows.length === 1 ? "step" : "steps"}` : null} />
 
       {receipt.isLoading ? (
         <div aria-busy="true" className="flex flex-col gap-2">

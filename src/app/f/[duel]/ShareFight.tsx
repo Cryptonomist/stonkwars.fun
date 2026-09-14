@@ -22,6 +22,7 @@
 import { useEffect, useState } from "react";
 
 import { Plate } from "@/components/ui/Plate";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { cx } from "@/components/ui/cx";
 import { BRAND } from "@/lib/brand";
@@ -49,6 +50,7 @@ export function ShareFight({
 }) {
   const { data: handles } = useProfiles();
   const [origin, setOrigin] = useState("");
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => setOrigin(window.location.origin), []);
   if (!origin) return null;
 
@@ -98,15 +100,32 @@ export function ShareFight({
     <Plate as="section" pad="std" className={cx("flex flex-col gap-3", ring && "ring-2 ring-ink", className)}>
       <h2 className="label">{title}</h2>
       {d.status === STATUS_SETTLED ? (
-        <a href={`/f/${address}/opengraph-image`} target="_blank" rel="noreferrer" className="block ring-1 ring-line">
+        /* The card is drawn on request and takes a moment, so its box holds a
+         * shimmer of its own shape until it arrives, then the image fades in
+         * over it (appears at once under reduced motion). */
+        <a
+          href={`/f/${address}/opengraph-image`}
+          target="_blank"
+          rel="noreferrer"
+          className="relative block aspect-[1200/630] overflow-hidden ring-1 ring-line"
+        >
+          {!loaded ? <Skeleton className="absolute inset-0 h-full w-full" /> : null}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
+            ref={(el) => {
+              // Already decoded from cache before React attached onLoad.
+              if (el?.complete && el.naturalWidth > 0 && !loaded) setLoaded(true);
+            }}
             src={`/f/${address}/opengraph-image`}
             alt={`The card this fight's link unfurls into: ${t1} vs ${t2}, final.`}
             width={1200}
             height={630}
             loading="lazy"
-            className="aspect-[1200/630] h-auto w-full bg-panel-2"
+            onLoad={() => setLoaded(true)}
+            className={cx(
+              "relative block h-full w-full transition-opacity duration-300 motion-reduce:transition-none",
+              loaded ? "opacity-100" : "opacity-0",
+            )}
           />
         </a>
       ) : null}

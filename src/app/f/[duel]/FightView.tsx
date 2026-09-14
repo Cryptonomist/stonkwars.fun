@@ -29,6 +29,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 
 import { Combo, Knockout, useFightFeel, useKnockout } from "@/components/FightFx";
@@ -58,7 +59,8 @@ import {
   type DuelView,
 } from "@/lib/duel";
 import { leadWords, pricesFrom, roundWords, tabTitle } from "@/lib/fightClock";
-import { ago, etTime, etWhen, points, span } from "@/lib/format";
+import { loserTake, winnerSide } from "@/lib/derive";
+import { ago, etTime, etWhen, points, span, usd } from "@/lib/format";
 import { useDuel } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
 import { roundClock, shutSides, type RoundClock } from "@/lib/roundClock";
@@ -70,7 +72,9 @@ import { useNudgeStatus } from "@/lib/useSettlerNudge";
 import { Actions } from "./Actions";
 import { Corner } from "./Corner";
 import { RaceChart } from "./RaceChart";
+import { MoreFights } from "./MoreFights";
 import { Receipt } from "./Receipt";
+import { Scoreboard } from "./Scoreboard";
 import { ShareFight } from "./ShareFight";
 import { SoundToggle } from "./SoundToggle";
 
@@ -180,9 +184,20 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
   const stakeUsd = stakeValue(d.creatorAmount, decimalsForMint(d.creatorMint), q1);
   const open = d.status === STATUS_OPEN;
 
+  /* A spectator watching a round on a phone wants the race before the rules:
+   * the chart moves up to follow the arena, and the actions (which for them
+   * are "pick this fight yourself") come after it. A fighter keeps their
+   * actions first. */
+  const { publicKey } = useWallet();
+  const me = publicKey?.toBase58();
+  const spectating = beforeBell && me !== d.creator.toBase58() && me !== d.opponent.toBase58();
+
   return (
     <div className="py-6">
-      <StatusStrip d={d} now={now} clock={clock} beforeBell={beforeBell} />
+      {beforeBell && now ? (
+        <Scoreboard t1={t1} t2={t2} m1={m1} m2={m2} endTs={d.endTs} now={now} roundSecs={Math.max(60, d.endTs - d.startTs)} />
+      ) : null}
+      <StatusStrip d={d} now={now} clock={clock} beforeBell={beforeBell} t1={t1} t2={t2} />
 
       <Plate
         as="section"
@@ -220,7 +235,14 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
         * and `order` puts the pieces in the phone's order. */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
         <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
-          <RaceChart d={d} t1={t1} t2={t2} quotes={quotes} now={now} className="order-3 lg:order-none" />
+          <RaceChart
+            d={d}
+            t1={t1}
+            t2={t2}
+            quotes={quotes}
+            now={now}
+            className={cx(spectating ? "order-1" : "order-3", "lg:order-none")}
+          />
           {/* An open challenge has no race to draw yet, so the tale of the tape
             * takes the chart's place in the wide column, where its bars have
             * room, instead of stacking a tall card under the actions. */}
@@ -232,8 +254,16 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
           <Receipt d={d} t1={t1} t2={t2} now={now} className="order-5 lg:order-none" />
         </div>
         <aside className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6" aria-label="Next steps">
-          <Actions d={d} now={now} t1={t1} t2={t2} stakeUsd={stakeUsd} className="order-1 lg:sticky lg:top-20 lg:z-10 lg:order-none" />
+          <Actions
+            d={d}
+            now={now}
+            t1={t1}
+            t2={t2}
+            stakeUsd={stakeUsd}
+            className={cx(spectating ? "order-3" : "order-1", "lg:sticky lg:top-20 lg:z-10 lg:order-none")}
+          />
           <ShareFight d={d} t1={t1} t2={t2} m1={m1} m2={m2} fresh={fresh} className="order-4 lg:order-none" />
+          <MoreFights address={address} now={now} className="order-6 lg:order-none" />
         </aside>
       </div>
     </div>
@@ -242,8 +272,22 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
 
 /* ── The status strip ─────────────────────────────────────────────────── */
 
-function StatusStrip({ d, now, clock, beforeBell }: { d: DuelView; now: number; clock: RoundClock; beforeBell: boolean }) {
-  let text = "";
+function StatusStrip({
+  d,
+  now,
+  clock,
+  beforeBell,
+  t1,
+  t2,
+}: {
+  d: DuelView;
+  now: number;
+  clock: RoundClock;
+  beforeBell: boolean;
+  t1: string;
+  t2: string;
+}) {
+  let text: React.ReactNode = "";
   let tone = "text-ink";
   switch (d.status) {
     case STATUS_OPEN:
@@ -258,9 +302,43 @@ function StatusStrip({ d, now, clock, beforeBell }: { d: DuelView; now: number; 
     case STATUS_LIVE:
       text = beforeBell ? "" : clock.line;
       break;
-    case STATUS_SETTLED:
-      text = now ? `Final · ${ago(d.endTs, now)}` : "Final";
+    case STATUS_SETTLED: {
+      /* THE RESULT IN ONE LINE, ABOVE THE ARENA. On a phone the winner's
+       * corner and its Took plate are below the first screen, so somebody
+       * opening a result landed on the loser's COOKED stamp with no sentence
+       * saying who won. Only the tickers take their side's colour, and only
+       * the money taken is green. */
+      const won = winnerSide(d);
+      const take = loserTake(d);
+      if (!won) {
+        text = now ? `Final · ${ago(d.endTs, now)}` : "Final";
+        break;
+      }
+      const [w, l] = won === "p1" ? [t1, t2] : [t2, t1];
+      const tick = (t: string, s: "p1" | "p2") => <span className={cx("normal-case", s === "p1" ? "text-p1" : "text-p2")}>{t}</span>;
+      const result = (
+        <>
+          {tick(w, won)} cooked {tick(l, won === "p1" ? "p2" : "p1")}
+        </>
+      );
+      text = (
+        <>
+          <span className="hidden sm:inline">
+            Final{now ? ` · ${ago(d.endTs, now)}` : ""} · {result}
+          </span>
+          <span className="sm:hidden">
+            {result}
+            {take ? (
+              <>
+                {" "}
+                · <span className="num text-up">took {usd(take.usd)}</span>
+              </>
+            ) : null}
+          </span>
+        </>
+      );
       break;
+    }
     case STATUS_VOID:
       text = "Void · both stakes go home";
       tone = "text-dim";
@@ -322,7 +400,10 @@ function Center({
    * stack, and the centre is a row between them: a tall column there pushed
    * the answering corner a whole screen down. */
   const wrap = (children: React.ReactNode) => (
-    <div className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-y border-line py-3 md:w-52 md:flex-col md:gap-2 md:border-0 md:py-2 lg:w-72">
+    <div
+      data-arena-center
+      className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-y border-line py-3 md:w-52 md:flex-col md:gap-2 md:border-0 md:py-2 lg:w-72"
+    >
       {children}
     </div>
   );
@@ -396,7 +477,11 @@ function Center({
           <HealthBars p1Move={m1} p2Move={m2} roundSecs={roundSecs} ko={tie ? null : loser} />
         </div>
         <span className="text-center text-sm font-semibold text-ink">
-          {tie ? "Dead heat. Both stakes home." : m1 !== null && m2 !== null ? `Won by ${points(Math.abs(m1 - m2))} percentage points` : "Final"}
+          {tie
+            ? "Dead heat. Both stakes home."
+            : m1 !== null && m2 !== null && loser
+              ? `${loser === "p1" ? t2 : t1} won by ${points(Math.abs(m1 - m2))} percentage points`
+              : "Final"}
         </span>
         {d.startTs ? (
           <span className="text-center text-meta text-dim">

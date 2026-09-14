@@ -67,13 +67,14 @@ describe("the read on the matchup", () => {
   it("calls near-equal power evenly matched", () => {
     const a = fighterFrom(steady(1))!;
     const b = fighterFrom(steady(-1.05))!;
-    expect(tale(a, b)).to.contain("Evenly matched");
+    expect(tale(a, b, "AAPL", "MSFT")).to.contain("Evenly matched");
   });
 
-  it("names whose fighter swings harder", () => {
+  it("names the stock that swings harder by ticker, whichever corner it is in", () => {
     const big = fighterFrom(steady(3))!;
     const small = fighterFrom(steady(0.2))!;
-    expect(tale(big, small)).to.match(/^Yours swings/);
-    expect(tale(small, big)).to.match(/^Theirs swings/);
+    expect(tale(big, small, "HOOD", "AMZN")).to.match(/^HOOD swings [\d.]+ points a day harder than AMZN\./);
+    // The taker's corner is the second one: the sentence must not flip for them.
+    expect(tale(small, big, "AMZN", "HOOD")).to.match(/^HOOD swings [\d.]+ points a day harder than AMZN\./);
   });
 });

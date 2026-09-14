@@ -67,7 +67,9 @@ export function ClosingSoon() {
   );
 }
 
-function Card({ d, now, quotes }: { d: DuelView; now: number; quotes?: Quotes["quotes"] }) {
+/** One fight with a clock on it, in two lines. Also the fight page's "Open
+ *  seats" and "Also live" rails, where a full board row has no room. */
+export function Card({ d, now, quotes }: { d: DuelView; now: number; quotes?: Quotes["quotes"] }) {
   const t1 = tickerForMint(d.creatorMint) ?? "?";
   const t2 = tickerForMint(d.opponentMint) ?? "?";
   const isLive = d.status === STATUS_LIVE;

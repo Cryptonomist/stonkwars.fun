@@ -4,10 +4,10 @@
  * are looking at have stats. These are the three that decide a short fight,
  * computed from a month of daily closes and nothing else:
  *
- *   POWER   how hard it swings — the daily move it averages, either way. The
+ *   POWER   how hard it swings: the daily move it averages, either way. The
  *           whole game is whose percentage move is bigger, so this is the
  *           single most useful number on the screen.
- *   FORM    where it has been going lately — the last five sessions.
+ *   FORM    where it has been going lately: the last five sessions.
  *   ROOM    where it sits in its own month's range. At the top there is less
  *           of it left; at the bottom, more.
  *
@@ -15,6 +15,8 @@
  * input to anything: the program settles on two signed prices, and nothing here
  * reaches it. Every stat is a ratio, so a stock quoted in Hong Kong dollars
  * needs no conversion to sit beside one quoted in dollars. */
+
+import { points } from "./format";
 
 export type Fighter = {
   /** Average daily move, in percentage points, either direction. */
@@ -68,10 +70,16 @@ export const powerBar = (power: number) => Math.min(1, power / POWER_CEILING);
 /** Form runs both ways, so the bar runs out from the middle. */
 export const formBar = (form: number) => Math.min(1, Math.abs(form) / 10);
 
-/** How the two compare on the stat that matters most, said in words. */
-export function tale(a: Fighter, b: Fighter): string {
+/* HOW THE TWO COMPARE on the stat that matters most, said in words.
+ *
+ * Named by ticker, not "yours" and "theirs". The same card sits on /new, read
+ * by the challenger, and on an open challenge, read by somebody deciding
+ * whether to take the other corner, so "theirs swings harder than yours" told
+ * a would-be HOOD taker the opposite of the truth. A ticker reads the same to
+ * both. */
+export function tale(a: Fighter, b: Fighter, ta: string, tb: string): string {
   const gap = a.power - b.power;
   if (Math.abs(gap) < 0.15) return "Evenly matched: both swing about the same on a normal day.";
-  const [big, small] = gap > 0 ? ["Yours", "theirs"] : ["Theirs", "yours"];
-  return `${big} swings ${Math.abs(gap).toFixed(2)} points a day harder than ${small}. More room to win, and to lose.`;
+  const [big, small] = gap > 0 ? [ta, tb] : [tb, ta];
+  return `${big} swings ${points(Math.abs(gap))} points a day harder than ${small}. More room to win, and to lose.`;
 }
