@@ -11,35 +11,44 @@
  *
  * Nothing here decides anything. The live moves are for watching; the result
  * is whatever the program computed from the prices it accepted (Pyth's, or the
- * oracle's signed quotes, per side), and the proof section shows exactly which
- * prices those were and who vouched for each. */
+ * oracle's signed quotes, per side), and the receipt shows exactly which
+ * prices those were, who posted them, and the transactions that did it.
+ *
+ * THE PAGE, top to bottom: a status strip; the arena (two corners and the
+ * centre between them); then, from 1024px, a wide column (the race chart and
+ * the receipt) beside a narrow one (what to do next, the tale of the tape for
+ * an open challenge, and sharing). On a phone the same pieces stack in the
+ * order a thumb wants them: arena, actions, chart, share, receipt.
+ *
+ * TIME COMES FROM THE CLOCKS THAT DECIDE IT. For an accepted fight, and a live
+ * one past its bell, the status line is roundClock(...).line and every
+ * countdown is its secondsLeft; while a side's market is shut, "Prices from"
+ * is the second that same clock will count to once it opens (fightClock.ts).
+ * useDuel keeps nudging the settler while this page is open. */
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 
-import { FaucetButton } from "@/components/FaucetButton";
+import { Combo, Knockout, useFightFeel, useKnockout } from "@/components/FightFx";
 import { waitingForMarket } from "@/components/FightRow";
-import { Combo, Damage, Knockout, useFightFeel, useKnockout } from "@/components/FightFx";
 import { HealthBars } from "@/components/HealthBars";
-import { Move } from "@/components/Ticker";
-import type { Hit } from "@/lib/fightFeel";
+import { TaleOfTheTape } from "@/components/TaleOfTheTape";
+import { Countdown } from "@/components/ui/Countdown";
+import { Empty } from "@/components/ui/Empty";
+import { FighterName } from "@/components/ui/FighterName";
+import { LiveDot } from "@/components/ui/LiveDot";
+import { Notice } from "@/components/ui/Notice";
+import { Plate } from "@/components/ui/Plate";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Versus } from "@/components/ui/Versus";
+import { cx } from "@/components/ui/cx";
+import { watchFight } from "@/components/ui/intents";
 import {
-  ataFor,
-  buildAcceptDuel,
-  buildCancelDuel,
-  buildRefundDuel,
-  hasOpponent,
-  isInviteOnly,
   OUTCOME_CREATOR,
   OUTCOME_OPPONENT,
   OUTCOME_TIE,
-  readableProgramError,
-  SOURCE_PYTH,
-  START_DELAY_SECS,
-  STALL_REFUND_SECS,
   STATUS_ACCEPTED,
   STATUS_LIVE,
   STATUS_OPEN,
@@ -48,25 +57,22 @@ import {
   STATUS_VOID,
   type DuelView,
 } from "@/lib/duel";
-import { clock, etTime, pct, points, pythToNumber, shares, shortAddress, span, usd } from "@/lib/format";
-import { explorerAddress, useDuel, useSend, useTokenBalance } from "@/lib/hooks";
+import { leadWords, pricesFrom, roundWords, tabTitle } from "@/lib/fightClock";
+import { ago, etTime, etWhen, points, span } from "@/lib/format";
+import { useDuel } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
-import { sourceAt, type PriceSource } from "@/lib/oracle";
-import {
-  byTicker,
-  CLUSTER,
-  firstPriceAt,
-  mixedHoursAt,
-  openingWords,
-  quoteSymbolFor,
-  STAKE_DECIMALS,
-  tickerForMint,
-  tokenSymbol,
-} from "@/lib/stocks";
+import { roundClock, shutSides, type RoundClock } from "@/lib/roundClock";
+import { play } from "@/lib/sfx";
+import { decimalsForMint, tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
-import { roundClock, shutSides } from "@/lib/roundClock";
 import { useNudgeStatus } from "@/lib/useSettlerNudge";
-import { BRAND } from "@/lib/brand";
+
+import { Actions } from "./Actions";
+import { Corner } from "./Corner";
+import { RaceChart } from "./RaceChart";
+import { Receipt } from "./Receipt";
+import { ShareFight } from "./ShareFight";
+import { SoundToggle } from "./SoundToggle";
 
 export function FightView({ address }: { address: string }) {
   const key = useMemo(() => {
@@ -78,658 +84,455 @@ export function FightView({ address }: { address: string }) {
   }, [address]);
 
   const duel = useDuel(key);
-  const prices = usePrices(
-    duel.data ? [tickerForMint(duel.data.creatorMint), tickerForMint(duel.data.opponentMint)] : [],
-  );
+  const d = duel.data;
+  const prices = usePrices(d ? [tickerForMint(d.creatorMint), tickerForMint(d.opponentMint)] : []);
   const now = useNow();
   const params = useSearchParams();
 
-  if (!key) return <Empty title="That is not a fight address." />;
-  if (duel.isLoading) return <Empty title="Loading the fight..." quiet />;
-  if (!duel.data)
-    return <Empty title="No fight here." body="It was called off, or the link is wrong. Cancelled fights close their account." />;
+  /* A fight somebody opened is one they want to hear about, so the watcher
+   * toasts its changes on other pages (FightWatcher, intents.ts). */
+  useEffect(() => {
+    if (key) watchFight(key.toBase58());
+  }, [key]);
 
-  return <Arena d={duel.data} now={now} quotes={prices.data} fresh={params.get("new") === "1"} />;
+  if (!key) {
+    return (
+      <div className="py-6">
+        <Empty
+          title="That is not a fight address."
+          body="A fight link ends in the fight's Solana address."
+          action={[
+            { href: "/fights", label: "See the fights" },
+            { href: "/new", label: "Pick a fight" },
+          ]}
+        />
+      </div>
+    );
+  }
+
+  if (d === undefined) {
+    /* An RPC that cannot be reached is not a fight that does not exist. The
+     * page used to say "No fight here" for both, which told somebody with a
+     * live fight that it was gone. */
+    if (duel.error) {
+      return (
+        <div className="py-6">
+          <Notice
+            tone="error"
+            title="Could not reach Solana. Retrying every few seconds."
+            action={
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => void duel.refetch()}>
+                Retry
+              </button>
+            }
+          >
+            The fight is safe on chain whatever this page can see. It loads as soon as the network answers.
+          </Notice>
+        </div>
+      );
+    }
+    return <ArenaSkeleton />;
+  }
+
+  if (d === null) {
+    return (
+      <div className="py-6">
+        <Empty
+          title="No fight at this address."
+          body="Cancelled fights close their account, so their links stop working."
+          action={{ href: "/new", label: "Pick a fight", tone: "p1" }}
+        />
+      </div>
+    );
+  }
+
+  return <Arena d={d} now={now} quotes={prices.data} fresh={params.get("new") === "1"} />;
 }
 
 function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Quotes; fresh: boolean }) {
+  const address = d.address.toBase58();
+  const nudge = useNudgeStatus(address);
+
   const t1 = tickerForMint(d.creatorMint) ?? "?";
   const t2 = tickerForMint(d.opponentMint) ?? "?";
   const q1 = quotes?.quotes[t1];
   const q2 = quotes?.quotes[t2];
 
-  const finished = d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.creatorEnd.price > BigInt(0));
-  const m1 = finished ? movePct(d.creatorStart, d.creatorEnd) : d.status === STATUS_LIVE && q1 ? movePct(d.creatorStart, q1) : null;
-  const m2 = finished ? movePct(d.opponentStart, d.opponentEnd) : d.status === STATUS_LIVE && q2 ? movePct(d.opponentStart, q2) : null;
+  const clock = roundClock(d, now, nudge);
+  const shut = shutSides(d, now);
+  const beforeBell = d.status === STATUS_LIVE && (!now || now < d.endTs);
 
-  const p1Cooked = d.status === STATUS_SETTLED && d.outcome === OUTCOME_OPPONENT;
-  const p2Cooked = d.status === STATUS_SETTLED && d.outcome === OUTCOME_CREATOR;
+  const finished = d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.creatorEnd.price > BigInt(0));
+  /* Live moves only inside the round: after the bell a live price is not the
+   * bell price, and the bars and the tab should not keep fighting over it. */
+  const m1 = finished ? movePct(d.creatorStart, d.creatorEnd) : beforeBell && q1 && d.startTs ? movePct(d.creatorStart, q1) : null;
+  const m2 = finished ? movePct(d.opponentStart, d.opponentEnd) : beforeBell && q2 && d.startTs ? movePct(d.opponentStart, q2) : null;
 
   /* The round as a fight: every price that lands is a punch thrown. */
-  const { hits, combo, landing, heavy } = useFightFeel(m1, m2, d.status === STATUS_LIVE);
+  const { hits, combo, landing, heavy } = useFightFeel(m1, m2, beforeBell);
   const ko = useKnockout(d.status === STATUS_SETTLED || d.status === STATUS_REFUNDED);
+  const lead = beforeBell && m1 !== null && m2 !== null ? (m1 > m2 ? "p1" : m2 > m1 ? "p2" : null) : null;
+
+  const secondsLeft = clock.secondsLeft;
+  useTabTitle(tabTitle({ d, t1, t2, m1, m2, now, secondsLeft }));
+  useFightSounds({ status: d.status, m1, m2, beforeBell, secondsLeft, ko });
+
+  const stakeUsd = stakeValue(d.creatorAmount, decimalsForMint(d.creatorMint), q1);
+  const open = d.status === STATUS_OPEN;
 
   return (
-    <div className="py-8">
-      <StatusStrip d={d} now={now} />
+    <div className="py-6">
+      <StatusStrip d={d} now={now} clock={clock} beforeBell={beforeBell} />
 
-      <section className={`card relative mt-4 overflow-hidden p-5 sm:p-8 ${heavy ? "shake" : ""}`}>
+      <Plate
+        as="section"
+        notch
+        rope
+        pad="arena"
+        aria-label={`${t1} vs ${t2}`}
+        className={cx("relative mt-2 overflow-hidden", heavy && "shake")}
+      >
         <Knockout show={ko} tie={d.outcome === OUTCOME_TIE} />
-        <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-[1fr_auto_1fr]">
-          <Corner
-            side="p1"
-            ticker={t1}
-            who={d.creator.toBase58()}
-            role="Challenger"
-            amount={d.creatorAmount}
-            quote={q1}
-            move={m1}
-            cooked={p1Cooked}
-            winner={d.status === STATUS_SETTLED && d.outcome === OUTCOME_CREATOR}
-            hits={hits}
-            hurt={landing?.side === "p2"}
-          />
-          <Center d={d} now={now} m1={m1} m2={m2} combo={combo} />
-          <Corner
-            side="p2"
-            ticker={t2}
-            who={hasOpponent(d) ? d.opponent.toBase58() : null}
-            role={hasOpponent(d) ? "Answered" : isInviteOnly(d) ? `For ${shortAddress(d.invitee.toBase58())}` : "Open seat"}
-            amount={d.opponentAmount}
-            quote={q2}
-            move={m2}
-            cooked={p2Cooked}
-            winner={d.status === STATUS_SETTLED && d.outcome === OUTCOME_OPPONENT}
-            hits={hits}
-            hurt={landing?.side === "p1"}
-          />
-        </div>
+        <Versus
+          stackBelow="md"
+          /* Corners line up along their tops, whatever each holds; the centre stays centred. */
+          className="gap-4 md:gap-6 md:[&>*:nth-child(odd)]:self-start"
+          left={
+            <Corner d={d} side="p1" ticker={t1} quote={q1} shut={shut.includes(t1)} leading={lead === "p1"} hits={hits} hurt={landing?.side === "p2"} />
+          }
+          center={<Center d={d} now={now} t1={t1} t2={t2} m1={m1} m2={m2} combo={combo} clock={clock} beforeBell={beforeBell} />}
+          right={
+            <Corner d={d} side="p2" ticker={t2} quote={q2} shut={shut.includes(t2)} leading={lead === "p2"} hits={hits} hurt={landing?.side === "p1"} />
+          }
+        />
 
         {d.taunt ? (
-          <p className="mt-8 text-center text-xl italic sm:text-2xl">
-            &ldquo;{d.taunt}&rdquo;
-            <span className="mt-1 block text-xs not-italic text-dim">{shortAddress(d.creator.toBase58())}, on chain</span>
-          </p>
+          <figure className="mt-6 border-t border-line pt-4 text-center">
+            <blockquote className="text-lg text-ink italic sm:text-xl">&ldquo;{d.taunt}&rdquo;</blockquote>
+            <figcaption className="mt-2 inline-flex items-center gap-1.5 text-meta text-dim">
+              <FighterName wallet={d.creator.toBase58()} size="sm" /> on chain
+            </figcaption>
+          </figure>
         ) : null}
-      </section>
+      </Plate>
 
-      <Actions d={d} now={now} t1={t1} t2={t2} stakeUsd={stakeValue(d.creatorAmount, STAKE_DECIMALS, q1)} />
-      <Share d={d} t1={t1} t2={t2} m1={m1} m2={m2} fresh={fresh} />
-      <Proof d={d} t1={t1} t2={t2} />
+      {/* Below 1024px both columns dissolve (display: contents) into one grid,
+        * and `order` puts the pieces in the phone's order. */}
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
+          <RaceChart d={d} t1={t1} t2={t2} quotes={quotes} now={now} className="order-3 lg:order-none" />
+          {/* An open challenge has no race to draw yet, so the tale of the tape
+            * takes the chart's place in the wide column, where its bars have
+            * room, instead of stacking a tall card under the actions. */}
+          {open ? (
+            <div className="order-2 min-w-0 lg:order-none [&>section]:mt-0">
+              <TaleOfTheTape p1={t1 === "?" ? null : t1} p2={t2 === "?" ? null : t2} />
+            </div>
+          ) : null}
+          <Receipt d={d} t1={t1} t2={t2} now={now} className="order-5 lg:order-none" />
+        </div>
+        <aside className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6" aria-label="Next steps">
+          <Actions d={d} now={now} t1={t1} t2={t2} stakeUsd={stakeUsd} className="order-1 lg:sticky lg:top-20 lg:z-10 lg:order-none" />
+          <ShareFight d={d} t1={t1} t2={t2} m1={m1} m2={m2} fresh={fresh} className="order-4 lg:order-none" />
+        </aside>
+      </div>
     </div>
   );
 }
 
-function StatusStrip({ d, now }: { d: DuelView; now: number }) {
+/* ── The status strip ─────────────────────────────────────────────────── */
+
+function StatusStrip({ d, now, clock, beforeBell }: { d: DuelView; now: number; clock: RoundClock; beforeBell: boolean }) {
   let text = "";
-  let tone = "text-dim";
+  let tone = "text-ink";
   switch (d.status) {
     case STATUS_OPEN:
-      text = now && d.expiresTs <= now ? "Challenge expired" : `Open challenge · closes in ${now ? clock(d.expiresTs - now) : "--"}`;
-      tone = "text-ink";
+      if (now && d.expiresTs <= now) {
+        text = "Challenge expired";
+        tone = "text-dim";
+      } else text = "Open challenge";
       break;
     case STATUS_ACCEPTED:
-      text = waitingForMarket(d, now)
-        ? "Fight on · waiting for the market that prices it to open"
-        : "Fight on · locking the starting prices";
-      tone = "text-ink";
+      text = clock.line;
       break;
     case STATUS_LIVE:
-      text =
-        now && d.endTs > now
-          ? "Round live"
-          : waitingForMarket(d, now)
-            ? "Bell rung · waiting for the market that prices it to open"
-            : "Bell rung · settling";
-      tone = "text-up";
+      text = beforeBell ? "" : clock.line;
       break;
     case STATUS_SETTLED:
-      text = "Final";
-      tone = "text-ink";
+      text = now ? `Final · ${ago(d.endTs, now)}` : "Final";
       break;
     case STATUS_VOID:
       text = "Void · both stakes go home";
+      tone = "text-dim";
       break;
     case STATUS_REFUNDED:
-      text = d.outcome === OUTCOME_TIE ? "Dead heat · both refunded" : "Refunded";
+      text = d.outcome === OUTCOME_TIE ? "Dead heat · both stakes home" : "Refunded · both stakes home";
+      tone = "text-dim";
       break;
   }
   return (
-    <div className="flex items-center gap-3">
-      {d.status === STATUS_LIVE ? <span className="pulse-dot" /> : null}
-      <span className={`label ${tone}`}>{text}</span>
-      <Link href="/fights" className="label ml-auto hover:text-ink">
-        All fights
-      </Link>
+    <div className="flex min-h-10 items-center gap-x-3">
+      {beforeBell ? (
+        <span className="inline-flex shrink-0 items-center gap-2">
+          <LiveDot />
+          <span className="label text-ink">Live</span>
+        </span>
+      ) : null}
+      {text ? (
+        <p className={cx("label min-w-0", tone)} aria-live="polite">
+          {text}
+        </p>
+      ) : null}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        <SoundToggle />
+        <Link href="/fights" className="label inline-flex h-10 items-center px-2 transition-colors hover:text-ink sm:h-8">
+          All fights<span aria-hidden="true">&nbsp;&rarr;</span>
+        </Link>
+      </div>
     </div>
   );
 }
 
-function Corner({
-  side,
-  ticker,
-  who,
-  role,
-  amount,
-  quote,
-  move,
-  cooked,
-  winner,
-  hits,
-  hurt,
-}: {
-  side: "p1" | "p2";
-  ticker: string;
-  who: string | null;
-  role: string;
-  amount: bigint;
-  quote?: Quotes["quotes"][string];
-  move: number | null;
-  cooked: boolean;
-  winner: boolean;
-  hits: Hit[];
-  hurt: boolean;
-}) {
-  const right = side === "p2";
-  const value = stakeValue(amount, STAKE_DECIMALS, quote);
-  return (
-    <div className={`relative flex flex-col ${right ? "md:items-end md:text-right" : ""} ${hurt ? "hit-flash" : ""}`}>
-      <Damage hits={hits} side={side} />
-      <span className="label">{role}</span>
-      <span className={`display mt-1 text-7xl sm:text-8xl ${side === "p1" ? "text-p1" : "text-p2"} ${cooked ? "opacity-40" : ""}`}>
-        {ticker}
-      </span>
-      <span className="text-sm text-dim">{byTicker(ticker)?.name}</span>
-      <span className="mt-3 font-mono text-sm">
-        {shares(amount, STAKE_DECIMALS)} {tokenSymbol(ticker)}
-        <span className="text-dim"> · {value !== null ? usd(value) : "--"}</span>
-      </span>
-      <span className="font-mono text-xs text-dim">{who ? shortAddress(who, 5) : "waiting for a taker"}</span>
-      {move !== null ? <Move value={move} className="mt-3 text-4xl" /> : null}
-      {winner ? <span className="display mt-2 text-2xl text-up">Winner takes both</span> : null}
-      {cooked ? (
-        <span
-          className={`stamp-cooked pointer-events-none absolute top-10 text-5xl sm:text-6xl ${right ? "right-3" : "left-3"}`}
-        >
-          Cooked
-        </span>
-      ) : null}
-    </div>
-  );
-}
+/* ── The centre column ────────────────────────────────────────────────── */
 
 function Center({
   d,
   now,
+  t1,
+  t2,
   m1,
   m2,
   combo,
-}: {
-  d: DuelView;
-  now: number;
-  m1: number | null;
-  m2: number | null;
-  combo: { side: "p1" | "p2"; count: number; damage: number } | null;
-}) {
-  const live = d.status === STATUS_LIVE;
-  const done = d.status === STATUS_SETTLED || d.status === STATUS_REFUNDED;
-  const left = now && d.endTs > now ? d.endTs - now : 0;
-  return (
-    <div className="flex flex-col items-center gap-3 md:w-80">
-      {live || done ? (
-        <div className="w-full">
-          <HealthBars p1Move={m1} p2Move={m2} roundSecs={Math.max(60, d.endTs - d.startTs)} />
-        </div>
-      ) : (
-        <span className="display text-6xl text-ink">VS</span>
-      )}
-      {live ? (
-        <>
-          <span className={`display font-mono text-5xl tabular-nums ${left > 0 && left <= 10 ? "final-seconds" : ""}`}>
-            {left > 0 ? clock(left) : "0:00"}
-          </span>
-          <span className="label">to the bell · {etTime(d.endTs)}</span>
-          <Combo combo={combo} />
-          {m1 !== null && m2 !== null ? (
-            <span className="text-sm text-dim">
-              {Math.abs(m1 - m2) < 0.005 ? "Dead even" : `${m1 > m2 ? "Challenger" : "Answer"} leads by ${points(m1 - m2)} pts`}
-            </span>
-          ) : null}
-        </>
-      ) : null}
-      {d.status === STATUS_OPEN ? (
-        <span className="text-center text-sm text-dim">
-          {d.durationSecs ? `${span(d.durationSecs)} round from the first price after it is taken` : `Ends at the first price after ${etTime(d.endTs)}`}
-        </span>
-      ) : null}
-      {done && m1 !== null && m2 !== null ? (
-        <span className="text-center text-sm text-dim">
-          {d.outcome === OUTCOME_TIE ? "Identical moves, to the last digit." : `Won by ${points(m1 - m2)} points`}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-function Actions({
-  d,
-  now,
-  t1,
-  t2,
-  stakeUsd,
+  clock,
+  beforeBell,
 }: {
   d: DuelView;
   now: number;
   t1: string;
   t2: string;
-  /** What the challenger's stake is worth now, for sizing a rematch. */
-  stakeUsd: number | null;
+  m1: number | null;
+  m2: number | null;
+  combo: { side: "p1" | "p2"; count: number; damage: number } | null;
+  clock: RoundClock;
+  beforeBell: boolean;
 }) {
-  const { publicKey, signTransaction, signAllTransactions } = useWallet();
-  const { connection } = useConnection();
-  const send = useSend();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
-
-  const me = publicKey?.toBase58();
-  const isCreator = me === d.creator.toBase58();
-  const mySource = publicKey ? ataFor(publicKey, d.opponentMint, d.opponentTokenProgram) : null;
-  const balance = useTokenBalance(d.status === STATUS_OPEN && !isCreator ? mySource : null);
-  const nudge = useNudgeStatus(d.address.toBase58());
-
-  async function run(label: string, fn: () => Promise<unknown>) {
-    setBusy(label);
-    setError(null);
-    setNote(null);
-    try {
-      await fn();
-    } catch (e) {
-      setError(readableProgramError(e));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const crank = (which: "start" | "settle") =>
-    run(which, async () => {
-      if (!publicKey || !signTransaction || !signAllTransactions) {
-        throw new Error("Connect a wallet to post the prices yourself.");
-      }
-      const { crankFromBrowser } = await import("@/lib/pythCrank");
-      const sigs = await crankFromBrowser({
-        connection,
-        wallet: { publicKey, signTransaction, signAllTransactions },
-        which,
-        duel: d,
-      });
-      setNote(`Posted in ${sigs.length} transactions.`);
-    });
-
-  const expired = now > 0 && d.expiresTs <= now;
-  const canTake = d.status === STATUS_OPEN && !expired && !isCreator && (!isInviteOnly(d) || d.invitee.toBase58() === me);
-  const short = balance.data !== undefined && (balance.data === null || balance.data < d.opponentAmount);
-  /* Taking starts the round, so the hours that matter are this moment's, and
-   * the end's that follow from it. A challenge picked while both sides traded
-   * can be opened again after one exchange shuts, and taking it then would
-   * start the two sides days apart. It stays takeable once the hours line up
-   * again, and the sentence says when. This is the render's clock, which can
-   * be seconds old, so the take button asks again at the click. */
-  const mixedHours = canTake && now ? mixedHoursAt(t1, t2, now, d, "taker") : null;
-  const take = () => {
-    const parts = mixedHoursAt(t1, t2, Math.floor(Date.now() / 1000), d, "taker");
-    if (parts) return setError(parts);
-    void run("take", () => send([buildAcceptDuel(d, publicKey!)]));
-  };
-
-  /* While the market that prices a side is shut, its next price does not exist
-   * yet, so neither the settler nor anyone else can lock a start or an end. A
-   * button then only leads to a wallet popup and a failed request, right under
-   * the status line that says the fight is waiting. The price clock decides it,
-   * for the fight's own boundary (shutSides in roundClock.ts). */
-  const shut = shutSides(d, now);
-  const waiting = shut.length > 0;
-  /* INTERIM, until the page redesign moves the round clock into the status
-   * line. The manual buttons used to appear twenty seconds after the boundary,
-   * which for a minute-bar price is before the price can exist. Now they wait
-   * for the price clock's readyAt plus MANUAL_FALLBACK_SECS (roundClock.ts), by
-   * when the page nudge and the cron have both had several goes. */
-  const manual = roundClock(d, now, nudge).manual;
-  const startDue = d.status === STATUS_ACCEPTED && !waiting && manual?.which === "start";
-  const settleDue = d.status === STATUS_LIVE && !waiting && manual?.which === "settle";
-  const stalled =
-    (d.status === STATUS_ACCEPTED && now >= d.acceptedTs + STALL_REFUND_SECS) ||
-    (d.status === STATUS_LIVE && now >= d.endTs + STALL_REFUND_SECS);
-
-  const buttons: React.ReactNode[] = [];
-
-  if (canTake) {
-    buttons.push(
-      <button
-        key="take"
-        type="button"
-        disabled={!publicKey || short || !!mixedHours || !!busy}
-        onClick={take}
-        className="btn btn-p2 px-10 text-xl"
-      >
-        {busy === "take" ? "Signing..." : `Take it: stake ${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)}`}
-      </button>,
-    );
-  }
-  if (d.status === STATUS_OPEN && (isCreator || expired)) {
-    buttons.push(
-      <button
-        key="cancel"
-        type="button"
-        disabled={!publicKey || !!busy}
-        onClick={() => run("cancel", () => send([buildCancelDuel(d, publicKey!)]))}
-        className="btn btn-ghost"
-      >
-        {busy === "cancel" ? "Signing..." : expired ? "Send the stake home" : "Call it off"}
-      </button>,
-    );
-  }
-  if (startDue) {
-    buttons.push(
-      <button key="start" type="button" disabled={!publicKey || !!busy} onClick={() => crank("start")} className="btn btn-ghost">
-        {busy === "start" ? "Posting prices..." : "Lock the start prices yourself"}
-      </button>,
-    );
-  }
-  if (settleDue) {
-    buttons.push(
-      <button key="settle" type="button" disabled={!publicKey || !!busy} onClick={() => crank("settle")} className="btn btn-light">
-        {busy === "settle" ? "Settling..." : "Settle it yourself"}
-      </button>,
-    );
-  }
-  if (d.status === STATUS_VOID || stalled) {
-    buttons.push(
-      <button
-        key="refund"
-        type="button"
-        disabled={!publicKey || !!busy}
-        onClick={() => run("refund", () => send([buildRefundDuel(d, publicKey!)]))}
-        className="btn btn-light"
-      >
-        {busy === "refund" ? "Signing..." : "Send both stakes home"}
-      </button>,
-    );
-  }
-
-  /* Run it back: the same two stocks, twice the stake, with whoever is looking
-   * in their own corner. A fresh challenge: nothing about this fight changes,
-   * and the other side still has to take it. */
-  const over = d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE);
-  const iFought = isCreator || (hasOpponent(d) && me === d.opponent.toBase58());
-  const iLost =
-    d.status === STATUS_SETTLED &&
-    ((isCreator && d.outcome === OUTCOME_OPPONENT) || (!isCreator && iFought && d.outcome === OUTCOME_CREATOR));
-  if (over) {
-    const mine = isCreator || !iFought ? t1 : t2;
-    const theirs = mine === t1 ? t2 : t1;
-    const again = Math.max(1, Math.round((stakeUsd ?? 25) * 2));
-    buttons.push(
-      <Link key="rematch" href={`/new?p1=${mine}&p2=${theirs}&usd=${again}`} className="btn btn-p1 px-8 text-lg">
-        Run it back · ${again} a side
-      </Link>,
-    );
-  }
-
-  const testCluster = CLUSTER !== "mainnet-beta";
-  if (canTake && publicKey && short && testCluster) {
-    buttons.push(<FaucetButton key="faucet" tickers={[t2]} label={`Get test ${tokenSymbol(t2)}`} />);
-  }
-
-  const hints: string[] = [];
-  /* A shared link is the first page a newcomer sees, so an open challenge says
-   * the rule before it asks for a stake, and off mainnet it says the stake is
-   * free. The taker's corner is the second ticker. Once the challenge expires
-   * nobody can take it, so the invitation goes quiet. */
-  if (d.status === STATUS_OPEN && !expired) {
-    hints.push(`Take ${t2} against ${t1}. Whichever moves more, in percent, over the round takes both stakes, paid in shares.`);
-    if (testCluster) hints.push("Devnet: free test shares from the faucet, nothing real at stake.");
-  }
-  if (mixedHours) hints.push(mixedHours);
-  if (canTake && !publicKey) hints.push("Connect a wallet to take this fight.");
-  if (canTake && publicKey && short)
-    hints.push(
-      `You need ${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)}.${testCluster ? " The faucet has test shares." : ""}`,
-    );
-  if (d.status === STATUS_OPEN && !canTake && !isCreator && isInviteOnly(d) && !expired)
-    hints.push(`This one is for ${shortAddress(d.invitee.toBase58())}. Only that wallet can take it.`);
-  const waitingFor = d.status === STATUS_ACCEPTED ? "starts" : d.status === STATUS_LIVE && now >= d.endTs ? "ends" : null;
-  /* Why each waiting side waits, from who prices it. A Pyth feed prints only
-   * in the regular session, so a Pyth stock waits through after-hours trading
-   * on a busy exchange. A signed stock waits only while its exchange is shut,
-   * which the price clock guarantees is so now. */
-  if (waitingFor && shut.length) {
-    const boundary = waitingFor === "starts" ? d.acceptedTs + START_DELAY_SECS : d.endTs;
-    const pyth = shut.filter((t) => byTicker(t)?.source === "pyth");
-    for (const group of [pyth, shut.filter((t) => !pyth.includes(t))]) {
-      if (!group.length) continue;
-      const one = group.length === 1;
-      const who =
-        group === pyth
-          ? "Pyth, which only prints from the opening bell to the close"
-          : one
-            ? "its exchange, which is shut"
-            : "their exchanges, which are shut";
-      const opens = Math.max(0, ...group.map((t) => firstPriceAt(t, boundary) ?? 0));
-      hints.push(
-        `${group.join(" and ")} ${one ? "is" : "are"} priced by ${who}. The round ${waitingFor} at ${one ? "its first price" : "their first prices"} ${opens ? `at ${openingWords(opens)}` : "when trading resumes"}.`,
-      );
-    }
-  }
-  if (d.status === STATUS_ACCEPTED && !startDue && !waiting)
-    hints.push("The start is each stock's first price at least two seconds after the accept. Posting it now.");
-  if (d.status === STATUS_LIVE && now < d.endTs) hints.push(`${t1} vs ${t2}: whichever moves more, in percent, by the bell takes both stakes.`);
-  if (manual && (startDue || settleDue) && !busy) hints.push(manual.explain);
-  if (over) {
-    hints.push(
-      iLost
-        ? "They took your shares. Same two stocks, double the stake, and you can take them back."
-        : iFought
-          ? "Same two stocks, double the stake. They will want it back."
-          : "Think the other one had it? Open the same fight yourself, at twice the stake.",
-    );
-  }
-
-  if (!buttons.length && !hints.length) return null;
-  return (
-    <section className="mt-6 flex flex-col items-center gap-3">
-      <div className="flex flex-wrap justify-center gap-3">{buttons}</div>
-      {hints.map((h) => (
-        <p key={h} className="max-w-xl text-center text-sm text-dim">
-          {h}
-        </p>
-      ))}
-      {note ? <p className="text-sm text-up">{note}</p> : null}
-      {/* A take refused at the click says why here until the page's own clock
-        * catches up and the hints say it instead. */}
-      {error && error !== mixedHours ? <p className="max-w-xl text-center text-sm text-down">{error}</p> : null}
-    </section>
-  );
-}
-
-function Share({ d, t1, t2, m1, m2, fresh }: { d: DuelView; t1: string; t2: string; m1: number | null; m2: number | null; fresh: boolean }) {
-  const [copied, setCopied] = useState(false);
-  const url = typeof window !== "undefined" ? `${window.location.origin}/f/${d.address.toBase58()}` : "";
-  if (!url) return null;
-
-  let text = "";
-  if (d.status === STATUS_OPEN) {
-    text = d.taunt
-      ? `${d.taunt}\n\n${t1} vs ${t2}. I staked ${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)}. Take the other side:`
-      : `I'm staking ${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)} that ${t1} beats ${t2}. Take the other side:`;
-  } else if (d.status === STATUS_SETTLED && m1 !== null && m2 !== null) {
-    const [win, lose, mw, ml] = d.outcome === OUTCOME_CREATOR ? [t1, t2, m1, m2] : [t2, t1, m2, m1];
-    const by = d.creatorSource === SOURCE_PYTH && d.opponentSource === SOURCE_PYTH ? "by Pyth " : "";
-    /* pct rather than toFixed(2): this is the sentence that gets posted, and
-     * "NVDA -0.00%" in public reads as a broken site rather than a quiet
-     * weekend. */
-    text = `${lose} got cooked. ${win} ${pct(mw)} vs ${lose} ${pct(ml)}, settled ${by}on Solana.`;
-  } else if (d.status === STATUS_LIVE) {
-    text = `${t1} vs ${t2} is live on ${BRAND.name}. Watch it:`;
-  } else {
-    return null;
-  }
-
-  const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
-  /* There used to be a "Preview the Blink" link here, to dial.to, which
-   * rendered any Action URL as a card. Dialect paused dial.to in 2026 and the
-   * Blinks registry has been frozen since spring, so the link went nowhere.
-   * The fight is still a valid Solana Action at /api/actions/fight/<duel>;
-   * there is just no public previewer to send anyone to, and the page this
-   * section sits on already does everything a Blink would. */
-
-  return (
-    <section className={`card mx-auto mt-6 max-w-2xl p-5 ${fresh && d.status === STATUS_OPEN ? "ring-2 ring-p1" : ""}`}>
-      <p className="label">
-        {d.status === STATUS_OPEN
-          ? fresh
-            ? "Fight picked. Now send it."
-            : "Send it to someone"
-          : d.status === STATUS_SETTLED
-            ? "Post the result"
-            : "Share the fight"}
-      </p>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-        <input readOnly value={url} className="input font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost shrink-0"
-          onClick={() => {
-            void navigator.clipboard.writeText(url);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1_500);
-          }}
-        >
-          {copied ? "Copied" : "Copy link"}
-        </button>
-        <a href={intent} target="_blank" rel="noreferrer" className="btn btn-sm btn-light shrink-0">
-          Post on X
-        </a>
-      </div>
-    </section>
-  );
-}
-
-/* Which market the oracle read for a price, worked out the same way it was:
- * the stock's own exchange while it was trading, and once that shuts, its
- * perpetual future, or its Solana pool for the few stocks with no perp. */
-function oracleSource(feed: string, publishTime: number): PriceSource | undefined {
-  const market = quoteSymbolFor(feed);
-  return market ? sourceAt(publishTime, market) : undefined;
-}
-
-function oracleRead(feed: string, publishTime: number): string {
-  const from = oracleSource(feed, publishTime);
-  if (!from) return "Oracle";
-  return from === "perp" ? "Oracle · perp" : from === "pool" ? "Oracle · pool" : "Oracle · exchange";
-}
-
-function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
-  if (d.startTs === 0) {
-    return (
-      <p className="mt-10 text-center text-xs text-dim">
-        Program account{" "}
-        <a className="underline" href={explorerAddress(d.address.toBase58(), CLUSTER)} target="_blank" rel="noreferrer">
-          {shortAddress(d.address.toBase58(), 6)}
-        </a>
-      </p>
-    );
-  }
-  const row = (label: string, ticker: string, feed: string, source: number, p: DuelView["creatorStart"]) =>
-    p.price > BigInt(0) ? (
-      <tr key={label + ticker} className="border-t border-line">
-        <td className="py-2 pr-3 text-dim">{label}</td>
-        <td className="py-2 pr-3 font-display text-lg font-extrabold">{ticker}</td>
-        <td className="py-2 pr-3 font-mono">{usd(pythToNumber(p.price, p.expo))}</td>
-        <td className="py-2 pr-3 font-mono text-dim">{new Date(p.publishTime * 1000).toISOString().replace(".000Z", "Z")}</td>
-        <td className="py-2 pr-3 text-xs">{source === SOURCE_PYTH ? "Pyth" : oracleRead(feed, p.publishTime)}</td>
-        <td className="py-2 font-mono text-xs text-dim" title={feed}>
-          {feed.slice(0, 8)}...
-        </td>
-      </tr>
-    ) : null;
-  const pyth = d.creatorSource === SOURCE_PYTH || d.opponentSource === SOURCE_PYTH;
-  const signed = d.creatorSource !== SOURCE_PYTH || d.opponentSource !== SOURCE_PYTH;
-  /* A pool price is not the one-bar close the sentence above describes, so it
-   * gets its own line, but only when a row the table shows was priced that way. */
-  const pooled = (
-    [
-      [d.creatorFeed, d.creatorSource, d.creatorStart],
-      [d.opponentFeed, d.opponentSource, d.opponentStart],
-      [d.creatorFeed, d.creatorSource, d.creatorEnd],
-      [d.opponentFeed, d.opponentSource, d.opponentEnd],
-    ] as const
-  ).some(
-    ([feed, source, p]) => source !== SOURCE_PYTH && p.price > BigInt(0) && oracleSource(feed, p.publishTime) === "pool",
-  );
-  return (
-    <section className="mx-auto mt-10 max-w-3xl">
-      <p className="label">The prices that decided it</p>
-      <p className="mt-2 text-sm text-dim">
-        Each is its stock&apos;s first price at or after the boundary.{" "}
-        {pyth
-          ? "A Pyth price records when the one before it came out, so exactly one qualifies; it is signed by Pyth, verified on Solana and checked by the program, which refuses any other. "
-          : ""}
-        {signed ? (
-          <>
-            An oracle price is the close of the first one-minute bar at or after the boundary, signed by oracle{" "}
-            <a className="underline" href={explorerAddress(d.oracle.toBase58(), CLUSTER)} target="_blank" rel="noreferrer">
-              {shortAddress(d.oracle.toBase58(), 4)}
-            </a>{" "}
-            and checked by Solana&apos;s Ed25519 program in the same transaction. The quote is public in that transaction,
-            so anyone can hold it against the market&apos;s record.
-          </>
-        ) : null}
-        {pooled
-          ? " A pool price is the average of the middle 60% of up to 15 one-minute closes in the hour before the boundary, so one trade cannot set it."
-          : null}
-      </p>
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="label text-left">
-              <th scope="col" className="py-2 pr-3 font-normal">Boundary</th>
-              <th scope="col" className="py-2 pr-3 font-normal">Stock</th>
-              <th scope="col" className="py-2 pr-3 font-normal">Price</th>
-              <th scope="col" className="py-2 pr-3 font-normal">Published (UTC)</th>
-              <th scope="col" className="py-2 pr-3 font-normal">Priced by</th>
-              <th scope="col" className="py-2 font-normal">Feed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {row("Start", t1, d.creatorFeed, d.creatorSource, d.creatorStart)}
-            {row("Start", t2, d.opponentFeed, d.opponentSource, d.opponentStart)}
-            {row("End", t1, d.creatorFeed, d.creatorSource, d.creatorEnd)}
-            {row("End", t2, d.opponentFeed, d.opponentSource, d.opponentEnd)}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-3 text-xs text-dim">
-        Start boundary {new Date((d.acceptedTs + START_DELAY_SECS) * 1000).toISOString()} · end boundary{" "}
-        {new Date(d.endTs * 1000).toISOString()} ·{" "}
-        <a className="underline" href={explorerAddress(d.address.toBase58(), CLUSTER)} target="_blank" rel="noreferrer">
-          duel account
-        </a>
-      </p>
-    </section>
-  );
-}
-
-function Empty({ title, body, quiet }: { title: string; body?: string; quiet?: boolean }) {
-  return (
-    <div className="py-24 text-center">
-      <p className={`display ${quiet ? "text-3xl text-dim" : "text-5xl"}`}>{title}</p>
-      {body ? <p className="mt-3 text-dim">{body}</p> : null}
-      {!quiet ? (
-        <Link href="/new" className="btn btn-p1 mt-8">
-          Pick a fight
-        </Link>
-      ) : null}
+  const vs = <span className="display text-hud-sm text-ink md:text-hud-lg">VS</span>;
+  const roundSecs = Math.max(60, d.endTs - d.startTs);
+  /* Between the corners from 768px it is a column. On a phone the corners
+   * stack, and the centre is a row between them: a tall column there pushed
+   * the answering corner a whole screen down. */
+  const wrap = (children: React.ReactNode) => (
+    <div className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-y border-line py-3 md:w-52 md:flex-col md:gap-2 md:border-0 md:py-2 lg:w-72">
+      {children}
     </div>
   );
+
+  if (d.status === STATUS_OPEN) {
+    const expired = now > 0 && d.expiresTs <= now;
+    return wrap(
+      <>
+        {vs}
+        <span className="text-sm text-dim">{roundWords(d)}</span>
+        {expired ? (
+          <span className="label">Expired {etTime(d.expiresTs)}</span>
+        ) : (
+          <span className="flex flex-col items-center gap-1">
+            <span className="label">Closes in</span>
+            <Countdown to={d.expiresTs} now={now} className="text-num-lg text-ink" />
+          </span>
+        )}
+      </>,
+    );
+  }
+
+  if (d.status === STATUS_ACCEPTED || (d.status === STATUS_LIVE && !beforeBell)) {
+    const starting = d.status === STATUS_ACCEPTED;
+    const waits = waitingForMarket(d, now) ? pricesFrom(d, now) : null;
+    return wrap(
+      <>
+        {vs}
+        {waits ? (
+          <span className="flex flex-col items-center gap-1">
+            <span className="label">{starting ? "Prices from" : "Bell prices from"}</span>
+            <Countdown to={waits.at} now={now} className="text-num-lg text-ink" />
+            <span className="text-meta text-dim">{etTime(waits.at)}</span>
+          </span>
+        ) : clock.secondsLeft !== null ? (
+          <span className="flex flex-col items-center gap-1">
+            <span className="label">{starting ? "Round starts in" : "Result in"}</span>
+            <Countdown to={now + clock.secondsLeft} now={now} className="text-num-lg text-ink" />
+          </span>
+        ) : null}
+        <span className="text-meta text-dim">{starting ? roundWords(d) : `Bell rang ${etTime(d.endTs)}`}</span>
+      </>,
+    );
+  }
+
+  if (beforeBell) {
+    const lead = leadWords(t1, t2, m1, m2);
+    return wrap(
+      <>
+        <div className="w-full">
+          <HealthBars p1Move={m1} p2Move={m2} roundSecs={roundSecs} />
+        </div>
+        {clock.secondsLeft !== null ? (
+          <Countdown to={now + clock.secondsLeft} now={now} size="clock" className="text-ink" />
+        ) : (
+          <Countdown to={d.endTs} size="clock" className="text-ink" />
+        )}
+        <span className="label">to the bell · {etTime(d.endTs)}</span>
+        <Combo combo={combo} />
+        {lead ? <span className="text-center text-sm text-ink">{lead}</span> : null}
+      </>,
+    );
+  }
+
+  if (d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE)) {
+    const tie = d.outcome === OUTCOME_TIE;
+    const loser = d.outcome === OUTCOME_OPPONENT ? "p1" : d.outcome === OUTCOME_CREATOR ? "p2" : null;
+    return wrap(
+      <>
+        <div className="w-full">
+          <HealthBars p1Move={m1} p2Move={m2} roundSecs={roundSecs} ko={tie ? null : loser} />
+        </div>
+        <span className="text-center text-sm font-semibold text-ink">
+          {tie ? "Dead heat. Both stakes home." : m1 !== null && m2 !== null ? `Won by ${points(Math.abs(m1 - m2))} percentage points` : "Final"}
+        </span>
+        {d.startTs ? (
+          <span className="text-center text-meta text-dim">
+            {etWhen(d.startTs, d.endTs)}
+            <br />
+            {span(d.endTs - d.startTs)} round
+          </span>
+        ) : null}
+      </>,
+    );
+  }
+
+  return wrap(
+    <>
+      {vs}
+      <span className="text-center text-sm text-dim">
+        {d.status === STATUS_VOID ? "Void. Both stakes go home." : "Refunded. Both stakes went home."}
+      </span>
+    </>,
+  );
+}
+
+/* ── Loading ──────────────────────────────────────────────────────────── */
+
+/** The arena's shape while the fight loads: never a number that is not there yet. */
+export function ArenaSkeleton() {
+  const corner = (right: boolean) => (
+    <div className={cx("flex flex-col gap-3 p-3", right && "md:items-end")}>
+      <Skeleton className="h-3 w-20" />
+      <Skeleton className="h-14 w-40 max-w-full sm:h-20" />
+      <Skeleton className="h-3 w-32" />
+      <Skeleton className="mt-2 h-4 w-44 max-w-full" />
+      <Skeleton className="h-4 w-36" />
+      <Skeleton className="mt-1 h-6 w-24" />
+    </div>
+  );
+  return (
+    <div className="py-6" aria-busy="true">
+      <span className="sr-only" role="status">
+        Loading the fight
+      </span>
+      <div className="flex min-h-10 items-center">
+        <Skeleton className="h-3 w-40" />
+      </div>
+      <Plate notch rope pad="arena" className="mt-2">
+        <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-6">
+          {corner(false)}
+          <div className="flex flex-col items-center gap-3 md:w-52 lg:w-72">
+            <Skeleton className="h-12 w-20" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+          {corner(true)}
+        </div>
+      </Plate>
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
+        <Skeleton className="h-72" />
+        <Skeleton className="hidden h-48 lg:block" />
+      </div>
+    </div>
+  );
+}
+
+/* ── The tab, and the sound ───────────────────────────────────────────── */
+
+/* The tab says the fight's state, and gives the title back when the page goes,
+ * unless something else has changed it since (the next page's own title).
+ *
+ * Next renders the page's metadata <title> after the page itself, and puts it
+ * back when that part of the tree renders again, which would quietly replace
+ * the live score with "NVDA vs AAPL · Stonk Wars" a moment after it was set. So
+ * the title is checked on every render, and the arena renders every second
+ * with its clock, which puts it back within a second. Watching the head for
+ * changes instead would also fight the next page's title on the way out. */
+function useTabTitle(title: string) {
+  const original = useRef<string | null>(null);
+  const wanted = useRef(title);
+  useEffect(() => {
+    if (original.current === null) original.current = document.title;
+    wanted.current = title;
+    if (document.title !== title) document.title = title;
+  });
+  useEffect(
+    () => () => {
+      if (original.current !== null && document.title === wanted.current) document.title = original.current;
+    },
+    [],
+  );
+}
+
+/* Cues fire only on transitions this page watched happen: never for the state
+ * a fight was already in when the page loaded, and never at all unless the
+ * viewer turned sound on (sfx.ts checks). */
+function useFightSounds({
+  status,
+  m1,
+  m2,
+  beforeBell,
+  secondsLeft,
+  ko,
+}: {
+  status: number;
+  m1: number | null;
+  m2: number | null;
+  beforeBell: boolean;
+  secondsLeft: number | null;
+  ko: boolean;
+}) {
+  const lastStatus = useRef<number | null>(null);
+  useEffect(() => {
+    const before = lastStatus.current;
+    lastStatus.current = status;
+    if (before !== null && before !== STATUS_LIVE && status === STATUS_LIVE) play("bell");
+  }, [status]);
+
+  const lastSign = useRef(0);
+  useEffect(() => {
+    if (!beforeBell || m1 === null || m2 === null) {
+      lastSign.current = 0;
+      return;
+    }
+    const sign = Math.sign(m1 - m2);
+    if (sign !== 0 && lastSign.current !== 0 && sign !== lastSign.current) play("lead");
+    if (sign !== 0) lastSign.current = sign;
+  }, [m1, m2, beforeBell]);
+
+  const lastTick = useRef<number | null>(null);
+  useEffect(() => {
+    if (!beforeBell || secondsLeft === null || secondsLeft > 10 || secondsLeft <= 0) {
+      lastTick.current = null;
+      return;
+    }
+    if (lastTick.current !== secondsLeft) play("tick");
+    lastTick.current = secondsLeft;
+  }, [secondsLeft, beforeBell]);
+
+  useEffect(() => {
+    if (ko) play("ko");
+  }, [ko]);
 }

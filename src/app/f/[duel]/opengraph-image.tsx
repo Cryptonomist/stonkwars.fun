@@ -1,10 +1,24 @@
 /* The card a fight link unfurls into on X. Drawn from chain state at request
  * time: an open challenge is a VS card with the stakes and the taunt; a live
- * round shows the score; a settled one stamps the loser COOKED. */
+ * round shows its stakes; a settled one is the K.O.
+ *
+ * THE K.O. CARD says what happened, the way the fight page does. The winner's
+ * ticker stands in its side's colour with "TOOK 0.0100 METAx" in green under
+ * it, the money the program moved. The loser's ticker is at half strength and
+ * the COOKED stamp lands on its move, not over its name, so the card still
+ * says who lost. Both moves are shown, green or red by the way each went: both
+ * stocks can fall, and the winner is whoever fell less.
+ *
+ * A CARD ALWAYS COMES BACK. X caches whatever the first request returns, so a
+ * failure here answers with the site's own card, status 200, and never with a
+ * stack trace. */
 
 import { ImageResponse } from "next/og";
 import { Connection, PublicKey } from "@solana/web3.js";
 
+import SiteCard from "@/app/opengraph-image";
+import { BRAND } from "@/lib/brand";
+import { loserTake } from "@/lib/derive";
 import {
   decodeDuel,
   OUTCOME_CREATOR,
@@ -18,12 +32,11 @@ import {
   STATUS_SETTLED,
   type DuelView,
 } from "@/lib/duel";
-import { BRAND } from "@/lib/brand";
-import { pct, shares } from "@/lib/format";
+import { pct, points, shares } from "@/lib/format";
 import { loadGoogleFont } from "@/lib/ogFont";
 import { PALETTE } from "@/lib/palette";
 import { movePct } from "@/lib/pricemath";
-import { isListedDuel, STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
+import { decimalsForMint, isListedDuel, tickerForMint, tokenSymbol } from "@/lib/stocks";
 
 export const runtime = "nodejs";
 export const alt = "A Stonk Wars fight";
@@ -33,6 +46,7 @@ export const revalidate = 30;
 
 const C = PALETTE;
 const RETIRED = "Retired test fight";
+const HEADERS = { "content-type": "image/png", "cache-control": "public, max-age=30" };
 
 async function readDuel(address: string): Promise<DuelView | null> {
   try {
@@ -46,25 +60,66 @@ async function readDuel(address: string): Promise<DuelView | null> {
   }
 }
 
-/* The card is the only version of a result most people ever see, so a weekend
- * move must not round away to nothing on it. pct widens past two decimals only
- * when two would print a real move as zero. */
-const pctText = (n: number) => pct(n);
+/* The fallback: the site's card, rendered to bytes so a failure in it is
+ * caught too, and past that a plain brand card with no font to fetch. */
+async function fallback(): Promise<Response> {
+  try {
+    const png = await (await SiteCard()).arrayBuffer();
+    return new Response(png, { status: 200, headers: HEADERS });
+  } catch {
+    const png = await new ImageResponse(
+      (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: C.void,
+            color: C.ink,
+            fontSize: 120,
+            fontWeight: 900,
+          }}
+        >
+          <span>STONK</span>
+          <span style={{ color: C.p2, marginLeft: 24 }}>WARS</span>
+        </div>
+      ),
+      size,
+    ).arrayBuffer();
+    return new Response(png, { status: 200, headers: HEADERS });
+  }
+}
 
 export default async function Image({ params }: { params: Promise<{ duel: string }> }) {
-  const { duel } = await params;
-  const d = await readDuel(duel);
+  try {
+    const { duel } = await params;
+    const d = await readDuel(duel);
+    const png = await (await render(d)).arrayBuffer();
+    return new Response(png, { status: 200, headers: HEADERS });
+  } catch (e) {
+    console.error("share card failed", e instanceof Error ? e.message : e);
+    return fallback();
+  }
+}
 
-  const t1 = d ? tickerForMint(d.creatorMint) ?? "?" : "???";
-  const t2 = d ? tickerForMint(d.opponentMint) ?? "?" : "???";
+async function render(d: DuelView | null): Promise<ImageResponse> {
+  const t1 = d ? (tickerForMint(d.creatorMint) ?? "?") : "???";
+  const t2 = d ? (tickerForMint(d.opponentMint) ?? "?") : "???";
   /* An old test fight on a mint that is not a listed stock has no tickers to
    * put in the corners, only "?". The card says what it is instead. */
   const retired = !!d && !isListedDuel(d);
-  const settled = d && (d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE));
-  const m1 = d && settled ? movePct(d.creatorStart, d.creatorEnd) : null;
-  const m2 = d && settled ? movePct(d.opponentStart, d.opponentEnd) : null;
-  const p1Cooked = d?.status === STATUS_SETTLED && d.outcome === OUTCOME_OPPONENT;
-  const p2Cooked = d?.status === STATUS_SETTLED && d.outcome === OUTCOME_CREATOR;
+  const settled = !!d && d.status === STATUS_SETTLED;
+  const heat = !!d && d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE;
+  const final = settled || heat;
+  const m1 = d && final ? movePct(d.creatorStart, d.creatorEnd) : null;
+  const m2 = d && final ? movePct(d.opponentStart, d.opponentEnd) : null;
+  const p1Cooked = settled && d!.outcome === OUTCOME_OPPONENT;
+  const p2Cooked = settled && d!.outcome === OUTCOME_CREATOR;
+  const take = d && settled ? loserTake(d) : null;
+  const tookLine = take ? `TOOK ${shares(take.shares, take.decimals)} ${tokenSymbol(take.ticker)}` : "";
+  const margin = m1 !== null && m2 !== null && settled ? `Won by ${points(Math.abs(m1 - m2))} pts` : "";
 
   const status = !d
     ? "Fight"
@@ -74,22 +129,25 @@ export default async function Image({ params }: { params: Promise<{ duel: string
         ? "Fight on · starts at the next price"
         : d.status === STATUS_LIVE
           ? "Round live"
-          : d.status === STATUS_SETTLED
-          ? "Final · settled on Solana"
-          : d.outcome === OUTCOME_TIE
-            ? "Dead heat"
-            : "Void";
+          : settled
+            ? "Final · settled on Solana"
+            : heat
+              ? "Dead heat · both stakes home"
+              : "Void";
 
   const taunt = d?.taunt ? `“${d.taunt}”` : "";
+  const stakes = d
+    ? `${shares(d.creatorAmount, decimalsForMint(d.creatorMint))} ${tokenSymbol(t1)} ${shares(d.opponentAmount, decimalsForMint(d.opponentMint))} ${tokenSymbol(t2)}`
+    : "";
   /* Every fixed label goes in the subset, not just the ones this fight shows.
    * Otherwise a letter a label needs is only loaded when some dynamic string
-   * happens to carry it, and an empty taunt draws the B of "Takes both stakes"
-   * in the fallback face. */
+   * happens to carry it, and an empty taunt draws the B of a label in the
+   * fallback face. */
   const labels =
-    "Stonk Wars VS COOKED x staked Takes both stakes Fight Open challenge · take the other side " +
-    "Fight on · starts at the next price Round live Final · settled on Solana Dead heat Void Cooked";
+    "Stonk Wars VS COOKED x staked TOOK Won by pts Fight Open challenge · take the other side " +
+    "Fight on · starts at the next price Round live Final · settled on Solana Dead heat · both stakes home Void Cooked";
   // The card uppercases most of its text, so the subset needs both cases.
-  const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}${labels}${RETIRED}${status}${taunt}0123456789.+-%$ ·`;
+  const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}${labels}${RETIRED}${status}${taunt}${stakes}${tookLine}${margin}0123456789.+-%$ ·`;
   const text = `${raw}${raw.toUpperCase()}${raw.toLowerCase()}`;
   const [display, stencil] = await Promise.all([
     loadGoogleFont("Big Shoulders", 900, text),
@@ -101,73 +159,61 @@ export default async function Image({ params }: { params: Promise<{ duel: string
   ];
   const face = display ? "Display" : "sans-serif";
 
+  const moveColour = (m: number) => (m > 0 ? C.up : m < 0 ? C.down : C.dim);
+
   const corner = (side: "p1" | "p2") => {
-    const ticker = side === "p1" ? t1 : t2;
-    const move = side === "p1" ? m1 : m2;
-    const cooked = side === "p1" ? p1Cooked : p2Cooked;
-    const amount = d ? (side === "p1" ? d.creatorAmount : d.opponentAmount) : BigInt(0);
+    const left = side === "p1";
+    const ticker = left ? t1 : t2;
+    const move = left ? m1 : m2;
+    const cooked = left ? p1Cooked : p2Cooked;
+    const won = settled && !cooked && !heat;
+    const amount = d ? (left ? d.creatorAmount : d.opponentAmount) : BigInt(0);
+    const mint = d ? (left ? d.creatorMint : d.opponentMint) : null;
+    const align = left ? "flex-start" : "flex-end";
+    /* Fixed widths that add up inside the card: two corners of 430 and a centre
+     * of 200 in the 1088 between the paddings. A five-letter ticker steps down
+     * so it stays inside its corner. */
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: side === "p1" ? "flex-start" : "flex-end",
-          width: 470,
-          position: "relative",
-        }}
-      >
-        <div style={{ fontSize: 190, lineHeight: 0.9, color: side === "p1" ? C.p1 : C.p2, opacity: cooked ? 0.35 : 1 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: align, width: 430, flexShrink: 0 }}>
+        <div style={{ fontSize: ticker.length >= 5 ? 150 : 180, lineHeight: 0.9, color: left ? C.p1 : C.p2, opacity: cooked ? 0.5 : 1 }}>
           {ticker}
         </div>
         {move !== null ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: side === "p1" ? "flex-start" : "flex-end" }}>
-            <div style={{ fontSize: 64, color: move > 0 ? C.up : move < 0 ? C.down : C.dim }}>{pctText(move)}</div>
-            {/* Both stocks can fall; the winner is whoever fell less, so say it. */}
-            {d?.status === STATUS_SETTLED && !cooked ? (
-              <div style={{ fontSize: 34, color: C.up, marginTop: 4 }}>Takes both stakes</div>
+          /* The move block. The loser's stamp lands here, under the move and
+           * clear of the ticker, so both still read. */
+          <div style={{ display: "flex", flexDirection: "column", alignItems: align, marginTop: 8 }}>
+            <div style={{ fontSize: 64, color: moveColour(move) }}>{pct(move)}</div>
+            {won && tookLine ? (
+              <div style={{ fontSize: 40, color: C.up, marginTop: 6, textTransform: "none" }}>{tookLine}</div>
+            ) : null}
+            {cooked ? (
+              <div
+                style={{
+                  marginTop: 14,
+                  fontFamily: stencil ? "Stencil" : face,
+                  fontSize: 64,
+                  lineHeight: 1,
+                  color: C.cooked,
+                  border: `6px solid ${C.cooked}`,
+                  padding: "4px 16px 0",
+                  transform: "rotate(-8deg)",
+                }}
+              >
+                COOKED
+              </div>
             ) : null}
           </div>
         ) : (
           <div style={{ fontSize: 40, color: C.dim, textTransform: "none" }}>
-            {d ? `${shares(amount, STAKE_DECIMALS)} ${ticker}x staked` : ""}
+            {d && mint ? `${shares(amount, decimalsForMint(mint))} ${tokenSymbol(ticker)} staked` : ""}
           </div>
         )}
-        {/* The stamp sits over the faded ticker, above the move, so the loser's
-         * percentage stays legible under it. */}
-        {cooked ? (
-          <div
-            style={{
-              position: "absolute",
-              top: -10,
-              [side === "p1" ? "left" : "right"]: -10,
-              fontFamily: stencil ? "Stencil" : face,
-              fontSize: 90,
-              color: C.cooked,
-              border: `8px solid ${C.cooked}`,
-              padding: "0 18px",
-              transform: "rotate(-12deg)",
-            }}
-          >
-            COOKED
-          </div>
-        ) : null}
       </div>
     );
   };
 
-  /* Rendered to bytes here rather than streamed, so a failure is caught, logged
-   * and answered with the site card instead of an empty 500 that X caches. */
-  try {
-    const res = new ImageResponse(card(), { ...size, fonts: fonts.length ? fonts : undefined });
-    const png = await res.arrayBuffer();
-    return new Response(png, { headers: { "content-type": "image/png", "cache-control": "public, max-age=30" } });
-  } catch (e) {
-    console.error("share card failed", e);
-    return new Response(String(e instanceof Error ? e.stack : e), { status: 500 });
-  }
-
-  function card() {
-    return (
+  return new ImageResponse(
+    (
       <div
         style={{
           width: "100%",
@@ -198,7 +244,10 @@ export default async function Image({ params }: { params: Promise<{ duel: string
         ) : (
           <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "space-between" }}>
             {corner("p1")}
-            <div style={{ fontSize: 110, color: C.ink }}>VS</div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 200, flexShrink: 0 }}>
+              <div style={{ fontSize: 110, color: C.ink }}>VS</div>
+              {margin ? <div style={{ fontSize: 24, color: C.dim, textTransform: "none" }}>{margin}</div> : null}
+            </div>
             {corner("p2")}
           </div>
         )}
@@ -208,6 +257,7 @@ export default async function Image({ params }: { params: Promise<{ duel: string
           <div style={{ fontSize: 30, color: C.dim, textTransform: "lowercase" }}>{BRAND.domain}</div>
         </div>
       </div>
-    );
-  }
+    ),
+    { ...size, fonts: fonts.length ? fonts : undefined },
+  );
 }

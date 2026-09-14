@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Connection, PublicKey } from "@solana/web3.js";
 
-import { FightView } from "./FightView";
+import { ArenaSkeleton, FightView } from "./FightView";
 import { decodeDuel, PROGRAM_ID } from "@/lib/duel";
 import { shares } from "@/lib/format";
 import { isListedDuel, STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
@@ -48,10 +48,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
+/* The fallback is the arena's own shape, so the page does not jump when the
+ * fight arrives and shows no number before there is one. */
 export default async function FightPage({ params }: Props) {
   const { duel } = await params;
   return (
-    <Suspense>
+    <Suspense fallback={<ArenaSkeleton />}>
       <FightView address={duel} />
     </Suspense>
   );

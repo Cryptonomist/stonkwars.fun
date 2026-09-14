@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { comboOf, gapOf, hitFrom, liveHits, HEAVY_POINTS, type Hit, type Side } from "@/lib/fightFeel";
+import { points } from "@/lib/format";
 
 export function useFightFeel(p1Move: number | null, p2Move: number | null, live: boolean) {
   const [hits, setHits] = useState<Hit[]>([]);
@@ -51,7 +52,7 @@ export function useFightFeel(p1Move: number | null, p2Move: number | null, live:
   };
 }
 
-/* True once a fight settles while this page is open — and never for one that
+/* True once a fight settles while this page is open, and never for one that
  * was already over when the visitor arrived. A knockout has to be witnessed. */
 export function useKnockout(settled: boolean) {
   const before = useRef<boolean | null>(null);
@@ -67,34 +68,39 @@ export function useKnockout(settled: boolean) {
   return show;
 }
 
-/** The damage flying off whoever was hit. */
+/** The damage flying off whoever was hit. Red, because a hit is a move in the
+ *  gap between the two stocks, against this side. */
 export function Damage({ hits, side }: { hits: Hit[]; side: Side }) {
   const mine = hits.filter((h) => h.side !== side).slice(-3);
   return (
     <span className="pointer-events-none absolute inset-x-0 top-16 flex flex-col items-center" aria-hidden="true">
       {mine.map((h) => (
-        <span key={h.id} className="damage absolute font-mono text-2xl font-bold text-down">
-          −{h.damage.toFixed(2)}
+        <span key={h.id} className="damage num absolute text-hud-sm font-bold text-down">
+          −{points(h.damage)}
         </span>
       ))}
     </span>
   );
 }
 
+/** A run of hits by one side, in that side's colour: the combo is a side's. */
 export function Combo({ combo }: { combo: { side: Side; count: number; damage: number } | null }) {
   if (!combo) return null;
   return (
     <span
       key={`${combo.side}-${combo.count}`}
-      className={`combo display text-2xl ${combo.side === "p1" ? "text-p1" : "text-p2"}`}
+      className={`combo display text-hud-sm ${combo.side === "p1" ? "text-p1" : "text-p2"}`}
     >
       {combo.count} hit combo
-      <span className="ml-2 font-mono text-sm text-dim">{combo.damage.toFixed(2)} pts</span>
+      <span className="num ml-2 text-meta text-dim normal-case">{points(combo.damage)} pts</span>
     </span>
   );
 }
 
-/** The knockout: slammed on when a fight settles while someone is watching. */
+/* The knockout: slammed on when a fight settles while someone is watching.
+ * K.O. is ink with the chromatic split .ko draws in both corners' colours. It
+ * used to be orange, and orange is the COOKED stamp and nothing else. A draw is
+ * ink too: nobody was knocked out. */
 export function Knockout({ show, tie }: { show: boolean; tie: boolean }) {
   const [seen, setSeen] = useState(false);
   useEffect(() => {
@@ -105,7 +111,7 @@ export function Knockout({ show, tie }: { show: boolean; tie: boolean }) {
   if (!show || seen) return null;
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-void/60" aria-hidden="true">
-      <span className={`ko display text-8xl sm:text-9xl ${tie ? "text-ink" : "text-cooked"}`}>{tie ? "Draw" : "K.O."}</span>
+      <span className="ko display text-hud-ko-phone text-ink sm:text-hud-ko">{tie ? "Draw" : "K.O."}</span>
     </div>
   );
 }
