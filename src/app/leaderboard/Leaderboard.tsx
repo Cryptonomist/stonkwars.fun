@@ -2,76 +2,391 @@
 
 /* Who cooks, and who gets cooked. Worked out from settled fights on chain:
  * a record is wins and losses, and "taken" is the value of the loser's stake
- * at the end price, which is what the win was actually worth when it landed. */
+ * at the end price, which is what the win was actually worth when it landed.
+ *
+ * RANKED BY MONEY, because that is the question the board answers. Sorted by
+ * wins it put $5.49 at number two. Every row and podium card goes to the
+ * fighter's profile, and a handle shows wherever the chain vouches for one.
+ *
+ * Colour follows the site's rules and nothing else: ranks are ink (a rank is
+ * not a side), a loss is dim (red means a price went down), and only money
+ * actually taken is green, so a $0.00 is dim too.
+ *
+ * Fighters who have not won yet are real, and they stay on the board, folded
+ * into one row: eight lines of "0W 1L $0.00" said nothing a count cannot. */
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 import { ConnectX } from "@/components/ConnectX";
-import { allDuels, STATUS_SETTLED } from "@/lib/duel";
-import { shortAddress, usd } from "@/lib/format";
+import { Badge } from "@/components/ui/Badge";
+import { cx } from "@/components/ui/cx";
+import { Empty } from "@/components/ui/Empty";
+import { FighterName } from "@/components/ui/FighterName";
+import { FormPips } from "@/components/ui/FormPips";
+import { Notice } from "@/components/ui/Notice";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Skeleton, SkeletonRows } from "@/components/ui/Skeleton";
+import { StatStrip, type StatCell } from "@/components/ui/StatStrip";
+import { Tabs, useUrlTab } from "@/components/ui/Tabs";
+import { allDuels, STATUS_SETTLED, type DuelView } from "@/lib/duel";
+import { inWindow, records, winnerSide } from "@/lib/derive";
+import { pct, points, shortAddress, usd } from "@/lib/format";
 import { useDuels, useProfiles } from "@/lib/hooks";
-import { rankFighters } from "@/lib/leaderboard";
-import { STAKE_DECIMALS } from "@/lib/stocks";
+import { rankFighters, type Record_ } from "@/lib/leaderboard";
+import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
+import { useNow } from "@/lib/useNow";
+
+type RangeId = "all" | "7d" | "24h";
+
+const RANGES: { id: RangeId; label: string; secs: number; words: string }[] = [
+  { id: "all", label: "All", secs: 0, words: "yet" },
+  { id: "7d", label: "7D", secs: 7 * 86_400, words: "in the last 7 days" },
+  { id: "24h", label: "24h", secs: 86_400, words: "in the last 24 hours" },
+];
+const RANGE_IDS = RANGES.map((r) => r.id);
+
+/** A dollar figure that is really money taken is green; anything that rounds
+ *  to nothing is dim, so "$0.00" is never dressed as a win. */
+const tookSomething = (n: number) => n >= 0.005;
+
+/* The row grid. On a phone a row is two lines: rank, fighter and taken on the
+ * first, so the money never leaves the screen, and form, record, win rate and
+ * streak under it. From 640px the second line's cells join the one grid and
+ * line up under the column heads. */
+const ROW_GRID =
+  "grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_5.5rem_3.5rem_6rem_6.5rem]";
 
 export function Leaderboard() {
   const duels = useDuels("all", allDuels(), 20_000);
   const profiles = useProfiles();
-  const ranked = rankFighters(duels.data ?? [], STAKE_DECIMALS).slice(0, 50);
-  const settled = (duels.data ?? []).filter((d) => d.status === STATUS_SETTLED).length;
+  const { publicKey } = useWallet();
+  const me = publicKey?.toBase58() ?? null;
+  // A range is days wide; a clock that moves every half minute is plenty.
+  const now = useNow(30_000);
+  const [urlRange, setRange] = useUrlTab<RangeId>("range", RANGE_IDS, "all");
+  const [showWinless, setShowWinless] = useState(false);
+
+  const all = duels.data;
+
+  /* A range tab only appears when something settled inside it, so the board
+   * never offers a view that is empty by construction. The URL keeps its
+   * choice while the list loads, and falls back to All only once it is known
+   * that the range has nothing in it. */
+  const available = useMemo(() => {
+    if (!all || !now) return RANGES.filter((r) => r.id === "all");
+    return RANGES.filter(
+      (r) => r.id === "all" || inWindow(all, r.secs, now).some((d) => d.status === STATUS_SETTLED),
+    );
+  }, [all, now]);
+  const loading = !all || (urlRange !== "all" && !now);
+  const range = RANGES.find((r) => r.id === urlRange && available.some((a) => a.id === r.id)) ?? RANGES[0];
+
+  const scoped = useMemo(
+    () => (!all ? [] : range.id === "all" ? all : inWindow(all, range.secs, now)),
+    [all, range, now],
+  );
+  const ranked = useMemo(() => rankFighters(scoped, STAKE_DECIMALS), [scoped]);
+  const best = useMemo(() => records(scoped), [scoped]);
+  const byAddress = useMemo(() => new Map((all ?? []).map((d) => [d.address.toBase58(), d])), [all]);
+
+  const settled = scoped.filter((d) => d.status === STATUS_SETTLED).length;
+  const takenTotal = ranked.reduce((s, r) => s + r.taken, 0);
+
+  const winners = ranked.filter((r) => r.wins > 0);
+  const winless = ranked.filter((r) => r.wins === 0);
+  const podium = winners.slice(0, 3);
+  const mineIndex = me ? ranked.findIndex((r) => r.wallet === me) : -1;
+
+  const nameOf = (wallet: string) => {
+    const h = profiles.data?.[wallet];
+    return h ? `@${h}` : shortAddress(wallet);
+  };
+
+  const header = (
+    <PageHeader
+      eyebrow="Settled on chain"
+      title="Leaderboard"
+      stats={[
+        { label: "Settled fights", value: loading ? <Skeleton className="h-4 w-8" /> : settled.toLocaleString("en-US") },
+        {
+          label: "Wallets with a result",
+          value: loading ? <Skeleton className="h-4 w-8" /> : ranked.length.toLocaleString("en-US"),
+        },
+        { label: "Total taken", value: loading ? <Skeleton className="h-4 w-16" /> : usd(takenTotal) },
+      ]}
+    />
+  );
+
+  if (duels.isError && !all) {
+    return (
+      <div className="pb-6">
+        {header}
+        <Notice
+          tone="error"
+          title="Could not reach Solana."
+          action={
+            <button type="button" onClick={() => void duels.refetch()} className="btn btn-sm btn-ghost">
+              Retry
+            </button>
+          }
+        >
+          The board fills in as soon as it answers.
+        </Notice>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="pb-6">
+        {header}
+        <SkeletonRows kind="fighter" rows={8} />
+      </div>
+    );
+  }
+
+  const recordCells: StatCell[] = [];
+  if (best.closest) {
+    const d = byAddress.get(best.closest.address);
+    recordCells.push({
+      label: "Closest finish",
+      value: (
+        <span className="num normal-case" title="percentage points">
+          {points(best.closest.margin)} <span className="text-meta text-dim">pts</span>
+        </span>
+      ),
+      sub: d ? beat(d) : "percentage points",
+      href: `/f/${best.closest.address}`,
+    });
+  }
+  if (best.biggestMove) {
+    const d = byAddress.get(best.biggestMove.address);
+    const m = best.biggestMove.move;
+    recordCells.push({
+      label: "Top winning move",
+      value: <span className={cx("num normal-case", m > 0 ? "text-up" : m < 0 ? "text-down" : "text-ink")}>{pct(m)}</span>,
+      sub: d ? beat(d) : best.biggestMove.ticker,
+      href: `/f/${best.biggestMove.address}`,
+    });
+  }
+  /* One win is not a streak, and "1 in a row" as a record reads as padding. */
+  if (best.longestStreak && best.longestStreak.best >= 2) {
+    recordCells.push({
+      label: "Longest streak",
+      value: `${best.longestStreak.best} in a row`,
+      sub: <FighterName wallet={best.longestStreak.wallet} size="sm" href={null} />,
+      href: `/u/${best.longestStreak.wallet}`,
+    });
+  }
 
   return (
-    <div className="py-10">
-      <p className="label">Settled on chain</p>
-      <h1 className="display mt-2 text-6xl sm:text-7xl">Leaderboard</h1>
-      <p className="mt-3 text-dim">
-        {settled} {settled === 1 ? "fight" : "fights"} settled so far.
-      </p>
+    <div className="pb-6">
+      {header}
 
-      <ConnectX />
+      {available.length > 1 ? (
+        <Tabs
+          items={available.map((r) => ({ id: r.id, label: r.label }))}
+          value={range.id}
+          onChange={setRange}
+          ariaLabel="Time range"
+          controls="leaderboard-board"
+          className="mb-6"
+        />
+      ) : null}
 
-      <div className="mt-8 overflow-x-auto">
-        {duels.isLoading ? (
-          <p className="text-dim">Tallying...</p>
-        ) : ranked.length === 0 ? (
-          <p className="text-dim">No fights settled yet. The first win puts you at the top.</p>
+      <div id="leaderboard-board" className="flex flex-col gap-6">
+        {ranked.length === 0 ? (
+          <Empty
+            title="Nobody has a result yet."
+            body="The first win puts you at the top."
+            action={{ href: "/new", label: "Pick a fight", tone: "p1" }}
+          />
         ) : (
-          <table className="w-full min-w-[560px] text-left">
-            <thead>
-              <tr className="label">
-                <th className="py-2 pr-4 font-normal">#</th>
-                <th className="py-2 pr-4 font-normal">Fighter</th>
-                <th className="py-2 pr-4 font-normal">Record</th>
-                <th className="py-2 pr-4 font-normal">Best streak</th>
-                <th className="py-2 font-normal text-right">Taken</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranked.map((r, i) => (
-                <tr key={r.wallet} className="border-t border-line">
-                  <td className="display py-3 pr-4 text-2xl text-p1">{i + 1}</td>
-                  <td className="py-3 pr-4">
-                    {profiles.data?.[r.wallet] ? (
-                      <a
-                        href={`https://x.com/${profiles.data[r.wallet]}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="display text-xl hover:text-p1"
-                      >
-                        @{profiles.data[r.wallet]}
-                      </a>
-                    ) : (
-                      <span className="font-mono">{shortAddress(r.wallet, 5)}</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4 font-mono">
-                    <span className="text-up">{r.wins}W</span> <span className="text-down">{r.losses}L</span>
-                  </td>
-                  <td className="py-3 pr-4 font-mono">{r.best}</td>
-                  <td className="py-3 text-right font-mono text-up">{usd(r.taken)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            {recordCells.length ? <StatStrip cells={recordCells} cols={{ base: 2, sm: 3, lg: 3 }} label="Records" /> : null}
+
+            {me ? (
+              mineIndex >= 0 ? (
+                <section aria-label="Your rank">
+                  <FighterRow r={ranked[mineIndex]} rank={mineIndex + 1} you name={nameOf(ranked[mineIndex].wallet)} />
+                </section>
+              ) : (
+                <Link
+                  href="/new"
+                  className="card row flex min-h-10 items-center justify-between gap-3 px-3 py-2.5 text-sm"
+                >
+                  <span className="min-w-0 truncate">
+                    <span className="label mr-2">You</span>
+                    <span className="text-dim">No settled fights {range.words}.</span>
+                  </span>
+                  <span className="label shrink-0">Pick a fight &rarr;</span>
+                </Link>
+              )
+            ) : null}
+
+            {podium.length ? (
+              <ol className="hidden gap-2 sm:grid sm:grid-cols-3" aria-label="Top three">
+                {podium.map((r, i) => (
+                  <li key={r.wallet} className="min-w-0">
+                    <PodiumCard r={r} rank={i + 1} you={r.wallet === me} name={nameOf(r.wallet)} />
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+
+            <section aria-label="Fighters" className="min-w-0">
+              {/* Column heads, only over rows a wide screen actually shows:
+               * when the podium holds every winner they would head nothing. */}
+              <div
+                aria-hidden="true"
+                className={cx(
+                  ROW_GRID,
+                  "label hidden px-3 pb-2",
+                  (winners.length > podium.length || showWinless) && "sm:grid",
+                )}
+              >
+                <span>#</span>
+                <span>Fighter</span>
+                <span>Form</span>
+                <span>Record</span>
+                <span className="text-right">Win</span>
+                <span />
+                <span className="text-right">Taken</span>
+              </div>
+              <ol className="flex flex-col border-b border-line">
+                {winners.map((r, i) => (
+                  <li
+                    key={r.wallet}
+                    /* On a phone the podium is simply the first three rows. */
+                    className={cx("border-t border-line", i < podium.length && "sm:hidden")}
+                  >
+                    <FighterRow r={r} rank={i + 1} you={r.wallet === me} name={nameOf(r.wallet)} />
+                  </li>
+                ))}
+                {winless.length ? (
+                  <li className="border-t border-line">
+                    <button
+                      type="button"
+                      aria-expanded={showWinless}
+                      aria-controls="leaderboard-winless"
+                      onClick={() => setShowWinless((v) => !v)}
+                      className="row flex min-h-10 w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm text-dim hover:text-ink"
+                    >
+                      <span>
+                        +{winless.length} {winless.length === 1 ? "fighter" : "fighters"} with no wins {range.words}
+                      </span>
+                      <span aria-hidden="true" className="label">
+                        {showWinless ? "Hide" : "Show"}
+                      </span>
+                    </button>
+                  </li>
+                ) : null}
+              </ol>
+              {winless.length && showWinless ? (
+                <ol id="leaderboard-winless" className="flex flex-col border-b border-line" start={winners.length + 1}>
+                  {winless.map((r, i) => (
+                    <li key={r.wallet} className="border-t border-line first:border-t-0">
+                      <FighterRow r={r} rank={winners.length + i + 1} you={r.wallet === me} name={nameOf(r.wallet)} />
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </section>
+          </>
         )}
+
+        <ConnectX compact />
       </div>
     </div>
+  );
+}
+
+/** "NVDA beat AAPL", from the on-chain outcome. */
+function beat(d: DuelView): string {
+  const t1 = tickerForMint(d.creatorMint) ?? "?";
+  const t2 = tickerForMint(d.opponentMint) ?? "?";
+  return winnerSide(d) === "p2" ? `${t2} beat ${t1}` : `${t1} beat ${t2}`;
+}
+
+function Rank({ n, size = "sm" }: { n: number; size?: "sm" | "md" }) {
+  return (
+    <span
+      className={cx(
+        "plate display inline-flex items-center justify-center bg-panel-3 text-ink",
+        size === "md" ? "h-8 min-w-11 px-3 text-hud-sm" : "h-6 min-w-8 px-2 text-hud-xs",
+      )}
+    >
+      {n}
+    </span>
+  );
+}
+
+function WinLoss({ r }: { r: Record_ }) {
+  return (
+    <span className="num whitespace-nowrap text-meta">
+      <span className="text-ink">{r.wins}W</span> <span className="text-dim">{r.losses}L</span>
+      {r.ties ? <span className="text-dim"> {r.ties}T</span> : null}
+    </span>
+  );
+}
+
+function Taken({ n, className }: { n: number; className?: string }) {
+  return <span className={cx("num whitespace-nowrap", tookSomething(n) ? "text-up" : "text-dim", className)}>{usd(n)}</span>;
+}
+
+const rowLabel = (r: Record_, rank: number, name: string, you: boolean) =>
+  `${you ? "You, " : ""}rank ${rank}, ${name}: ${r.wins} ${r.wins === 1 ? "win" : "wins"}, ${r.losses} ${
+    r.losses === 1 ? "loss" : "losses"
+  }${r.ties ? `, ${r.ties} ${r.ties === 1 ? "tie" : "ties"}` : ""}, win rate ${Math.round(r.winRate * 100)}%, took ${usd(r.taken)}`;
+
+function FighterRow({ r, rank, you = false, name }: { r: Record_; rank: number; you?: boolean; name: string }) {
+  return (
+    <Link
+      href={`/u/${r.wallet}`}
+      aria-label={rowLabel(r, rank, name, you)}
+      className={cx(ROW_GRID, "row px-3 py-2.5 focus-visible:-outline-offset-2", you && "shadow-[inset_2px_0_0_var(--color-ink)]")}
+    >
+      <span className="row-span-2 sm:row-span-1">
+        <Rank n={rank} />
+      </span>
+      <span className="flex min-w-0 items-center gap-2">
+        <FighterName wallet={r.wallet} size="md" href={null} you={you} />
+      </span>
+      <Taken n={r.taken} className="text-right text-sm sm:order-last" />
+      <span className="col-span-2 col-start-2 flex min-w-0 items-center gap-3 sm:contents">
+        <FormPips results={r.form} />
+        <WinLoss r={r} />
+        <span className="num text-meta text-dim sm:text-right">{Math.round(r.winRate * 100)}%</span>
+        <span className="min-w-0 sm:justify-self-start">
+          {r.streak >= 2 ? <Badge variant="neutral">{r.streak} in a row</Badge> : null}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+function PodiumCard({ r, rank, you, name }: { r: Record_; rank: number; you: boolean; name: string }) {
+  return (
+    <Link
+      href={`/u/${r.wallet}`}
+      aria-label={rowLabel(r, rank, name, you)}
+      className="plate-card row flex h-full min-w-0 flex-col gap-3 p-4 focus-visible:-outline-offset-2"
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <Rank n={rank} size="md" />
+        <FighterName wallet={r.wallet} size="md" href={null} you={you} />
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span className="label">Taken</span>
+        <Taken n={r.taken} className="mt-1 text-num-lg font-semibold" />
+      </span>
+      <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <WinLoss r={r} />
+        <FormPips results={r.form} />
+        {r.streak >= 2 ? <Badge variant="neutral">{r.streak} in a row</Badge> : null}
+      </span>
+    </Link>
   );
 }
