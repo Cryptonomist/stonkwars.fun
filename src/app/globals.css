@@ -6,33 +6,93 @@
  * those two colours mean a SIDE, plus the brand they make together. Green and
  * red mean a PRICE MOVE and nothing else: a stock can be P2 and up, and the
  * page must never make you read pink as "losing". Green also marks the winner
- * and the money they take. White is the neutral weight: the VS, and buttons
- * that are not a fight. The burnt orange is the COOKED stamp, used for exactly
- * one thing. There is no yellow; there was, and it went.
+ * and the money they take. Ink is the neutral weight: the VS, the K.O., focus,
+ * notices, and buttons that are not a fight. The burnt orange is the COOKED
+ * mark, the stamp at any size, and nothing else: not a warning, not a clock,
+ * not the K.O. "Live" is shown as both corners being in, a dot split cyan and
+ * pink, so it can never be mistaken for a price going up. There is no yellow;
+ * there was, and it went.
+ *
+ * docs/design.md is the long form of all of this.
  */
 @theme {
+  /* Surfaces, low to high. */
   --color-void: #07070b;
   --color-panel: #0e0e16;
   --color-panel-2: #15151f;
+  --color-panel-3: #1c1c29;
   --color-line: #25253a;
+  --color-line-strong: #34344f;
+
+  /* Ink. Faint is never text: chart grids, empty pips, dividers. */
   --color-ink: #f3f3f8;
   --color-dim: #9090a8;
+  --color-faint: #5c5c74;
+
+  /* Sides. */
   --color-p1: #2fe0ff;
   --color-p1-deep: #0b4a57;
+  --color-p1-tint: #11232d;
   --color-p2: #ff3ea5;
   --color-p2-deep: #5a1239;
+  --color-p2-tint: #261324;
+
+  /* Price moves. */
   --color-up: #35f28b;
+  --color-up-tint: #132924;
   --color-down: #ff4d5e;
+  --color-down-tint: #2b161f;
+
+  /* The finish. */
   --color-cooked: #ff7a1a;
+
+  /* Light, only on live things and overlays. */
+  --shadow-glow-p1: 0 0 24px rgb(47 224 255 / 0.35);
+  --shadow-glow-p2: 0 0 24px rgb(255 62 165 / 0.35);
+  --shadow-glow-up: 0 0 24px rgb(53 242 139 / 0.35);
+  --shadow-overlay: 0 16px 40px rgb(0 0 0 / 0.55);
+
+  /* The type scale. Each step becomes a text-* utility carrying its own line
+   * height, so no component needs a hand-picked size again. */
+  --text-micro: 10px;
+  --text-micro--line-height: 12px;
+  --text-label: 11px;
+  --text-label--line-height: 14px;
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+  --text-num-lg: 20px;
+  --text-num-lg--line-height: 24px;
+  --text-hud-xs: 18px;
+  --text-hud-xs--line-height: 18px;
+  --text-hud-sm: 24px;
+  --text-hud-sm--line-height: 24px;
+  --text-hud-lg: 56px;
+  --text-hud-lg--line-height: 50px;
+  --text-hud-xl: 88px;
+  --text-hud-xl--line-height: 75px;
+  --text-clock: 48px;
+  --text-clock--line-height: 48px;
+  --text-hud-ko: 128px;
+  --text-hud-ko--line-height: 109px;
+  /* The phone sizes of the two biggest steps (design.md section 4), so a
+   * corner or a K.O. never needs an arbitrary size below 640px. */
+  --text-hud-xl-phone: 64px;
+  --text-hud-xl-phone--line-height: 54px;
+  --text-hud-ko-phone: 88px;
+  --text-hud-ko-phone--line-height: 75px;
 
   --font-display: var(--font-display-face), "Arial Narrow", Impact, sans-serif;
   --font-sans: var(--font-body-face), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* BACKGROUND-COLOR, NOT THE BACKGROUND SHORTHAND. This rule is unlayered, and
+ * unlayered CSS beats every layered rule. `background: var(--color-void)` set
+ * background-image back to none as well, which quietly erased the grid and the
+ * two corner glows that `.arena` paints on the body. */
 html,
 body {
-  background: var(--color-void);
+  background-color: var(--color-void);
   color: var(--color-ink);
 }
 
@@ -41,9 +101,41 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
+:root {
+  /* The fixed bottom bar's height. Zero until a page opts in below 640px, so
+   * anything pinned above it (toasts, sticky action bars) can always add it. */
+  --bottom-nav-h: 0px;
+}
+
+@media (max-width: 639px) {
+  .has-bottom-nav {
+    --bottom-nav-h: 3.5rem;
+  }
+}
+
 ::selection {
   background: var(--color-p2);
   color: var(--color-void);
+}
+
+/* A registered colour, so a flash can fade through an overlay painted as a
+ * background image and leave the element's own background colour alone. A row
+ * on panel flashes over panel, a number on void flashes over void. */
+@property --flash {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+/* VISIBLE FOCUS, EVERYWHERE. Browsers draw a focus outline, and the slanted
+ * clip-path on buttons and plates cut it clean off, so a keyboard user could
+ * not see where they were. Everything focusable gets an ink outline here, in
+ * the base layer so any component rule can do better; buttons do, below. */
+@layer base {
+  :where(a, button, input, select, textarea, [role="tab"], [role="menuitem"], [tabindex], summary):focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
 }
 
 /* COMPONENT CLASSES LIVE IN A LAYER, and that is load-bearing. Unlayered CSS
@@ -52,19 +144,100 @@ body {
  * button meant to vanish on phones stayed, wrapped onto two lines. In
  * `components` they sit under `utilities`, so a utility on the element wins. */
 @layer components {
-/* The floor: a faint perspective grid, flat enough to read text over. */
+/* The floor: a faint grid, flat enough to read text over, and a glow in each
+ * corner's colour. The glows are sized to a screen, not to the page, so a long
+ * page does not stretch them into two stripes down its whole height. */
 .arena {
   background-image:
-    radial-gradient(ellipse 60% 45% at 20% -10%, rgba(47, 224, 255, 0.07), transparent 60%),
-    radial-gradient(ellipse 60% 45% at 80% -10%, rgba(255, 62, 165, 0.07), transparent 60%),
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 44px 44px, 44px 44px;
+    radial-gradient(ellipse 60% 45% at 20% -10%, color-mix(in srgb, var(--color-p1) 7%, transparent), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 80% -10%, color-mix(in srgb, var(--color-p2) 7%, transparent), transparent 60%),
+    linear-gradient(color-mix(in srgb, var(--color-ink) 2.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-ink) 2.5%, transparent) 1px, transparent 1px);
+  background-size: 100% 56rem, 100% 56rem, 44px 44px, 44px 44px;
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
 }
 
-/* Fighting-game furniture: slanted panels and plates. */
+/* ── Type ─────────────────────────────────────────────────────────────────
+ * Big Shoulders for names and counters, Geist Mono for anything somebody
+ * compares. Sizes come from the text-* steps in @theme. */
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  line-height: 0.9;
+}
+
+/* A page title. It replaced five 72px headers that pushed every board below
+ * the fold before it said anything. */
+.h-page {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+@media (min-width: 1024px) {
+  .h-page {
+    font-size: 2.5rem;
+  }
+}
+
+.h-section {
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-dim);
+}
+
+.micro {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  line-height: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Every price, move, amount, clock and address: fixed-width digits, so a
+ * refresh never shifts a row. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.link {
+  color: var(--color-ink);
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 120ms ease;
+}
+
+.link:hover {
+  text-decoration-color: var(--color-ink);
+}
+
+/* ── Shape ────────────────────────────────────────────────────────────────
+ * Radius is zero. Buttons, tabs, rank plates and avatars are slanted; cards
+ * that hold a fight have one corner notched off. */
+
 .plate {
-  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  clip-path: polygon(var(--slant, 10px) 0, 100% 0, calc(100% - var(--slant, 10px)) 100%, 0 100%);
 }
 
 .plate-left {
@@ -75,21 +248,57 @@ body {
   clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%);
 }
 
-.display {
-  font-family: var(--font-display);
-  font-weight: 900;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
-  line-height: 0.9;
+.card {
+  background: var(--color-panel);
+  box-shadow: inset 0 0 0 1px var(--color-line);
 }
 
-.label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-dim);
+/* The notch: the top-right corner cut, with the void showing through it on
+ * purpose. */
+.plate-card {
+  background: var(--color-panel);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
 }
+
+/* The rope: anything that holds two sides carries both colours along its top
+ * edge, cyan on the challenger's half and pink on the answerer's. */
+.rope {
+  position: relative;
+}
+
+.rope::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--color-p1) 0 50%, var(--color-p2) 50% 100%);
+}
+
+/* A row on a board. Hover lifts it one surface, in colour only. */
+.row {
+  background-color: var(--color-panel);
+  transition: background-color 120ms ease;
+}
+
+.row:hover {
+  background-color: var(--color-panel-3);
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
 
 .btn {
   display: inline-flex;
@@ -114,6 +323,15 @@ body {
 .btn:disabled {
   cursor: not-allowed;
   filter: grayscale(0.7) brightness(0.6);
+}
+
+/* The clip-path cuts an outline off, so a focused button draws its ring on the
+ * inside instead: void, then ink, readable on every button fill. */
+.btn:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px var(--color-void),
+    inset 0 0 0 4px var(--color-ink);
 }
 
 /* Buttons with weight that are not a side: connect, a chosen option, share. */
@@ -146,14 +364,37 @@ body {
   color: var(--color-void);
 }
 
+.btn-p1:hover:not(:disabled),
+.btn-p2:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
 .btn-sm {
   font-size: 0.85rem;
   padding: 0.45rem 0.95rem;
 }
 
-.card {
-  background: var(--color-panel);
-  box-shadow: inset 0 0 0 1px var(--color-line);
+/* A chosen corner in a segment control: the side's tint, its colour, and a
+ * 2px rule under it. Painted as a background image rather than a shadow, so
+ * the inset focus ring above still shows on top of it. */
+.seg-p1,
+.seg-p2 {
+  background-color: var(--seg-tint);
+  background-image: linear-gradient(var(--seg), var(--seg));
+  background-size: 100% 2px;
+  background-position: bottom;
+  background-repeat: no-repeat;
+  color: var(--seg);
+}
+
+.seg-p1 {
+  --seg: var(--color-p1);
+  --seg-tint: var(--color-p1-tint);
+}
+
+.seg-p2 {
+  --seg: var(--color-p2);
+  --seg-tint: var(--color-p2-tint);
 }
 
 .input {
@@ -166,8 +407,10 @@ body {
 }
 
 .input:focus {
-  box-shadow: inset 0 0 0 1px var(--color-p1);
+  box-shadow: inset 0 0 0 1px var(--color-ink);
 }
+
+/* ── Status ───────────────────────────────────────────────────────────── */
 
 /* The stamp. Rotated, stencilled, and slammed in once. */
 .stamp-cooked {
@@ -194,30 +437,264 @@ body {
   }
 }
 
-/* The live pulse on a round in progress. */
+/* The same mark at row size. It sits on a board that refreshes every few
+ * seconds, so it never slams: a stamp that re-animated on every poll would be
+ * motion without a real change behind it. */
+.stamp-cooked-sm {
+  display: inline-block;
+  font-family: var(--font-stencil-face), var(--font-display);
+  font-weight: 900;
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-cooked);
+  border: 2px solid var(--color-cooked);
+  padding: 0 0.3em;
+  transform: rotate(-8deg);
+}
+
+/* The winner's plate: the money they took, in green on green tint. */
+.plate-win {
+  background: var(--color-up-tint);
+  color: var(--color-up);
+  padding: 0.25rem 0.5rem;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+}
+
+/* Live: both corners are in. Half cyan, half pink, with an ink ring that
+ * pulses. It used to be green, which said "price up" about a round that might
+ * be going either way. .pulse-dot is the old name, kept as an alias. */
+.live-dot,
 .pulse-dot {
+  display: inline-block;
+  flex: none;
   width: 8px;
   height: 8px;
   border-radius: 9999px;
-  background: var(--color-up);
-  box-shadow: 0 0 0 0 rgba(53, 242, 139, 0.6);
+  background: linear-gradient(90deg, var(--color-p1) 50%, var(--color-p2) 50%);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-ink) 45%, transparent);
   animation: pulse 1.6s infinite;
 }
 
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(53, 242, 139, 0.55);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-ink) 45%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 10px rgba(53, 242, 139, 0);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--color-ink) 0%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(53, 242, 139, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-ink) 0%, transparent);
   }
 }
 
 .bar-fill {
   transition: width 700ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+/* Low health stays in its side's colour, striped. Red would read as a price
+ * move, and the fighter who is behind is not necessarily the one going down.
+ * Set the side with .side-p1 or .side-p2, or --side and --side-deep directly;
+ * with neither it stripes the current text colour. */
+.bar-danger {
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--side, currentColor) 0 6px,
+    var(--side-deep, color-mix(in srgb, var(--side, currentColor) 35%, var(--color-void))) 6px 12px
+  );
+}
+
+.side-p1 {
+  --side: var(--color-p1);
+  --side-deep: var(--color-p1-deep);
+}
+
+.side-p2 {
+  --side: var(--color-p2);
+  --side-deep: var(--color-p2-deep);
+}
+
+/* ── Change, confirmed ────────────────────────────────────────────────────
+ * Each of these fires once, on a real state change, and never on page load. */
+
+/* Loading only. A skeleton is the one honest thing to show before data. */
+.skeleton {
+  background-color: var(--color-panel-2);
+  background-image: linear-gradient(90deg, transparent 0%, var(--color-panel-3) 50%, transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton 1.4s linear infinite;
+}
+
+@keyframes skeleton {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* A displayed price moved. */
+.flash-up,
+.flash-down,
+.row-new {
+  background-image: linear-gradient(var(--flash), var(--flash));
+}
+
+.flash-up {
+  animation: flash-up 400ms ease-out;
+}
+
+.flash-down {
+  animation: flash-down 400ms ease-out;
+}
+
+@keyframes flash-up {
+  from {
+    --flash: var(--color-up-tint);
+  }
+  to {
+    --flash: transparent;
+  }
+}
+
+@keyframes flash-down {
+  from {
+    --flash: var(--color-down-tint);
+  }
+  to {
+    --flash: transparent;
+  }
+}
+
+/* Something not seen on the last poll: a new event, a count that changed. */
+.row-new {
+  animation: row-new 400ms ease-out;
+}
+
+@keyframes row-new {
+  from {
+    --flash: color-mix(in srgb, var(--color-ink) 6%, transparent);
+  }
+  to {
+    --flash: transparent;
+  }
+}
+
+/* A clock or price digit that just changed rolls up into place. */
+.digit-roll {
+  display: inline-block;
+  animation: digit-roll 300ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes digit-roll {
+  from {
+    transform: translateY(60%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* A new point landed on a chart line. One ring, then still. */
+.tip-ping {
+  animation: tip-ping 600ms ease-out 1;
+}
+
+@keyframes tip-ping {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 10px color-mix(in srgb, currentColor 0%, transparent);
+  }
+}
+
+/* Overlays. Toasts drop in; sheets rise from the bottom edge on a phone and
+ * settle into place on a wider screen; menus fade in under their trigger. */
+.toast-stack {
+  position: fixed;
+  z-index: 50;
+  left: 1rem;
+  right: 1rem;
+  bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom) + 0.75rem);
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .toast-stack {
+    top: 1rem;
+    bottom: auto;
+    left: 50%;
+    right: auto;
+    width: 24rem;
+    transform: translateX(-50%);
+  }
+}
+
+.toast-in {
+  animation: toast-in 220ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.sheet-in {
+  animation: sheet-in 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (min-width: 640px) {
+  .sheet-in {
+    animation-name: sheet-in-panel;
+  }
+}
+
+@keyframes sheet-in-panel {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.menu-in {
+  animation: menu-in 120ms ease-out;
+}
+
+@keyframes menu-in {
+  from {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
 }
 
 /* ── The fight, felt ──────────────────────────────────────────────────────
@@ -303,13 +780,16 @@ body {
   }
 }
 
-/* K.O. */
+/* K.O. In ink, split into both corners' colours like a hit that knocked the
+ * picture out of register. It used to glow orange, and orange is the COOKED
+ * mark only. */
 .ko {
   font-weight: 900;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   text-shadow:
-    0 0 28px color-mix(in srgb, var(--color-cooked) 70%, transparent),
+    -3px 0 0 var(--color-p1),
+    3px 0 0 var(--color-p2),
     0 6px 0 var(--color-void);
   animation: ko 2.6s cubic-bezier(0.15, 1.4, 0.3, 1) forwards;
 }
@@ -351,9 +831,10 @@ body {
   }
 }
 
-/* The last ten seconds, when the clock itself starts sweating. */
+/* The last ten seconds, when the clock itself starts sweating. In ink: the
+ * blink is the warning, and orange belongs to the stamp. */
 .final-seconds {
-  color: var(--color-cooked);
+  color: var(--color-ink);
   animation: final-seconds 1s steps(1, end) infinite;
 }
 
@@ -372,12 +853,26 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .stamp-cooked,
   .pulse-dot,
+  .live-dot,
   .hit-flash,
   .shake,
   .combo,
   .final-seconds,
-  .tape {
+  .tape,
+  .skeleton,
+  .flash-up,
+  .flash-down,
+  .row-new,
+  .digit-roll,
+  .tip-ping,
+  .toast-in,
+  .sheet-in,
+  .menu-in {
     animation: none;
+  }
+  /* A still skeleton is a flat surface, not a highlight parked at one edge. */
+  .skeleton {
+    background-image: none;
   }
   .bar-fill {
     transition: none;
