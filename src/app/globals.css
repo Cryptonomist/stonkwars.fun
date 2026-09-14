@@ -105,6 +105,15 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
+/* NO SIDEWAYS SCROLL, EVEN WITH A SCROLLBAR. The home page's tape runs edge to
+ * edge as w-screen, and 100vw counts a classic scrollbar (Windows, most Linux),
+ * so the page was 8px wider than its window there and slid sideways. clip, not
+ * hidden: it makes no scroll container, so sticky headers and the sticky ticket
+ * keep working. */
+html {
+  overflow-x: clip;
+}
+
 :root {
   /* The fixed bottom bar's height. Zero until a page opts in below 768px (the
    * bar's own md breakpoint), so anything pinned above it (toasts, sticky
