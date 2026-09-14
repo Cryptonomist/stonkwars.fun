@@ -182,7 +182,11 @@ function Sentence({ e }: { e: FightEvent }) {
       return (
         <>
           <Vs e={e} />
-          <span className="shrink-0">opened</span>
+          {/* Below a 24rem wire (a phone) the word was clipped to "opene": the
+            * + glyph already says what kind of line this is, so the word gives
+            * way whole, and a screen reader still hears it. */}
+          <span className="hidden shrink-0 @sm:inline">opened</span>
+          <span className="sr-only @sm:hidden">opened</span>
           {e.taunt ? (
             <span className="hidden min-w-0 truncate text-dim italic @md:inline">&ldquo;{e.taunt}&rdquo;</span>
           ) : null}

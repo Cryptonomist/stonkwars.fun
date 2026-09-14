@@ -24,7 +24,7 @@
 import Link from "next/link";
 
 import { HealthBars } from "@/components/HealthBars";
-import { Move } from "@/components/Ticker";
+import { Move, movePair } from "@/components/Ticker";
 import { Badge } from "@/components/ui/Badge";
 import { Countdown } from "@/components/ui/Countdown";
 import { cx } from "@/components/ui/cx";
@@ -79,6 +79,7 @@ function EventPlate({ d, now }: { d: DuelView; now: number }) {
   const onChain = moves(d);
   const m1 = live ? liveMove(d.creatorStart, t1) : (onChain?.[0] ?? null);
   const m2 = live ? liveMove(d.opponentStart, t2) : (onChain?.[1] ?? null);
+  const [s1, s2] = movePair(m1, m2);
 
   const won = winnerSide(d);
   const take = loserTake(d);
@@ -103,7 +104,11 @@ function EventPlate({ d, now }: { d: DuelView; now: number }) {
           {ticker}
         </span>
         <span className={cx("flex shrink-0 items-center gap-2", s === "p2" && "flex-row-reverse")}>
-          <Move value={move} className="num text-sm sm:text-num-lg" />
+          <span className="flex flex-col items-center">
+            <Move value={move} text={s === "p1" ? s1 : s2} className="num text-sm sm:text-num-lg" />
+            {/* The tape beside it shows the day; this is the round, so it says so. */}
+            {live ? <span className="micro hidden text-dim sm:block">since start</span> : null}
+          </span>
           {isWinner ? (
             <Badge variant="win" title="Won at the bell">
               W
@@ -188,7 +193,7 @@ function EventPlate({ d, now }: { d: DuelView; now: number }) {
 
         <div className="hidden min-w-0 flex-col gap-1 lg:flex">
           <RaceSpark series={series} live={live} now={now} t1={t1} t2={t2} />
-          <p className="micro text-dim">{live ? "The race so far · for watching" : "The round · for watching"}</p>
+          <p className="micro text-dim">{live ? "Since the start · decides nothing" : "The round · decides nothing"}</p>
         </div>
       </div>
     </Link>

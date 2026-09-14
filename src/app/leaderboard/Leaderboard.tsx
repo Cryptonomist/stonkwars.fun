@@ -111,10 +111,14 @@ export function Leaderboard() {
     return h ? `@${h}` : shortAddress(wallet);
   };
 
+  /* On a phone the eyebrow, three stats, the range chips and the record cards
+   * pushed rank 1 to 690px. There the stats are one meta line under the title,
+   * and the record cards follow the ranked list instead of leading it. */
   const header = (
     <PageHeader
       eyebrow="Settled on chain"
       title="Leaderboard"
+      compactBelow="sm"
       stats={[
         { label: "Settled fights", value: loading ? <Skeleton className="h-4 w-8" /> : settled.toLocaleString("en-US") },
         {
@@ -188,9 +192,16 @@ export function Leaderboard() {
     });
   }
 
+  const recordStrip = recordCells.length ? <StatStrip cells={recordCells} cols={{ base: 2, sm: 3, lg: 3 }} label="Records" /> : null;
+
   return (
     <div className="pb-6">
       {header}
+      <p className="-mt-3 mb-4 text-meta text-dim sm:hidden">
+        <span className="num text-ink">{settled.toLocaleString("en-US")}</span> settled ·{" "}
+        <span className="num text-ink">{ranked.length.toLocaleString("en-US")}</span>{" "}
+        {ranked.length === 1 ? "wallet" : "wallets"} · <span className="num text-ink">{usd(takenTotal)}</span> taken
+      </p>
 
       {available.length > 1 ? (
         <Tabs
@@ -212,7 +223,7 @@ export function Leaderboard() {
           />
         ) : (
           <>
-            {recordCells.length ? <StatStrip cells={recordCells} cols={{ base: 2, sm: 3, lg: 3 }} label="Records" /> : null}
+            {recordStrip ? <div className="hidden sm:block">{recordStrip}</div> : null}
 
             {me ? (
               mineIndex >= 0 ? (
@@ -317,6 +328,8 @@ export function Leaderboard() {
                 </ol>
               ) : null}
             </section>
+
+            {recordStrip ? <div className="sm:hidden">{recordStrip}</div> : null}
           </>
         )}
 

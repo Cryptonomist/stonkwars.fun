@@ -15,23 +15,31 @@ export function PageHeader({
   stats,
   action,
   className,
+  compactBelow,
 }: {
   eyebrow?: ReactNode;
   title: ReactNode;
   stats?: HeaderStat[];
   action?: ReactNode;
   className?: string;
+  /** Below this width, leave out the eyebrow and the stats, for a board whose
+   *  own tabs or meta line already carry those numbers on a phone. */
+  compactBelow?: "sm" | "lg";
 }) {
+  /* Spelled out in full so Tailwind finds the classes. */
+  const eyebrowCls = compactBelow === "sm" || compactBelow === "lg" ? "hidden sm:block" : undefined;
+  const titleGap = eyebrow ? (eyebrowCls ? "sm:mt-2" : "mt-2") : null;
+  const statsCls = compactBelow === "lg" ? "hidden lg:flex" : compactBelow === "sm" ? "hidden sm:flex" : "flex";
   return (
     <header className={cx("flex flex-wrap items-end justify-between gap-x-6 gap-y-4 py-6", className)}>
       <div className="min-w-0">
-        {eyebrow ? <p className="label">{eyebrow}</p> : null}
-        <h1 className={cx("h-page", eyebrow ? "mt-2" : null)}>{title}</h1>
+        {eyebrow ? <p className={cx("label", eyebrowCls)}>{eyebrow}</p> : null}
+        <h1 className={cx("h-page", titleGap)}>{title}</h1>
       </div>
       {stats?.length || action ? (
         <div className="flex min-w-0 flex-wrap items-end gap-x-6 gap-y-3">
           {stats?.length ? (
-            <dl className="flex min-w-0 flex-wrap gap-x-6 gap-y-2">
+            <dl className={cx("min-w-0 flex-wrap gap-x-6 gap-y-2", statsCls)}>
               {stats.map((s) => (
                 <div key={s.label} className="min-w-0">
                   <dt className="label">{s.label}</dt>

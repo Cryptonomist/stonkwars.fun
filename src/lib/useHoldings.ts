@@ -21,7 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./duel";
 import { stakeValue, usePrices } from "./prices";
-import { tokenForMint } from "./stocks";
+import { byTicker as listedStock, tokenForMint } from "./stocks";
 
 export const SOL_DECIMALS = 9;
 
@@ -59,7 +59,11 @@ export function useHoldings(address: string | null, enabled = true) {
         const acct = readTokenAccount(a.account.data);
         if (!acct || acct.amount === BigInt(0)) continue;
         const token = tokenForMint(acct.mint);
-        if (!token) continue;
+        /* A token the roster does not list (the retired BTCt, ETHt and SOLt
+         * test mints) is skipped by the same test isListedDuel uses: boards
+         * already hide its fights, and it has no price, so it only ever showed
+         * as "no price" rows and an "unpriced" count on the total. */
+        if (!token || !listedStock(token.ticker)) continue;
         const had = byTicker.get(token.ticker);
         byTicker.set(token.ticker, {
           ticker: token.ticker,

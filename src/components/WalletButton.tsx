@@ -40,7 +40,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { shares, shortAddress, usd } from "@/lib/format";
 import { GuestWalletName } from "@/lib/guestWallet";
-import { explorerAddress } from "@/lib/hooks";
+import { explorerAddress, useProfiles } from "@/lib/hooks";
 import {
   detectPlatform,
   inWalletBrowser,
@@ -268,6 +268,7 @@ function WalletMenu({ address, className }: { address: string; className?: strin
   const [armed, setArmed] = useState(false);
   const { drip, busy } = useFaucet();
   const guest = wallet?.adapter.name === GuestWalletName;
+  const profiles = useProfiles();
 
   /* Balances are read only while somebody is looking at them (lib/useHoldings). */
   const { sol, holdings, valued, total } = useHoldings(address, open);
@@ -357,7 +358,8 @@ function WalletMenu({ address, className }: { address: string; className?: strin
           </div>
 
           <p className="mt-3 flex items-baseline justify-between gap-3">
-            <span className="label">Stock tokens</span>
+            {/* On devnet these are test tokens, and the total says so. */}
+            <span className="label">{CLUSTER !== "mainnet-beta" ? "Test shares" : "Stock tokens"}</span>
             {total !== null ? <span className="num text-meta text-ink">{usd(total)} now</span> : null}
           </p>
           {holdings.data === undefined && !holdings.isError ? (
@@ -392,6 +394,13 @@ function WalletMenu({ address, className }: { address: string; className?: strin
 
         <div className="py-1">
           <MenuItem href="/fights?tab=mine">My fights</MenuItem>
+          {/* Every board shows a wallet as an address until its owner links an X
+            * handle, and this menu is where people look for account actions. The
+            * link flow lives on the wallet's own profile (ConnectX), so the item
+            * goes there, and only while the chain vouches for no handle. */}
+          {profiles.isSuccess && !profiles.data?.[address] ? (
+            <MenuItem href={`/u/${address}#connect-x`}>Show my X handle</MenuItem>
+          ) : null}
           {CLUSTER !== "mainnet-beta" ? (
             <MenuItem onSelect={() => void drip()} disabled={busy}>
               {busy ? "Minting..." : "Get test shares"}

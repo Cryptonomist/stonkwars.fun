@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ConnectX } from "@/components/ConnectX";
 import { FightRow } from "@/components/FightRow";
+import { FirstFightOffer } from "@/components/FirstFightOffer";
 import { cx } from "@/components/ui/cx";
 import { Empty } from "@/components/ui/Empty";
 import { ExplorerLink } from "@/components/ui/ExplorerLink";
@@ -37,7 +38,6 @@ import {
   decodeDuel,
   duelsAcceptedBy,
   duelsCreatedBy,
-  isInviteOnly,
   PROGRAM_ID,
   STATUS_ACCEPTED,
   STATUS_LIVE,
@@ -57,7 +57,7 @@ import {
 import { shares, until, usd } from "@/lib/format";
 import { useDuels, useProfiles } from "@/lib/hooks";
 import { stakeValue, usePrices } from "@/lib/prices";
-import { decimalsForMint, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import { CLUSTER, decimalsForMint, tickerForMint, tokenSymbol } from "@/lib/stocks";
 import { useHoldings } from "@/lib/useHoldings";
 import { useNow } from "@/lib/useNow";
 
@@ -159,7 +159,9 @@ export function ProfileView({ wallet }: { wallet: string }) {
           <FighterName wallet={wallet} size="lg" href={null} avatar={false} you={self} />
         </h1>
         <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-meta">
-          <ExplorerLink kind="address" value={wallet} />
+          {/* The title above is already the short address when there is no
+            * handle, so the link names where it goes instead of printing it twice. */}
+          <ExplorerLink kind="address" value={wallet} label={handle ? undefined : "View on explorer"} />
           <button
             type="button"
             onClick={copy}
@@ -182,7 +184,13 @@ export function ProfileView({ wallet }: { wallet: string }) {
     </Plate>
   );
 
-  const connect = self && profiles.isSuccess && !handle ? <ConnectX compact /> : null;
+  // #connect-x is where the wallet menu's "Show my X handle" lands.
+  const connect =
+    self && profiles.isSuccess && !handle ? (
+      <div id="connect-x" className="scroll-mt-20">
+        <ConnectX compact />
+      </div>
+    ) : null;
 
   if (duels.isError && !duels.data) {
     return (
@@ -231,7 +239,7 @@ export function ProfileView({ wallet }: { wallet: string }) {
               Staked in devnet test tokens rather than listed stocks, so they count on no board and in no record here.
             </p>
             {testFights.map((d) => (
-              <FightRow key={d.address.toBase58()} d={d} now={now} />
+              <FightRow key={d.address.toBase58()} d={d} now={now} viewer={wallet} you={self} />
             ))}
           </div>
         ) : null}
@@ -243,42 +251,20 @@ export function ProfileView({ wallet }: { wallet: string }) {
   if (mine.length === 0) {
     /* A wallet with no fights still has a next step, and for the viewer's own
      * page it is a real one: the open seat nearest its deadline that this
-     * wallet may take, named with its stake, before the generic "Pick a fight". */
-    const seat = self ? nearestSeat(duels.data, wallet, now) : null;
-    const seatT1 = seat ? (tickerForMint(seat.creatorMint) ?? "?") : "";
-    const seatT2 = seat ? (tickerForMint(seat.opponentMint) ?? "?") : "";
+     * wallet may take, named with its stake, before the generic "Pick a fight"
+     * (FirstFightOffer, which My fights shares). */
     return (
       <div className="flex flex-col gap-6 py-6">
         {header}
         {connect}
         <div className="grid gap-6 lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
           <div className="flex min-w-0 flex-col gap-3">
-            <Empty
-              title="No fights on chain for this wallet yet."
-              body={
-                self
-                  ? seat
-                    ? `${seatT1} vs ${seatT2} is open now and yours to take, or pick your own. This page starts keeping score at the first one.`
-                    : "Pick one and this page starts keeping score."
-                  : undefined
-              }
+            {self ? (
+              <FirstFightOffer duels={duels.data} wallet={wallet} now={now} />
+            ) : (
               // On someone else's page the challenge above is the one side-coloured action.
-              action={
-                seat ? (
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {/* Taking is the answerer's move, so the button is the answerer's colour. */}
-                    <Link href={`/f/${seat.address.toBase58()}`} className="btn btn-sm btn-p2">
-                      <SeatLabel d={seat} t1={seatT1} t2={seatT2} />
-                    </Link>
-                    <Link href="/new" className="btn btn-sm btn-ghost">
-                      Pick a fight
-                    </Link>
-                  </div>
-                ) : (
-                  { href: "/new", label: "Pick a fight", tone: self ? "p1" : "ghost" }
-                )
-              }
-            />
+              <Empty title="No fights on chain for this wallet yet." action={{ href: "/new", label: "Pick a fight", tone: "ghost" }} />
+            )}
             {testToggle}
           </div>
           <aside className="flex min-w-0 flex-col gap-6" aria-label="About this wallet">
@@ -332,7 +318,7 @@ export function ProfileView({ wallet }: { wallet: string }) {
           <SectionHead id="profile-history" title="History" count={history.length} />
           <div className="flex flex-col gap-2">
             {visible.map((d) => (
-              <FightRow key={d.address.toBase58()} d={d} now={now} quotes={prices.data} />
+              <FightRow key={d.address.toBase58()} d={d} now={now} quotes={prices.data} viewer={wallet} you={self} />
             ))}
           </div>
           {history.length > shown ? (
@@ -407,36 +393,6 @@ export function ProfileView({ wallet }: { wallet: string }) {
 
 /* ─── What the wallet holds, and what it has up ─────────────────────────── */
 
-/** The open seat, nearest its deadline, that `wallet` may take: a listed pair,
- *  not its own, and open to anyone or naming it. */
-function nearestSeat(duels: DuelView[], wallet: string, now: number): DuelView | null {
-  if (!now) return null;
-  return (
-    duels
-      .filter(
-        (d) =>
-          isRosterFight(d) &&
-          d.status === STATUS_OPEN &&
-          d.expiresTs > now &&
-          d.creator.toBase58() !== wallet &&
-          (!isInviteOnly(d) || d.invitee.toBase58() === wallet),
-      )
-      .sort((a, b) => a.expiresTs - b.expiresTs)[0] ?? null
-  );
-}
-
-/** "AMZN vs HOOD · $25 a side · Take it", the stake at the challenger's live price. */
-function SeatLabel({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
-  const prices = usePrices([t1]);
-  const v = stakeValue(d.creatorAmount, decimalsForMint(d.creatorMint), prices.data?.quotes[t1]);
-  return (
-    <>
-      {t1} vs {t2}
-      {v !== null && Number.isFinite(v) ? <span className="num"> · {usd(Math.max(1, Math.round(v)), { cents: false })} a side</span> : null} · Take it
-    </>
-  );
-}
-
 /* SHARES HELD AND STAKES UP. A profile used to be only a fight history, so a
  * wallet holding $1,000 of stock tokens with a stake waiting in escrow read as
  * empty. The holdings are the chain's token accounts (lib/useHoldings); the
@@ -494,7 +450,10 @@ function HoldingsRail({ wallet, fights, self }: { wallet: string; fights: DuelVi
           <dl className="flex flex-col border-t border-line px-3 py-2">
             {total !== null ? (
               <div className="flex h-7 items-center justify-between gap-3">
-                <dt className="label">Total now{unpriced ? ` · ${unpriced} unpriced` : ""}</dt>
+                <dt className="label">
+                  Total now{CLUSTER !== "mainnet-beta" ? " · test shares" : ""}
+                  {unpriced ? ` · ${unpriced} unpriced` : ""}
+                </dt>
                 <dd className="num text-sm text-ink">{usd(total)}</dd>
               </div>
             ) : null}

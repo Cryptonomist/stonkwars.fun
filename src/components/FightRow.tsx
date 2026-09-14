@@ -29,7 +29,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Move } from "@/components/Ticker";
+import { Move, movePair } from "@/components/Ticker";
 import { Badge } from "@/components/ui/Badge";
 import { Countdown } from "@/components/ui/Countdown";
 import { cx } from "@/components/ui/cx";
@@ -85,17 +85,25 @@ export function FightRow({
   now,
   quotes,
   compact = false,
+  viewer,
+  you = false,
 }: {
   d: DuelView;
   now: number;
   quotes?: Quotes;
   /** Leaves out the taunt line, for rails where every row must be one height. */
   compact?: boolean;
+  /** Read the row as this wallet's ledger (a profile, or My fights): its corner
+   *  is marked and a result says W or L with the money that moved. */
+  viewer?: string;
+  /** The viewer is the connected wallet, so its corner says "You". */
+  you?: boolean;
 }) {
   const address = d.address.toBase58();
   const t1 = tickerForMint(d.creatorMint) ?? "?";
   const t2 = tickerForMint(d.opponentMint) ?? "?";
   const [m1, m2] = rowMoves(d, quotes, t1, t2);
+  const [s1, s2] = movePair(m1, m2);
 
   const expired = d.status === STATUS_OPEN && now > 0 && d.expiresTs <= now;
   const open = d.status === STATUS_OPEN && !expired;
@@ -105,6 +113,22 @@ export function FightRow({
   const opponent = d.opponent.toBase58();
   const invitee = d.invitee.toBase58();
   const { badge, age } = rowStatus(d, now);
+
+  /* WHOSE LEDGER. On a profile the history used to be a list of other people's
+   * fights: which corner was this fighter's took reading a 10px address under
+   * each ticker. So the viewer's corner is labelled, and a result says W or L
+   * in the middle with what moved: "took $6.48" in green for a win, "lost
+   * $2.57" in dim ink for a loss, never red, which is a price move. */
+  const mine: Side | null = viewer ? (viewer === d.creator.toBase58() ? "p1" : viewer === opponent ? "p2" : null) : null;
+  const result = mine && won ? (won === mine ? "W" : "L") : null;
+  const ledger =
+    result && take ? (
+      result === "W" ? (
+        <span className="num text-up">took {usd(take.usd)}</span>
+      ) : (
+        <span className="num text-dim">lost {usd(take.usd)}</span>
+      )
+    ) : null;
 
   const side = (s: Side) => {
     const ticker = s === "p1" ? t1 : t2;
@@ -146,7 +170,9 @@ export function FightRow({
           ) : null}
         </span>
         {move !== null ? (
-          <Move value={move} className="num shrink-0 text-sm" />
+          <span className="shrink-0" title={d.status === STATUS_LIVE ? "Since the on-chain start" : "At the bell"}>
+            <Move value={move} text={s === "p1" ? s1 : s2} className="num text-sm" />
+          </span>
         ) : s === "p2" && open ? (
           /* An open corner has no move yet. Its slot holds the way in: a chip
            * in the answerer's colour, styled as a button, though the whole row
@@ -200,6 +226,7 @@ export function FightRow({
           s === "p1" ? "sm:col-start-1" : "sm:col-start-3 sm:justify-end",
         )}
       >
+        {mine === s ? <span className="micro shrink-0 text-ink">{you ? "You" : "This fighter"}</span> : null}
         {name}
         {amount ? <span className="num shrink-0">{amount}</span> : null}
       </div>
@@ -214,7 +241,7 @@ export function FightRow({
     <Link
       href={`/f/${address}`}
       className={cx(
-        "plate-card rope row block min-w-0 px-3 py-2 focus-visible:-outline-offset-2 sm:py-2.5",
+        "@container plate-card rope row block min-w-0 px-3 py-2 focus-visible:-outline-offset-2 sm:py-2.5",
         /* Phone: each corner a full line, then badge, age and money. From
          * 640px: challenger, state, answerer, with who and how old beneath. */
         "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1",
@@ -224,9 +251,26 @@ export function FightRow({
       <div className="col-span-3 min-w-0 sm:col-span-1 sm:col-start-1 sm:row-start-1">{side("p1")}</div>
       <div className="col-span-3 row-start-2 min-w-0 sm:col-span-1 sm:col-start-3 sm:row-start-1">{side("p2")}</div>
 
-      <div className="col-start-1 row-start-3 flex sm:col-start-2 sm:row-start-1 sm:justify-center">{badge}</div>
+      <div className="col-start-1 row-start-3 flex items-center gap-1 sm:col-start-2 sm:row-start-1 sm:justify-center">
+        {badge}
+        {result === "W" ? (
+          <Badge variant="win" title="This fighter won">
+            W
+          </Badge>
+        ) : result === "L" ? (
+          <Badge title="This fighter lost">L</Badge>
+        ) : null}
+      </div>
       <div className="col-start-2 row-start-3 min-w-0 truncate text-meta text-dim sm:col-start-2 sm:row-start-2 sm:text-center">
         {age}
+        {ledger ? <> · {ledger}</> : null}
+        {/* A wide row (a board, not the home page's ring) has room for the
+          * money line a phone shows on its last row: what each side has up,
+          * or how close a result was. */}
+        {/* An open seat already carries its stake beside "Open seat". */}
+        {stake && !ledger && !open ? (
+          <span className="num hidden @[40rem]:inline"> · {stake}</span>
+        ) : null}
       </div>
       <div className="col-start-3 row-start-3 min-w-0 text-right text-meta text-dim sm:hidden">
         {stake ? <span className="num whitespace-nowrap">{stake}</span> : null}

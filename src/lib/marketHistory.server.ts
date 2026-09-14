@@ -4,8 +4,8 @@ import "server-only";
  *
  * The same spark endpoint the live prices use, asked for a month of days
  * instead of a day: twenty symbols a request, so a screenful of fighters is one
- * call. Never an input to an outcome — the program reads only the boundary
- * prices a crank posts — and never converted between currencies, because every
+ * call. Never an input to an outcome (the program reads only the boundary
+ * prices a crank posts), and never converted between currencies, because every
  * stat built from these is a ratio (see lib/fighterStats.ts). */
 
 import type { Stock } from "@/lib/stocks";

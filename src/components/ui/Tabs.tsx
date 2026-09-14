@@ -30,6 +30,7 @@ export function Tabs<T extends string>({
   ariaLabel,
   controls,
   size = "sm",
+  scrollBelow,
   className,
 }: {
   items: readonly TabItem<T>[];
@@ -39,6 +40,8 @@ export function Tabs<T extends string>({
   /** The id of the panel these tabs switch, for aria-controls. */
   controls?: string;
   size?: "sm" | "md";
+  /** Below 640px, one line that scrolls sideways instead of wrapping to two. */
+  scrollBelow?: "sm";
   className?: string;
 }) {
   const base = useId();
@@ -81,7 +84,16 @@ export function Tabs<T extends string>({
   const selectedIndex = Math.max(0, items.findIndex((t) => t.id === value));
 
   return (
-    <div role="tablist" aria-label={ariaLabel} onKeyDown={onKeyDown} className={cx("flex flex-wrap gap-1", className)}>
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
+      className={cx(
+        "flex gap-1",
+        scrollBelow === "sm" ? "scroll-thin snap-x flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible [&>*]:shrink-0 [&>*]:snap-start" : "flex-wrap",
+        className,
+      )}
+    >
       {items.map((t, i) => {
         const selected = t.id === value;
         return (

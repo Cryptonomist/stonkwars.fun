@@ -36,6 +36,7 @@ import { PublicKey } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 
 import { FightRow, isLate } from "@/components/FightRow";
+import { FirstFightOffer } from "@/components/FirstFightOffer";
 import { cx } from "@/components/ui/cx";
 import { Empty } from "@/components/ui/Empty";
 import { FighterName } from "@/components/ui/FighterName";
@@ -47,6 +48,7 @@ import { Plate } from "@/components/ui/Plate";
 import { SectionHead } from "@/components/ui/SectionHead";
 import { Skeleton, SkeletonRows } from "@/components/ui/Skeleton";
 import { Tabs, useUrlTab, type TabItem } from "@/components/ui/Tabs";
+import { toast } from "@/components/ui/Toast";
 import {
   allDuels,
   decodeDuel,
@@ -335,6 +337,9 @@ export function FightsBoard() {
     <PageHeader
       eyebrow="On chain"
       title="Fights"
+      /* Below 1024px the tab chips carry the same counts, and the three stats
+       * plus the eyebrow pushed the first row to 370px on a phone. */
+      compactBelow="lg"
       stats={[
         liveNow > 0
           ? {
@@ -438,6 +443,8 @@ export function FightsBoard() {
         now={now}
         hrefWith={hrefWith}
         onClear={clearFilters}
+        duels={listed}
+        me={me}
       />
     );
   } else if (tab === "final") {
@@ -448,7 +455,8 @@ export function FightsBoard() {
       <ul className="flex flex-col gap-2">
         {visible.slice(from, to).map((d) => (
           <li key={d.address.toBase58()} className="min-w-0">
-            <FightRow d={d} now={now} quotes={prices.data} />
+            {/* My fights reads as this wallet's ledger: its corner, W or L, what moved. */}
+            <FightRow d={d} now={now} quotes={prices.data} viewer={tab === "mine" && me ? me : undefined} you />
           </li>
         ))}
       </ul>
@@ -459,7 +467,10 @@ export function FightsBoard() {
           {lateFrom > 0 ? rows(0, lateFrom) : null}
           <section aria-label="The settler is late" className="flex min-w-0 flex-col gap-2">
             <h2 className="micro flex items-center gap-3 text-dim">
-              <span className="shrink-0">Settler late · anyone can post the prices</span>
+              {/* The whole line is wider than a phone, and it pushed the page to 402px there. */}
+              <span className="min-w-0 truncate">
+                Settler late<span className="hidden sm:inline"> · anyone can post the prices</span>
+              </span>
               <span aria-hidden="true" className="h-px min-w-4 flex-1 bg-line" />
               <span className="num shrink-0">{plural(lists.late.length, "fight", "fights")}</span>
             </h2>
@@ -629,7 +640,8 @@ function FilterToolbar({
   return (
     <>
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <Tabs items={items} value={tab} onChange={onTab} ariaLabel="Fights" controls="fights-list" className="min-w-0" />
+        {/* One scrolling line on a phone, with Filter held at the right edge. */}
+        <Tabs items={items} value={tab} onChange={onTab} ariaLabel="Fights" controls="fights-list" scrollBelow="sm" className="min-w-0" />
         <button
           type="button"
           aria-expanded={open}
@@ -741,6 +753,8 @@ function TabEmpty({
   now,
   hrefWith,
   onClear,
+  duels,
+  me,
 }: {
   tab: TabId;
   filtered: boolean;
@@ -750,6 +764,9 @@ function TabEmpty({
   now: number;
   hrefWith: (patch: Record<string, string | null>) => string;
   onClear: () => void;
+  /** The listed fights, for the open seat an empty My fights can offer. */
+  duels: DuelView[];
+  me: string | null;
 }) {
   const title: Record<TabId, string> = {
     live: "Nothing live right now.",
@@ -780,14 +797,46 @@ function TabEmpty({
           action={{ href: hrefWith({ tab: "open" }), label: "See open challenges", tone: "light" }}
         />
       );
-    case "open":
     case "mine":
+      /* The same offer the wallet's own empty profile makes: a real open seat
+       * by name, not only a generic button. */
+      return me ? (
+        <FirstFightOffer duels={duels} wallet={me} now={now} title={title.mine} />
+      ) : (
+        <Empty title={title.mine} action={{ href: "/new", label: "Pick a fight", tone: "p1" }} />
+      );
+    case "open":
       return <Empty title={title[tab]} action={{ href: "/new", label: "Pick a fight", tone: "p1" }} />;
     case "called":
-      return <Empty title={title.called} body="A challenge made for your wallet lands here." />;
+      return (
+        <Empty
+          title={title.called}
+          body="A challenge made for your wallet lands here. Send a friend your profile, and they can call you out from it."
+          action={me ? <CopyProfileLink wallet={me} /> : undefined}
+        />
+      );
     default:
       return <Empty title={title.final} action={{ href: hrefWith({ tab: "open" }), label: "See open challenges" }} />;
   }
+}
+
+/* The profile link a friend needs to call this wallet out ("Challenge this
+ * fighter" lives there). The full URL is copied, from this page's own origin. */
+function CopyProfileLink({ wallet }: { wallet: string }) {
+  const copy = async () => {
+    const url = `${window.location.origin}/u/${wallet}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.push({ title: "Profile link copied", check: true, ttlMs: 3_000 });
+    } catch {
+      toast.push({ title: "Could not copy the link.", body: url });
+    }
+  };
+  return (
+    <button type="button" className="btn btn-sm btn-ghost" onClick={() => void copy()}>
+      Copy my profile link
+    </button>
+  );
 }
 
 /* THE FILTER PANEL: type a stock, an @handle or a wallet, or tap one of the
