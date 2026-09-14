@@ -111,3 +111,75 @@ export function etTime(unix: number, withDay = true): string {
     second: undefined,
   }) + " ET";
 }
+
+/* AGES AND DATES, ALWAYS FROM A REAL TIMESTAMP.
+ *
+ * A board that says "3h ago" is making a claim about the chain, so these only
+ * ever take a unix time the program wrote (created, accepted, started, ended)
+ * and the viewer's clock. They are built from formatToParts rather than
+ * toLocaleString, because newer ICU builds put a narrow no-break space before
+ * "PM" and the same page would then render differently from one Node to the
+ * next. And no dashes of either length: a range reads "4:21 to 4:27 PM ET". */
+
+type EtParts = { weekday: string; day: string; month: string; hour: string; minute: string; period: string; ymd: string };
+
+const ET_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  weekday: "short",
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+
+function etParts(unix: number): EtParts {
+  const parts: Record<string, string> = {};
+  for (const p of ET_FORMAT.formatToParts(new Date(unix * 1000))) parts[p.type] = p.value;
+  return {
+    weekday: parts.weekday,
+    day: parts.day,
+    month: parts.month,
+    hour: parts.hour,
+    minute: parts.minute,
+    period: (parts.dayPeriod ?? "").toUpperCase(),
+    ymd: `${parts.year}-${parts.month}-${parts.day}`,
+  };
+}
+
+/** "now", "45s ago", "12m ago", "3h ago", "2d ago", then "Sep 3" (in ET). */
+export function ago(unix: number, now: number): string {
+  const s = Math.floor(now - unix);
+  if (s < 10) return "now";
+  if (s < 60) return `${s}s ago`;
+  if (s < 3_600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86_400) return `${Math.floor(s / 3_600)}h ago`;
+  if (s < 7 * 86_400) return `${Math.floor(s / 86_400)}d ago`;
+  const p = etParts(unix);
+  return `${p.month} ${p.day}`;
+}
+
+/** "in 45s", "in 12m", "in 3h", "in 6d". A time already passed is "now". */
+export function until(unix: number, now: number): string {
+  const s = Math.floor(unix - now);
+  if (s <= 0) return "now";
+  if (s < 60) return `in ${s}s`;
+  if (s < 3_600) return `in ${Math.floor(s / 60)}m`;
+  if (s < 86_400) return `in ${Math.floor(s / 3_600)}h`;
+  return `in ${Math.floor(s / 86_400)}d`;
+}
+
+/** A round as the market's clock saw it: "Sat 12 Sep, 4:21 to 4:27 PM ET" on
+ *  one ET day, "Fri 11 Sep 3:00 PM to Mon 14 Sep 9:30 AM ET" across days. */
+export function etWhen(startUnix: number, endUnix: number): string {
+  const a = etParts(startUnix);
+  const b = etParts(endUnix);
+  const date = (p: EtParts) => `${p.weekday} ${p.day} ${p.month}`;
+  const time = (p: EtParts) => `${p.hour}:${p.minute}`;
+  if (a.ymd === b.ymd) {
+    const from = a.period === b.period ? time(a) : `${time(a)} ${a.period}`;
+    return `${date(a)}, ${from} to ${time(b)} ${b.period} ET`;
+  }
+  return `${date(a)} ${time(a)} ${a.period} to ${date(b)} ${time(b)} ${b.period} ET`;
+}

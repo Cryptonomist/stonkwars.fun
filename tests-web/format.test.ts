@@ -1,6 +1,9 @@
 import { expect } from "chai";
 
-import { pct, points } from "../src/lib/format";
+import { ago, etWhen, pct, points, until } from "../src/lib/format";
+import { nyToMs } from "../src/lib/market";
+
+const et = (y: number, m: number, d: number, hh: number, mm: number) => Math.floor(nyToMs(y, m, d, hh, mm, 0) / 1000);
 
 /* Two decimals suit a trading day and lie on a quiet weekend. One settled
  * fight had its sides at -0.0108% and -0.0046%, which at two decimals reads
@@ -50,5 +53,70 @@ describe("the margin between two moves", () => {
   it("shows the margin that actually decided a quiet fight", () => {
     // -0.0108 against -0.0046: the gap is 0.0062, not "0.01".
     expect(points(-0.0108 - -0.0046)).to.equal("0.0062");
+  });
+});
+
+/* Every age on a board is a claim about when something happened on chain, so
+ * the buckets are pinned, and so is the absence of dashes: a range reads
+ * "4:21 to 4:27 PM ET", never with an en dash. */
+
+describe("how long ago", () => {
+  const NOW = et(2026, 9, 13, 20, 30);
+
+  it("calls the last ten seconds now", () => {
+    expect(ago(NOW, NOW)).to.equal("now");
+    expect(ago(NOW - 9, NOW)).to.equal("now");
+    expect(ago(NOW + 30, NOW)).to.equal("now"); // a clock a little ahead of the chain
+  });
+
+  it("counts seconds, minutes, hours and days", () => {
+    expect(ago(NOW - 45, NOW)).to.equal("45s ago");
+    expect(ago(NOW - 12 * 60 - 59, NOW)).to.equal("12m ago");
+    expect(ago(NOW - 3 * 3_600, NOW)).to.equal("3h ago");
+    expect(ago(NOW - 2 * 86_400, NOW)).to.equal("2d ago");
+    expect(ago(NOW - 6 * 86_400 - 3_600, NOW)).to.equal("6d ago");
+  });
+
+  it("gives a date in New York once it is a week old", () => {
+    expect(ago(et(2026, 9, 3, 23, 30), NOW)).to.equal("Sep 3");
+    // 1:30 AM UTC on the 4th is still the 3rd in New York.
+    expect(ago(Math.floor(Date.parse("2026-09-04T01:30:00Z") / 1000), NOW)).to.equal("Sep 3");
+  });
+});
+
+describe("how long until", () => {
+  const NOW = et(2026, 9, 13, 20, 30);
+
+  it("counts down in the largest whole unit", () => {
+    expect(until(NOW + 45, NOW)).to.equal("in 45s");
+    expect(until(NOW + 12 * 60 + 30, NOW)).to.equal("in 12m");
+    expect(until(NOW + 3 * 3_600 + 59, NOW)).to.equal("in 3h");
+    expect(until(NOW + 6 * 86_400 + 100, NOW)).to.equal("in 6d");
+  });
+
+  it("does not count down past zero", () => {
+    expect(until(NOW, NOW)).to.equal("now");
+    expect(until(NOW - 5, NOW)).to.equal("now");
+  });
+});
+
+describe("a round on the market's clock", () => {
+  it("writes one day once", () => {
+    expect(etWhen(et(2026, 9, 12, 16, 21), et(2026, 9, 12, 16, 27))).to.equal("Sat 12 Sep, 4:21 to 4:27 PM ET");
+  });
+
+  it("names both halves of the day when a round crosses noon", () => {
+    expect(etWhen(et(2026, 9, 11, 11, 30), et(2026, 9, 11, 13, 5))).to.equal("Fri 11 Sep, 11:30 AM to 1:05 PM ET");
+  });
+
+  it("writes both days when a round runs over a weekend", () => {
+    expect(etWhen(et(2026, 9, 11, 15, 0), et(2026, 9, 14, 9, 30))).to.equal(
+      "Fri 11 Sep 3:00 PM to Mon 14 Sep 9:30 AM ET",
+    );
+  });
+
+  it("uses no dashes of any length", () => {
+    const out = [etWhen(et(2026, 9, 12, 16, 21), et(2026, 9, 14, 9, 30)), ago(0, 1e9), until(1e9, 0)].join(" ");
+    expect(out).to.not.match(/[\u2013\u2014]/);
   });
 });
