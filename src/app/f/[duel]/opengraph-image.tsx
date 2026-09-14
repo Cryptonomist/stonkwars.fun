@@ -32,7 +32,7 @@ import {
   STATUS_SETTLED,
   type DuelView,
 } from "@/lib/duel";
-import { pct, points, shares } from "@/lib/format";
+import { pct, pctPair, points, shares } from "@/lib/format";
 import { loadGoogleFont } from "@/lib/ogFont";
 import { PALETTE } from "@/lib/palette";
 import { movePct } from "@/lib/pricemath";
@@ -115,6 +115,8 @@ async function render(d: DuelView | null): Promise<ImageResponse> {
   const final = settled || heat;
   const m1 = d && final ? movePct(d.creatorStart, d.creatorEnd) : null;
   const m2 = d && final ? movePct(d.opponentStart, d.opponentEnd) : null;
+  // Two close moves widen together, so a loss never reads as a tie on the card.
+  const pair: [string | null, string | null] = m1 !== null && m2 !== null ? pctPair(m1, m2) : [null, null];
   const p1Cooked = settled && d!.outcome === OUTCOME_OPPONENT;
   const p2Cooked = settled && d!.outcome === OUTCOME_CREATOR;
   const take = d && settled ? loserTake(d) : null;
@@ -182,7 +184,7 @@ async function render(d: DuelView | null): Promise<ImageResponse> {
           /* The move block. The loser's stamp lands here, under the move and
            * clear of the ticker, so both still read. */
           <div style={{ display: "flex", flexDirection: "column", alignItems: align, marginTop: 8 }}>
-            <div style={{ fontSize: 64, color: moveColour(move) }}>{pct(move)}</div>
+            <div style={{ fontSize: 64, color: moveColour(move) }}>{(left ? pair[0] : pair[1]) ?? pct(move)}</div>
             {won && tookLine ? (
               <div style={{ fontSize: 40, color: C.up, marginTop: 6, textTransform: "none" }}>{tookLine}</div>
             ) : null}

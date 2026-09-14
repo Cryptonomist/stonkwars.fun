@@ -80,6 +80,10 @@
   --text-hud-xl-phone--line-height: 54px;
   --text-hud-ko-phone: 88px;
   --text-hud-ko-phone--line-height: 75px;
+  /* A fight corner on a phone, where both corners share one row: 64px left
+   * each ticker about 150px wide, and GOOGL did not fit beside its rival. */
+  --text-hud-md: 40px;
+  --text-hud-md--line-height: 36px;
 
   --font-display: var(--font-display-face), "Arial Narrow", Impact, sans-serif;
   --font-sans: var(--font-body-face), ui-sans-serif, system-ui, sans-serif;

@@ -176,9 +176,20 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
   const { hits, combo, landing, heavy } = useFightFeel(m1, m2, beforeBell);
   const ko = useKnockout(d.status === STATUS_SETTLED || d.status === STATUS_REFUNDED);
   const lead = beforeBell && m1 !== null && m2 !== null ? (m1 > m2 ? "p1" : m2 > m1 ? "p2" : null) : null;
+  /* The bars show in a live round and on a result (the same states Center
+   * draws them in); at a K.O. the loser's bar is the empty one. */
+  const bars: { ko: "p1" | "p2" | null } | null = beforeBell
+    ? { ko: null }
+    : d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE)
+      ? { ko: d.outcome === OUTCOME_OPPONENT ? "p1" : d.outcome === OUTCOME_CREATOR ? "p2" : null }
+      : null;
 
   const secondsLeft = clock.secondsLeft;
-  useTabTitle(tabTitle({ d, t1, t2, m1, m2, now, secondsLeft }));
+  /* Late is roundClock's own verdict (the manual buttons are showing), so the
+   * corners and the tab say the same thing as the status line above them. */
+  const late = clock.manual !== null;
+  const title = tabTitle({ d, t1, t2, m1, m2, now, secondsLeft });
+  useTabTitle(late ? `${t1} vs ${t2} · Late` : title);
   useFightSounds({ status: d.status, m1, m2, beforeBell, secondsLeft, ko });
 
   const stakeUsd = stakeValue(d.creatorAmount, decimalsForMint(d.creatorMint), q1);
@@ -209,21 +220,55 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
       >
         <Knockout show={ko} tie={d.outcome === OUTCOME_TIE} />
         <Versus
-          stackBelow="md"
+          pairBelow="md"
           /* Corners line up along their tops, whatever each holds; the centre stays centred. */
-          className="gap-4 md:gap-6 md:[&>*:nth-child(odd)]:self-start"
+          className="gap-4 md:gap-6 [&>*:nth-child(odd)]:self-start"
           left={
-            <Corner d={d} side="p1" ticker={t1} quote={q1} shut={shut.includes(t1)} leading={lead === "p1"} hits={hits} hurt={landing?.side === "p2"} />
+            <Corner
+              d={d}
+              side="p1"
+              ticker={t1}
+              quote={q1}
+              shut={shut.includes(t1)}
+              leading={lead === "p1"}
+              hits={hits}
+              hurt={landing?.side === "p2"}
+              late={late}
+              other={m2}
+            />
           }
           center={<Center d={d} now={now} t1={t1} t2={t2} m1={m1} m2={m2} combo={combo} clock={clock} beforeBell={beforeBell} />}
           right={
-            <Corner d={d} side="p2" ticker={t2} quote={q2} shut={shut.includes(t2)} leading={lead === "p2"} hits={hits} hurt={landing?.side === "p1"} />
+            <Corner
+              d={d}
+              side="p2"
+              ticker={t2}
+              quote={q2}
+              shut={shut.includes(t2)}
+              leading={lead === "p2"}
+              hits={hits}
+              hurt={landing?.side === "p1"}
+              late={late}
+              other={m1}
+            />
           }
         />
 
+        {/* THE HUD ACROSS THE ARENA, from 768px. Inside the centre column the
+          * bars were two 119px strips, smaller than the home page's teaser of
+          * this very fight, so a real round did not read as a fight. Here they
+          * run the arena's width, cyan from the left and pink from the right,
+          * under the corners they belong to. On a phone the centre row already
+          * spans the width, and the bars stay in it. */}
+        {bars ? (
+          <div className="mt-6 hidden md:block">
+            <HealthBars p1Move={m1} p2Move={m2} roundSecs={Math.max(60, d.endTs - d.startTs)} ko={bars.ko} size="lg" />
+          </div>
+        ) : null}
+
         {d.taunt ? (
-          <figure className="mt-6 border-t border-line pt-4 text-center">
-            <blockquote className="text-lg text-ink italic sm:text-xl">&ldquo;{d.taunt}&rdquo;</blockquote>
+          <figure className="mt-4 border-t border-line pt-3 text-center md:mt-6 md:pt-4">
+            <blockquote className="text-base text-ink italic sm:text-lg md:text-xl">&ldquo;{d.taunt}&rdquo;</blockquote>
             <figcaption className="mt-2 inline-flex items-center gap-1.5 text-meta text-dim">
               <FighterName wallet={d.creator.toBase58()} size="sm" /> on chain
             </figcaption>
@@ -397,12 +442,12 @@ function Center({
   const vs = <span className="display text-hud-sm text-ink md:text-hud-lg">VS</span>;
   const roundSecs = Math.max(60, d.endTs - d.startTs);
   /* Between the corners from 768px it is a column. On a phone the corners
-   * stack, and the centre is a row between them: a tall column there pushed
-   * the answering corner a whole screen down. */
+   * share a row and the centre is a row under both, across the width: a tall
+   * column there pushed the answering corner a whole screen down. */
   const wrap = (children: React.ReactNode) => (
     <div
       data-arena-center
-      className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-y border-line py-3 md:w-52 md:flex-col md:gap-2 md:border-0 md:py-2 lg:w-72"
+      className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-line pt-3 md:w-52 md:flex-col md:gap-2 md:border-0 md:py-2 lg:w-72"
     >
       {children}
     </div>
@@ -453,7 +498,8 @@ function Center({
     const lead = leadWords(t1, t2, m1, m2);
     return wrap(
       <>
-        <div className="w-full">
+        {/* The phone's bars; from 768px they run across the arena instead. */}
+        <div className="w-full md:hidden">
           <HealthBars p1Move={m1} p2Move={m2} roundSecs={roundSecs} />
         </div>
         {clock.secondsLeft !== null ? (
@@ -473,7 +519,7 @@ function Center({
     const loser = d.outcome === OUTCOME_OPPONENT ? "p1" : d.outcome === OUTCOME_CREATOR ? "p2" : null;
     return wrap(
       <>
-        <div className="w-full">
+        <div className="w-full md:hidden">
           <HealthBars p1Move={m1} p2Move={m2} roundSecs={roundSecs} ko={tie ? null : loser} />
         </div>
         <span className="text-center text-sm font-semibold text-ink">
@@ -486,8 +532,8 @@ function Center({
         {d.startTs ? (
           <span className="text-center text-meta text-dim">
             {etWhen(d.startTs, d.endTs)}
-            <br />
-            {span(d.endTs - d.startTs)} round
+            <span className="md:hidden"> · </span>
+            <span className="md:block">{span(d.endTs - d.startTs)} round</span>
           </span>
         ) : null}
       </>,
@@ -509,12 +555,12 @@ function Center({
 /** The arena's shape while the fight loads: never a number that is not there yet. */
 export function ArenaSkeleton() {
   const corner = (right: boolean) => (
-    <div className={cx("flex flex-col gap-3 p-3", right && "md:items-end")}>
+    <div className={cx("flex min-w-0 flex-col gap-3 p-1 md:p-3", right && "items-end")}>
       <Skeleton className="h-3 w-20" />
-      <Skeleton className="h-14 w-40 max-w-full sm:h-20" />
-      <Skeleton className="h-3 w-32" />
+      <Skeleton className="h-9 w-28 max-w-full sm:h-14 md:w-40 lg:h-20" />
+      <Skeleton className="h-3 w-32 max-w-full" />
       <Skeleton className="mt-2 h-4 w-44 max-w-full" />
-      <Skeleton className="h-4 w-36" />
+      <Skeleton className="h-4 w-36 max-w-full" />
       <Skeleton className="mt-1 h-6 w-24" />
     </div>
   );
@@ -527,9 +573,9 @@ export function ArenaSkeleton() {
         <Skeleton className="h-3 w-40" />
       </div>
       <Plate notch rope pad="arena" className="mt-2">
-        <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-6">
+        <div className="grid grid-cols-2 items-center gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-6">
           {corner(false)}
-          <div className="flex flex-col items-center gap-3 md:w-52 lg:w-72">
+          <div className="order-last col-span-2 flex flex-col items-center gap-3 md:order-none md:col-span-1 md:w-52 lg:w-72">
             <Skeleton className="h-12 w-20" />
             <Skeleton className="h-3 w-32" />
           </div>

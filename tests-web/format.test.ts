@@ -1,6 +1,6 @@
 import { expect } from "chai";
 
-import { ago, etWhen, pct, points, until } from "../src/lib/format";
+import { ago, etWhen, pct, pctPair, points, until } from "../src/lib/format";
 import { nyToMs } from "../src/lib/market";
 
 const et = (y: number, m: number, d: number, hh: number, mm: number) => Math.floor(nyToMs(y, m, d, hh, mm, 0) / 1000);
@@ -41,6 +41,27 @@ describe("a move on a dead weekend", () => {
   it("never loses the sign of something that moved", () => {
     for (const n of [-0.0046, -0.0001, -1e-6]) expect(pct(n)).to.match(/^-/);
     for (const n of [0.0046, 0.0001, 1e-6]) expect(pct(n)).to.match(/^\+/);
+  });
+});
+
+describe("two moves side by side", () => {
+  it("widens both together when they would print the same", () => {
+    // A settled fight read "-0.051% COOKED" against "W -0.051%".
+    expect(pct(-0.05112)).to.equal(pct(-0.05061));
+    expect(pctPair(-0.05112, -0.05061)).to.deep.equal(["-0.0511%", "-0.0506%"]);
+  });
+
+  it("leaves moves that already differ exactly as pct prints them", () => {
+    expect(pctPair(1.2, 0.8)).to.deep.equal(["+1.20%", "+0.80%"]);
+    expect(pctPair(-0.0108, -0.0046)).to.deep.equal(["-0.011%", "-0.0046%"]);
+  });
+
+  it("does not invent a difference between equal moves", () => {
+    expect(pctPair(0.5, 0.5)).to.deep.equal(["+0.50%", "+0.50%"]);
+  });
+
+  it("stops at six decimals", () => {
+    expect(pctPair(0.12345671, 0.12345674)).to.deep.equal(["+0.123457%", "+0.123457%"]);
   });
 });
 

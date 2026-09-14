@@ -2,9 +2,8 @@
 
 /* THE SCOREBOARD: both numbers that decide a live round, on one phone line.
  *
- * On a 375px phone the arena stacks its corners, so the challenger's move sat
- * on the first screen and the answer's about 1,200px further down. Nobody
- * could see both at once, which is the whole fight. Once the arena's centre
+ * On a 375px phone the arena once stacked its corners, and even side by side
+ * the corners scroll away under the chart. Once the arena's centre
  * (the clock and the health bars) has scrolled up under the header, this bar
  * pins itself just below the header with each ticker and its live move, the
  * clock between them, and a 4px pair of health bars beneath.
@@ -20,7 +19,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Move } from "@/components/Ticker";
+import { Move, movePair } from "@/components/Ticker";
 import { Countdown } from "@/components/ui/Countdown";
 import { cx } from "@/components/ui/cx";
 import { healthFor, koGap } from "@/lib/health";
@@ -67,6 +66,7 @@ export function Scoreboard({
 
   if (!show) return null;
   const [h1, h2] = m1 !== null && m2 !== null ? healthFor(m1, m2, koGap(roundSecs)) : [100, 100];
+  const [s1, s2] = movePair(m1, m2);
 
   return (
     <div
@@ -78,12 +78,12 @@ export function Scoreboard({
       <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-4 pt-2 pb-1.5">
         <span className="flex min-w-0 items-center gap-2">
           <span className="display shrink-0 text-hud-xs text-p1 normal-case">{t1}</span>
-          <Move value={m1} className="num truncate text-sm" />
+          <Move value={m1} text={s1} className="num truncate text-sm" />
         </span>
         <Countdown to={endTs} now={now} className="text-sm font-semibold text-ink" />
         <span className="flex min-w-0 flex-row-reverse items-center gap-2">
           <span className="display shrink-0 text-hud-xs text-p2 normal-case">{t2}</span>
-          <Move value={m2} className="num truncate text-sm" />
+          <Move value={m2} text={s2} className="num truncate text-sm" />
         </span>
       </div>
       <div className="mx-auto flex max-w-7xl gap-2 px-4 pb-2">

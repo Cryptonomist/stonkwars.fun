@@ -59,6 +59,29 @@ export function pct(n: number, digits = 2): string {
   return `${n > 0 ? "+" : "-"}${s}%`;
 }
 
+/* TWO MOVES SIDE BY SIDE MUST NOT LOOK EQUAL WHEN THEY ARE NOT.
+ *
+ * pct widens a move only for its own size, so two close moves could print the
+ * same string: one settled fight read "NVDA -0.051% COOKED" against "GOOGL W
+ * -0.051%", a loss that looked like a tie. Wherever both sides' moves sit
+ * together, they widen together, to one shared number of decimals, until the
+ * strings differ (or up to six, or never, when the numbers are truly equal). */
+export function pctPair(a: number, b: number, digits = 2): [string, string] {
+  const pa = pct(a, digits);
+  const pb = pct(b, digits);
+  if (pa !== pb || a === b || !Number.isFinite(a) || !Number.isFinite(b)) return [pa, pb];
+  const at = (n: number, w: number) => {
+    const s = Math.abs(n).toFixed(w);
+    return Number(s) === 0 ? `${s}%` : `${n > 0 ? "+" : "-"}${s}%`;
+  };
+  let last: [string, string] = [pa, pb];
+  for (let w = digits + 1; w <= 6; w++) {
+    last = [at(a, w), at(b, w)];
+    if (last[0] !== last[1]) return last;
+  }
+  return last;
+}
+
 /** The gap between two moves, in percentage points: "1.23", "0.0062". */
 export function points(gap: number, digits = 2): string {
   return fixed(gap, digits);

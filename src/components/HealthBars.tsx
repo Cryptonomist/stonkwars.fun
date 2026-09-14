@@ -19,11 +19,14 @@ export function HealthBars({
   p2Move,
   roundSecs = 86_400,
   ko = null,
+  size = "md",
 }: {
   p1Move: number | null;
   p2Move: number | null;
   roundSecs?: number;
   ko?: "p1" | "p2" | null;
+  /** "lg" is the fight page's HUD row across the whole arena; "md" everywhere else. */
+  size?: "md" | "lg";
 }) {
   const known = p1Move !== null && p2Move !== null;
   let health: [number, number];
@@ -34,19 +37,19 @@ export function HealthBars({
     health = known ? healthFor(p1Move, p2Move, koGap(roundSecs)) : [100, 100];
   }
   return (
-    <div className="flex items-center gap-3">
-      <Bar health={health[0]} side="p1" />
+    <div className={size === "lg" ? "flex items-center gap-4" : "flex items-center gap-3"}>
+      <Bar health={health[0]} side="p1" size={size} />
       <span className="display text-hud-sm text-ink">VS</span>
-      <Bar health={health[1]} side="p2" />
+      <Bar health={health[1]} side="p2" size={size} />
     </div>
   );
 }
 
-function Bar({ health, side }: { health: number; side: "p1" | "p2" }) {
+function Bar({ health, side, size }: { health: number; side: "p1" | "p2"; size: "md" | "lg" }) {
   const low = health < LOW;
   return (
     <div
-      className={`relative h-5 min-w-0 flex-1 overflow-hidden bg-panel-2 ring-1 ring-line ${
+      className={`relative ${size === "lg" ? "h-7" : "h-5"} min-w-0 flex-1 overflow-hidden bg-panel-2 ring-1 ring-line ${
         side === "p1" ? "plate-left" : "plate-right"
       }`}
       role="meter"
