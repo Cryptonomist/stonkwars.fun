@@ -27,11 +27,38 @@ import { Badge } from "@/components/ui/Badge";
 import { FlashNum } from "@/components/ui/FlashNum";
 import { Tabs } from "@/components/ui/Tabs";
 import { cx } from "@/components/ui/cx";
+import { allDuels } from "@/lib/duel";
 import { usd } from "@/lib/format";
+import { useDuels } from "@/lib/hooks";
 import { dayChangePct, MAX_PRICE_TICKERS, quoteValue, usePrices, type Quotes } from "@/lib/prices";
-import { STAKEABLE, byTicker, quoteSymbolFor, tradesAroundTheClock, type Stock } from "@/lib/stocks";
+import { STAKEABLE, byTicker, quoteSymbolFor, tickerForMint, tradesAroundTheClock, type Stock } from "@/lib/stocks";
 
 type Kind = "all" | "stock" | "etf" | "allday";
+type Sort = "default" | "movers" | "fought";
+
+const SORTS: { id: Sort; label: string }[] = [
+  { id: "default", label: "Default" },
+  { id: "movers", label: "Movers" },
+  { id: "fought", label: "Most fought" },
+];
+
+/* The duel list is read only once somebody asks for Most fought: the pick
+ * screen does not otherwise need it, so this mounts with that choice and hands
+ * the counts up. A fight counts once per stock in it. */
+function FoughtCounts({ onCounts }: { onCounts: (m: Map<string, number>) => void }) {
+  const duels = useDuels("all", allDuels());
+  useEffect(() => {
+    if (!duels.data) return;
+    const n = new Map<string, number>();
+    for (const d of duels.data) {
+      for (const t of new Set([tickerForMint(d.creatorMint), tickerForMint(d.opponentMint)])) {
+        if (t) n.set(t, (n.get(t) ?? 0) + 1);
+      }
+    }
+    onCounts(n);
+  }, [duels.data, onCounts]);
+  return null;
+}
 
 /** Tiles before "Show more": a screenful beside the ticket, a few rows on a phone. */
 const PAGE_WIDE = 48;
@@ -80,14 +107,49 @@ export function StockPicker({
 }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<Kind>("all");
+  const [sort, setSort] = useState<Sort>("default");
+  const [fought, setFought] = useState<Map<string, number> | null>(null);
   const wide = useWide();
   const page = wide ? PAGE_WIDE : PAGE_PHONE;
   const [pages, setPages] = useState(1);
   const shown = pages * page;
 
+  /* SORTING BY WHAT IS HAPPENING. Movers ranks by today's move, which needs a
+   * quote per stock, so it covers the first MAX_PRICE_TICKERS of the filter in
+   * roster order (the best-known names, then alphabetical: one price request)
+   * and says so; the rest follow in their usual order. Most fought counts listed fights on
+   * chain per stock. Both apply to the list as browsed; a search ranks by the
+   * query instead, so the chips wait while there is one. */
+  const typing = query.trim().length > 0;
+  const moverPool = useMemo(
+    () => (sort === "movers" && !typing ? STAKEABLE.filter((s) => ofKind(s, kind)).slice(0, MAX_PRICE_TICKERS) : []),
+    [sort, typing, kind],
+  );
+  const moverPrices = usePrices(
+    moverPool.map((s) => s.ticker),
+    15_000,
+  );
+
   const hits = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return STAKEABLE.filter((s) => ofKind(s, kind));
+    if (!q) {
+      const all = STAKEABLE.filter((s) => ofKind(s, kind));
+      if (sort === "fought" && fought) {
+        const n = (s: Stock) => fought.get(s.ticker) ?? 0;
+        return all.map((s, i) => ({ s, i })).sort((a, b) => n(b.s) - n(a.s) || a.i - b.i).map((x) => x.s);
+      }
+      if (sort === "movers" && moverPrices.data) {
+        const quotes = moverPrices.data.quotes;
+        const size = (s: Stock) => {
+          const c = dayChangePct(quotes[s.ticker]);
+          return c === null ? -1 : Math.abs(c);
+        };
+        const pool = [...moverPool].sort((a, b) => size(b) - size(a));
+        const inPool = new Set(pool);
+        return [...pool, ...all.filter((s) => !inPool.has(s))];
+      }
+      return all;
+    }
     const match = STAKEABLE.filter(
       (s) => ofKind(s, kind) && (s.ticker.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)),
     );
@@ -97,7 +159,7 @@ export function StockPicker({
       return t === q ? 0 : t.startsWith(q) ? 1 : 2;
     };
     return match.sort((a, b) => rank(a) - rank(b));
-  }, [query, kind]);
+  }, [query, kind, sort, fought, moverPool, moverPrices.data]);
 
   const visible = useMemo(() => {
     const first = hits.slice(0, shown);
@@ -165,6 +227,40 @@ export function StockPicker({
             { id: "allday", label: "24/7", count: COUNTS.allday },
           ]}
         />
+      </div>
+
+      <div role="group" aria-label="Sort stocks" className="mt-2 flex min-w-0 flex-wrap items-center gap-1">
+        <span className="label mr-1">Sort</span>
+        {SORTS.map((o) => {
+          const on = sort === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              aria-pressed={on}
+              disabled={typing}
+              onClick={() => {
+                setSort(o.id);
+                reset();
+              }}
+              className={cx("btn btn-sm px-2.5 sm:px-4", on ? "btn-light" : "btn-ghost")}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+        {sort === "fought" && !typing ? <FoughtCounts onCounts={setFought} /> : null}
+        {!typing && sort !== "default" ? (
+          <span className="min-w-0 text-meta text-dim sm:ml-2">
+            {sort === "movers"
+              ? moverPrices.data
+                ? `Today's move, for the first ${Math.min(MAX_PRICE_TICKERS, COUNTS[kind]).toLocaleString("en-US")} in this list`
+                : "Reading today's moves..."
+              : fought
+                ? "Listed fights on chain with each stock"
+                : "Counting fights on chain..."}
+          </span>
+        ) : null}
       </div>
 
       <div className="scroll-thin mt-3 lg:max-h-[28rem] lg:overflow-y-auto">
