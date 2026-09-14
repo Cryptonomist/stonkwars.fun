@@ -196,9 +196,27 @@ export async function fetchPerpBars(coin: string, from: number, to: number): Pro
     t: rows.map((c) => Math.floor(c.t / 1_000)),
     c: rows.map((c) => (Number(c.c) > 0 ? Number(c.c) : null)),
   };
-  if (perpBars.size > 500) perpBars.clear();
-  perpBars.set(key, bars);
+  if (perpWindowComplete(bars, to, Math.floor(Date.now() / 1_000))) {
+    if (perpBars.size > 500) perpBars.clear();
+    perpBars.set(key, bars);
+  }
   return bars;
+}
+
+/* A MINUTE WITH NO TRADE ARRIVES LATE, NOT NEVER.
+ *
+ * Hyperliquid prints no candle for a minute while nobody trades in it. When
+ * the next trade comes, the quiet minutes appear behind it as flat candles at
+ * the last close: six hours of all 32 markets on 14 Sep had 2,237 such minutes
+ * and not one gap. At night a thin market can go eight minutes before that
+ * trade. So a window whose last minute has no candle yet is not finished
+ * history: caching it would keep this instance from ever seeing the price a
+ * fight is waiting for, once `to` stops moving ten minutes after a boundary.
+ * Only a window that reaches the minute `to` falls in, and has had time to
+ * settle, is kept. Exported for tests. */
+export function perpWindowComplete(bars: Bars, to: number, now: number): boolean {
+  const last = bars.t[bars.t.length - 1];
+  return last !== undefined && last >= Math.floor(to / 60) * 60 && to + 60 + BAR_SETTLE_SECS <= now;
 }
 
 /** Finished minutes never change, so asking twice is a waste of somebody's API. */

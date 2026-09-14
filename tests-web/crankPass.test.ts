@@ -28,6 +28,8 @@ import {
   crankOnce,
   listJobs,
   NotYet,
+  PERP_FAST_RETRY_WINDOW_SECS,
+  PERP_SLOW_RETRY_SECS,
   retryAt,
   signedQuotes,
   type CrankJob,
@@ -590,6 +592,28 @@ describe("settler pass", () => {
     expect(retryAt(d, "start", later, () => quiet, quiet)).to.equal(firstBarEnd(later - BAR_SETTLE_SECS) + BAR_SETTLE_SECS);
     // A pool this instance has not read (a rate limit, say) keeps the short retry.
     expect(retryAt(d, "start", now, () => unread, unread)).to.equal(now + 5);
+  });
+
+  it("asks a late perp again in seconds, not at the next minute close", () => {
+    const b = ny(14, 1, 44, 25); // Monday 1:44am New York: the exchange is shut, the perp is not
+    const d = duel({ acceptedTs: b - START_DELAY_SECS });
+    const perp = { symbol: "AMZN", currency: "USD", market: "US", perp: "xyz:AMZN" };
+    const priced = firstBarEnd(b) + BAR_SETTLE_SECS;
+    // Before its time, at its time.
+    expect(retryAt(d, "start", priced - 30, () => perp, perp)).to.equal(priced);
+    // Just late: the quiet minute's candle is waiting on the next trade.
+    expect(retryAt(d, "start", priced + 1, () => perp, perp)).to.equal(priced + 6);
+    // Still inside the fast window.
+    const edge = priced + PERP_FAST_RETRY_WINDOW_SECS - 1;
+    expect(retryAt(d, "start", edge, () => perp, perp)).to.equal(edge + 5);
+    // A market that quiet can stay quiet: less often after two minutes.
+    const slow = priced + PERP_FAST_RETRY_WINDOW_SECS;
+    expect(retryAt(d, "start", slow, () => perp, perp)).to.equal(slow + PERP_SLOW_RETRY_SECS);
+    // The same stock priced by its exchange keeps the minute-close retry.
+    const open = ny(14, 10, 15, 25);
+    const listed = duel({ acceptedTs: open - START_DELAY_SECS });
+    const late = firstBarEnd(open) + BAR_SETTLE_SECS + 1;
+    expect(retryAt(listed, "start", late, () => perp, perp)).to.equal(firstBarEnd(late - BAR_SETTLE_SECS) + BAR_SETTLE_SECS);
   });
 
   it("calls a job done without a quote when its status has already moved", async () => {

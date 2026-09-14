@@ -226,6 +226,11 @@ export async function pendingJobs(
 
 /* ─── Prices ───────────────────────────────────────────────────────────────── */
 
+/** How long a late perp side is asked again every five seconds. */
+export const PERP_FAST_RETRY_WINDOW_SECS = 120;
+/** How often after that. */
+export const PERP_SLOW_RETRY_SECS = 15;
+
 /* When to ask again after the oracle said "not yet". Before the clock's time,
  * at the clock's time. After it, the price is late: for a bar that means the
  * minute had no trade and the price moved to a later bar, which cannot be
@@ -242,6 +247,15 @@ export async function pendingJobs(
  * Once this instance has read the pool and found it thin, the retry is the
  * exchange's own time. A pool this instance was told to stop asking (a rate
  * limit) has not been read, and is retried a few seconds on as before.
+ *
+ * A LATE PERP IS SECONDS AWAY, NOT A MINUTE. A perp minute with no trade has
+ * no candle until the next trade, which then fills it in flat behind itself
+ * (see perpWindowComplete in oracle.ts). The price is still that minute's; it
+ * only shows up late. Waiting for the next minute close let the cron beat
+ * every page nudge on a quiet night (META v AMZN on 14 Sep: priced at
+ * 05:48:20, seen at 05:49:01). So a late perp side is asked again five
+ * seconds on, and every PERP_SLOW_RETRY_SECS once it is two minutes late,
+ * because a market that quiet can stay quiet for a while.
  * Exported for tests. */
 export function retryAt(
   d: DuelView,
@@ -258,6 +272,9 @@ export function retryAt(
   const clock = clockReadyAt(d, which, now, lookup);
   if ("shut" in clock) return undefined;
   if (clock.at > now) return clock.at;
+  if (side?.perp && sourceAt(boundary, side) === "perp") {
+    return now + (now - clock.at < PERP_FAST_RETRY_WINDOW_SECS ? 5 : PERP_SLOW_RETRY_SECS);
+  }
   if (clock.why === "minute-close") return firstBarEnd(now - BAR_SETTLE_SECS) + BAR_SETTLE_SECS;
   return now + 5;
 }

@@ -10,6 +10,7 @@ import {
   FETCH_TIMEOUT_MS,
   fetchBars,
   fetchPerpBars,
+  perpWindowComplete,
   fetchPoolBars,
   firstBarEnd,
   POOL_ATTEMPTS,
@@ -347,6 +348,51 @@ describe("oracle", () => {
       const before = calls.length;
       expect(await fetchPerpBars(coin, 2_000, 1_000)).to.deep.equal({ t: [], c: [] });
       expect(calls).to.have.length(before);
+    });
+
+    /* A quiet perp minute has no candle until the next trade fills it in. A
+     * fight whose settler is ten minutes late asks with a fixed window, and a
+     * cached answer from before that trade would hide the price from this
+     * instance for good. */
+    it("does not keep a perp window whose last minute has not printed yet", async () => {
+      const boundary = 1_789_364_820; // on the minute
+      const to = boundary + 600;
+      const now = to + 3_600;
+      const realNow = Date.now;
+      Date.now = () => now * 1_000;
+      let printed = false;
+      stubFetch(() => {
+        const last = printed ? to : boundary;
+        const rows = [];
+        for (let t = boundary - 300; t <= last; t += 60) rows.push({ t: t * 1_000, c: "640.78" });
+        return json(rows);
+      });
+      try {
+        const coin = "xyz:QUIETNIGHT";
+        const early = await fetchPerpBars(coin, boundary - 300, to);
+        expect(early.t[early.t.length - 1]).to.equal(boundary);
+        printed = true;
+        // Asked again, it asks the venue again and sees the minutes filled in.
+        const later = await fetchPerpBars(coin, boundary - 300, to);
+        expect(calls).to.have.length(2);
+        expect(later.t[later.t.length - 1]).to.equal(to);
+        // Now it reaches the end of its window, it is kept.
+        await fetchPerpBars(coin, boundary - 300, to);
+        expect(calls).to.have.length(2);
+      } finally {
+        Date.now = realNow;
+      }
+    });
+
+    it("keeps a perp window only once it reaches its last minute and that minute has settled", () => {
+      const bars = (last: number) => ({ t: [last - 120, last - 60, last], c: [1, 1, 1] });
+      const to = 1_789_365_420;
+      expect(perpWindowComplete(bars(to), to, to + 80)).to.equal(true);
+      expect(perpWindowComplete(bars(to), to, to + 79)).to.equal(false);
+      expect(perpWindowComplete(bars(to - 60), to, to + 3_600)).to.equal(false);
+      expect(perpWindowComplete({ t: [], c: [] }, to, to + 3_600)).to.equal(false);
+      // `to` mid-minute: the candle that minute starts with is enough.
+      expect(perpWindowComplete(bars(to), to + 30, to + 30 + 80)).to.equal(true);
     });
 
     /* ELAPSED TIME IS READ FROM THE MONOTONIC CLOCK.
