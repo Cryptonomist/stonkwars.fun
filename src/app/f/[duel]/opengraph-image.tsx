@@ -81,8 +81,15 @@ export default async function Image({ params }: { params: Promise<{ duel: string
             : "Void";
 
   const taunt = d?.taunt ? `“${d.taunt}”` : "";
+  /* Every fixed label goes in the subset, not just the ones this fight shows.
+   * Otherwise a letter a label needs is only loaded when some dynamic string
+   * happens to carry it, and an empty taunt draws the B of "Takes both stakes"
+   * in the fallback face. */
+  const labels =
+    "Stonk Wars VS COOKED x staked Takes both stakes Fight Open challenge · take the other side " +
+    "Fight on · starts at the next price Round live Final · settled on Solana Dead heat Void Cooked";
   // The card uppercases most of its text, so the subset needs both cases.
-  const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}VS COOKED staked${RETIRED}${status}${taunt}0123456789.+-%$ ·`;
+  const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}${labels}${RETIRED}${status}${taunt}0123456789.+-%$ ·`;
   const text = `${raw}${raw.toUpperCase()}${raw.toLowerCase()}`;
   const [display, stencil] = await Promise.all([
     loadGoogleFont("Big Shoulders", 900, text),
@@ -125,14 +132,16 @@ export default async function Image({ params }: { params: Promise<{ duel: string
             {d ? `${shares(amount, STAKE_DECIMALS)} ${ticker}x staked` : ""}
           </div>
         )}
+        {/* The stamp sits over the faded ticker, above the move, so the loser's
+         * percentage stays legible under it. */}
         {cooked ? (
           <div
             style={{
               position: "absolute",
-              top: 40,
+              top: -10,
               [side === "p1" ? "left" : "right"]: -10,
               fontFamily: stencil ? "Stencil" : face,
-              fontSize: 110,
+              fontSize: 90,
               color: C.cooked,
               border: `8px solid ${C.cooked}`,
               padding: "0 18px",
