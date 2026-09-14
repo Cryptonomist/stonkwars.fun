@@ -54,6 +54,8 @@ import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
 import { sourceAt, type PriceSource } from "@/lib/oracle";
 import { byTicker, CLUSTER, mixedHoursAt, pricedAt, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
+import { roundClock } from "@/lib/roundClock";
+import { useNudgeStatus } from "@/lib/useSettlerNudge";
 import { BRAND } from "@/lib/brand";
 
 export function FightView({ address }: { address: string }) {
@@ -324,6 +326,7 @@ function Actions({
   const isCreator = me === d.creator.toBase58();
   const mySource = publicKey ? ataFor(publicKey, d.opponentMint, d.opponentTokenProgram) : null;
   const balance = useTokenBalance(d.status === STATUS_OPEN && !isCreator ? mySource : null);
+  const nudge = useNudgeStatus(d.address.toBase58());
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(label);
@@ -367,8 +370,14 @@ function Actions({
    * button then only leads to a wallet popup and a failed request, right under
    * the status line that says the fight is waiting. */
   const waiting = waitingForMarket(d, now);
-  const startDue = d.status === STATUS_ACCEPTED && !waiting && now >= d.acceptedTs + START_DELAY_SECS + 20;
-  const settleDue = d.status === STATUS_LIVE && !waiting && now >= d.endTs + 20;
+  /* INTERIM, until the page redesign moves the round clock into the status
+   * line. The manual buttons used to appear twenty seconds after the boundary,
+   * which for a minute-bar price is before the price can exist. Now they wait
+   * for the price clock's readyAt plus MANUAL_FALLBACK_SECS (roundClock.ts), by
+   * when the page nudge and the cron have both had several goes. */
+  const manual = roundClock(d, now, nudge).manual;
+  const startDue = d.status === STATUS_ACCEPTED && !waiting && manual?.which === "start";
+  const settleDue = d.status === STATUS_LIVE && !waiting && manual?.which === "settle";
   const shut = waiting ? [...new Set([t1, t2])].filter((t) => t !== "?" && pricedAt(t, now) === "waits") : [];
   const stalled =
     (d.status === STATUS_ACCEPTED && now >= d.acceptedTs + STALL_REFUND_SECS) ||
@@ -481,7 +490,7 @@ function Actions({
   if (d.status === STATUS_ACCEPTED && !startDue && !waiting)
     hints.push("The start is each stock's first price at least two seconds after the accept. Posting it now.");
   if (d.status === STATUS_LIVE && now < d.endTs) hints.push(`${t1} vs ${t2}: whichever moves more, in percent, by the bell takes both stakes.`);
-  if ((startDue || settleDue) && !busy) hints.push("The settler normally does this within a minute. Anyone can, and the result is the same whoever does.");
+  if (manual && (startDue || settleDue) && !busy) hints.push(manual.explain);
   if (over) {
     hints.push(
       iLost

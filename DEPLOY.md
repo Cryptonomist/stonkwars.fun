@@ -13,8 +13,9 @@ What the deploy wallet spends on devnet:
 | 1,033 test stocks: a mint and a registry entry each | 2.5 |
 | The faucet, to hand out SOL and pay for players' token accounts | 2 |
 | The settler's fee key (step 3) | 1 |
+| The page nudge's fee key (step 3) | 0.5 |
 
-About **8 SOL** in all, and 4.2 free at the moment of the deploy.
+About **8.5 SOL** in all, and 4.2 free at the moment of the deploy.
 **(you)** Top up `HoYb6BCszJUY89WhKt2itTpxtLHMJKuoEwXwQPdbhtVu` at
 https://faucet.solana.com (signing in with GitHub raises the limit).
 
@@ -52,6 +53,19 @@ solana transfer --url devnet --allow-unfunded-recipient $(solana-keygen pubkey k
 cat keys/crank-devnet.json   # the value of CRANK_SECRET_KEY
 ```
 
+And one more for the page nudge (section 8), funded with half a SOL and no
+more. Its balance is the ceiling on what visitors can make the server spend,
+and a key of its own lets the chain tell a nudge from the cron from a person.
+
+```bash
+solana-keygen new --no-bip39-passphrase -o keys/nudge-devnet.json
+solana transfer --url devnet --allow-unfunded-recipient $(solana-keygen pubkey keys/nudge-devnet.json) 0.5
+cat keys/nudge-devnet.json   # the value of NUDGE_SECRET_KEY
+```
+
+The nudge key is optional: without `NUDGE_SECRET_KEY` the nudge pays from the
+crank key, exactly as the cron would have.
+
 ## 4. Pyth
 
 **(you)** Sign up at https://pythdata.app/signup and copy the API key. Hermes
@@ -71,13 +85,19 @@ Production and Preview:
 | `NEXT_PUBLIC_CLUSTER` | `devnet` |
 | `NEXT_PUBLIC_RPC_URL` | `https://api.devnet.solana.com` (or a Helius devnet URL behind a proxy; never a raw keyed URL) |
 | `NEXT_PUBLIC_SITE_URL` | **leave unset on Vercel.** It is the base for og:image and for every Blink's icon, so a value pointing at a domain that does not resolve yet unfurls broken on X. Unset, the app reads Vercel's own production domain and tracks it through the custom-domain switch. Set it only when hosting somewhere else |
-| `RPC_URL` | same as above, or a keyed RPC: this one stays on the server |
+| `RPC_URL` | a **keyed devnet** endpoint, e.g. `https://devnet.helius-rpc.com/?api-key=...`. It stays on the server. Not `api.devnet.solana.com`: the settler, the page nudge and `/api/rpc` (visitors' page polling, when `NEXT_PUBLIC_RPC_URL` is `/api/rpc`) all read through it, and the public node's rate limit fails whole settler passes. Not a mainnet URL either: every devnet read would come back empty |
 | `PYTH_API_KEY` | from step 4 |
 | `HERMES_URL` | `https://hermes.pyth.network` |
 | `FAUCET_SECRET_KEY` | from `.env.local` after step 2 |
 | `ORACLE_SECRET_KEY` | from `.env.local` after step 2 |
 | `CRANK_SECRET_KEY` | the byte array from step 3 |
 | `CRON_SECRET` | any long random string, e.g. `openssl rand -hex 24` |
+| `NUDGE_SECRET_KEY` | optional: the nudge key's byte array from step 3. Unset, the nudge pays from `CRANK_SECRET_KEY` |
+| `NUDGE_MIN_BALANCE_SOL` | optional, default `0.05`. Below this the nudge sends nothing and answers "settler low" (and logs it); the cron and the manual button carry on |
+| `NUDGE_DISABLED` | optional: `1` switches the page nudge off. Leave unset |
+
+No key, secret or keyed URL in this table may ever be given a `NEXT_PUBLIC_`
+name: that prefix compiles the value into the page for anyone to read.
 
 Deploy. You get a `*.vercel.app` URL straight away.
 
@@ -152,10 +172,19 @@ soon as it has listed what is due and does the work after the response, so the
 ping stays well inside cron-job.org's 30 second limit; what each job did goes
 to the Vercel function log as one JSON line. `parked` lists fights whose market
 is shut, which nothing is tried for until it opens. `"ok": false` with an
-`error` means the chain could not be read that minute: it is still a 200 on
-purpose, so a bad minute at the RPC does not count towards cron-job.org
-switching the job off. Add `?wait=1` to the URL by hand to run a pass before
-the answer and see its results in the body.
+`error` means the chain could not be read that minute. Add `?wait=1` to the URL
+by hand to run a pass before the answer and see its results in the body.
+
+**Why the route answers 200 even when a pass goes wrong.** cron-job.org counts
+two things as a failure: a status that is not 2xx, and a request that takes
+longer than 30 seconds. After enough failures in a row it switches the job off,
+silently, and every fight nobody is watching then waits for a person. A pass
+that waits for prices and confirms what it sends can take most of a minute, and
+a keyed RPC still has the odd bad minute. So the route lists, answers 200 at
+once, and works afterwards; and a listing that fails still answers 200, with
+`"ok": false` and the error in the body, where the job history shows it. Only
+mistakes a person must fix (the secret, the crank key) get an error status,
+because only those should ever stop the job.
 
 If it shows 401, read the saved response body, which now names the mistake:
 
@@ -174,10 +203,40 @@ and its **Test run** button executes what is currently on screen including
 unsaved edits, so a green test run is not evidence about what the scheduler
 sends. Reload the page and confirm the header row is still there.
 
-Without any of this, fights still settle: anyone can press **Settle it yourself**
-on a fight page after the bell, and the result is the same whoever does.
+Without any of this, fights still settle: the page nudge (section 8) cranks any
+fight whose page is open, and anyone can press **Settle it yourself** on a fight
+page once the settler is three minutes late. The result is the same whoever
+posts it.
 
-## 8. Solana Actions (no step required)
+## 8. The page nudge (no step required)
+
+While a fight page is open it asks `POST /api/nudge` with the fight's address,
+and the server cranks the fight the moment its price can exist: the round goes
+live a second or two after the start price, and settles a second or two after
+the end price, with nobody signing anything. The cron stays the backstop for
+fights nobody is watching, and waits six seconds past each price so it does not
+race a page.
+
+It spends only what a crank costs, and only on fights that are really due. A
+fight with nothing to do, a shut market, or a price more than ten seconds away
+is answered from one cached account read, with no price source asked. A crowd of
+pages on one fight becomes one crank; each IP gets 20 asks a minute, and each
+instance at most 30 crank attempts a minute. The key is `NUDGE_SECRET_KEY`
+(falling back to `CRANK_SECRET_KEY`); keep it on 0.5 SOL, since its balance is
+the hard ceiling on what visitors can make the server spend.
+
+What to watch for in the Vercel function log, one JSON line per crank:
+`{"nudge":true,"duel":...,"state":"sent"|"done"|"not-yet"|"failed",...}`, and
+`"alert":"settler low"` when the key is below `NUDGE_MIN_BALANCE_SOL`. Top it
+up then; until you do, the cron carries on and the manual button appears on
+its usual schedule.
+
+To switch the nudge off, set `NUDGE_DISABLED=1` and redeploy. Pages then leave
+everything to the cron and, three minutes after a price exists, to whoever is
+looking. Optionally add a Vercel firewall rule of 60 requests a minute per IP on
+`/api/nudge` as a second fence in front of the in-memory one.
+
+## 9. Solana Actions (no step required)
 
 Every fight serves a Solana Action with nothing to configure: `/actions.json`
 maps `/f/*` onto `/api/actions/fight/*`, where GET describes the fight and POST
@@ -199,5 +258,11 @@ If a registry reappears, nothing in the app needs to change to use it.
 1. Open the site, connect the **Guest wallet (devnet)**, press **Get test stocks**.
 2. Pick a fight, 5 minutes. Copy the link.
 3. In a private window (a second guest wallet), open the link, get test stocks, take it.
-4. Within a minute the fight page shows the round live with real moves.
-5. After the bell, within a minute of the cron, it settles and the loser is cooked.
+4. With the page open, the round goes live on its own a second or two after its
+   start price exists (for a minute-bar price, 25 to 85 seconds after the
+   accept, depending on the second it was taken), with real moves. No button
+   asks anyone to sign.
+5. After the bell it settles on its own a second or two after the end price
+   exists (80 seconds after a bell on the minute), and the loser is cooked. A **Lock the start prices yourself** or **Settle it
+   yourself** button appearing means the nudge and the cron were both more than
+   three minutes late: check the function log.

@@ -124,6 +124,54 @@ export function readyAt(
   return (sides as Ready[]).reduce((a, b) => (b.at > a.at ? b : a));
 }
 
+/* WHEN A PRICE BECAME READY, NOT ONLY WHETHER IT IS.
+ *
+ * A side whose market was shut at its boundary is due from the moment that
+ * market reopens, and readyAt says so by answering `now`, which moves with the
+ * clock. That is right for a crank deciding whether to try, and wrong for a
+ * page deciding how late the settler is: a time that is always "now" is never
+ * three minutes ago, so a manual button waiting for readyAt + 180 would never
+ * come, and a page nudge told to give up 15 minutes after readyAt never would.
+ *
+ * So this dates such a side to the reopening, found by bisecting between the
+ * boundary (where the side is shut, or not yet due, by construction) and now.
+ * Every other answer is readyAt's own, floored at the boundary as the crank
+ * floors it. If the market has opened and shut more than once since the
+ * boundary the bisection may land on a later reopening than the first; that
+ * only makes the page more patient, and a fight that old has been cranked by
+ * the cron long before. */
+export function readySince(
+  d: ClockDuel,
+  which: "start" | "settle",
+  now: number,
+  lookup: MarketLookup = quoteSymbolFor,
+): Ready | Shut {
+  const boundary = boundaryOf(d, which);
+  const at = (t: number): number | null => {
+    const c = readyAt(d, which, t, lookup);
+    return "shut" in c ? null : Math.max(c.at, boundary);
+  };
+  const clock = readyAt(d, which, now, lookup);
+  if ("shut" in clock) return clock;
+  const ready = { at: Math.max(clock.at, boundary), why: clock.why };
+  if (ready.at !== now || now <= boundary) return ready;
+  // A fixed time that happens to fall on this second was the same a second ago.
+  if (at(now - 1) === ready.at) return ready;
+
+  const due = (t: number) => {
+    const a = at(t);
+    return a !== null && a <= t;
+  };
+  let lo = boundary; // not due
+  let hi = now; // due
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (due(mid)) hi = mid;
+    else lo = mid;
+  }
+  return { at: hi, why: clock.why };
+}
+
 export type ClockJob = { kind: "start" | "settle" | "refund"; boundary: number };
 
 /** What a duel needs doing now, if anything. A start is a job from the moment

@@ -24,12 +24,15 @@ import {
 } from "@/lib/duel";
 import { sendAndConfirm } from "@/lib/send";
 import { isListedDuel } from "@/lib/stocks";
+import { useSettlerNudge } from "@/lib/useSettlerNudge";
 
 /** One duel, polled. `null` means the account does not exist (never did, or
- *  was cancelled and closed). */
+ *  was cancelled and closed). While it is on screen, the settler is nudged to
+ *  crank it when its price exists (useSettlerNudge). Only the fight page reads
+ *  a duel this way, so the boards, which use useDuels, nudge nothing. */
 export function useDuel(address: PublicKey | null, refetchMs = 3_000) {
   const { connection } = useConnection();
-  return useQuery<DuelView | null>({
+  const query = useQuery<DuelView | null>({
     queryKey: ["duel", address?.toBase58()],
     enabled: !!address,
     queryFn: async () => {
@@ -39,6 +42,8 @@ export function useDuel(address: PublicKey | null, refetchMs = 3_000) {
     },
     refetchInterval: refetchMs,
   });
+  useSettlerNudge(query.data);
+  return query;
 }
 
 /** Many duels, by memcmp filter. Newest first. Only fights between two listed
