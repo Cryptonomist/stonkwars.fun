@@ -21,8 +21,9 @@ import { PublicKey } from "@solana/web3.js";
 import perpsJson from "@/data/perps.json";
 import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
-import { type DuelView, type StakeAsset } from "@/lib/duel";
-import { nyParts, openingAfter, session } from "@/lib/market";
+import { START_DELAY_SECS, type DuelView, type StakeAsset } from "@/lib/duel";
+import { nyParts, openingAfter, openingsBetween, session } from "@/lib/market";
+import { firstBarEnd, sourceAt } from "@/lib/oracle";
 
 export type Stock = {
   ticker: string;
@@ -144,12 +145,19 @@ export const tradesAroundTheClock = (ticker: string) => {
  *   Pyth, US          the regular session only, 9:30 to the close. Pyth's US
  *                     equity feeds do not print in pre-market or after-hours,
  *                     so a boundary at 7pm on a Friday waits for Monday 9:30.
- *   signed, perp/pool the boundary, always: the exchange's bars from 4am to
- *                     8pm, and the perp or pool whenever the exchange is shut.
+ *   signed, perp/pool the boundary: the exchange's bars from 4am to 8pm, and
+ *                     the perp or pool whenever the exchange is shut.
  *   signed, neither   the exchange's bars, 4am to 8pm; shut, it waits for the
  *                     next 4am, as oracle.ts's exchangeBarFinal does.
  *   outside the US    the boundary: its own exchange's hours are not modelled,
  *                     so it is never called a wait.
+ *
+ * ONE THING IT CANNOT KNOW. A pool whose hour before the boundary holds fewer
+ * than OFFHOURS_MIN_BARS trades has no price worth signing, and the oracle
+ * falls back to the exchange (oracle.ts quoteAt), so a pool-only stock with a
+ * thin Saturday hour waits for Monday's 4am bar after all. That depends on
+ * trades nobody has seen until the hour has passed, so neither this nor the
+ * price clock models it: both call a pool-only stock priced at the boundary.
  *
  * Unix seconds, never before the boundary. Null for a ticker off the roster,
  * or if nothing opens within ten days. */
@@ -180,17 +188,62 @@ export function pricedAt(ticker: string, boundary: number): "exchange" | "perp" 
   return PERPS[ticker] ? "perp" : "pool";
 }
 
-/* HOW FAR APART TWO SIDES' PRICES MAY START.
+/* THE TIME A SIDE'S PRICE AT `boundary` WOULD CARRY.
  *
- * In session, a Pyth side's price is a print a second or two after the
- * boundary and a bar-priced side's is the close of the minute the boundary
- * falls in, up to a minute later. Fights have always started and ended that
- * far apart, and nobody's round is decided by it. So two sides whose prices
- * can first exist within a minute of each other count as starting together:
- * TSLA at Monday's 9:30:00 print and NVDA at the pre-market bar that closes
- * then are as fair as any fight at noon. Beyond a minute the gap is the
- * fight. */
+ * firstPriceAt says when a price can begin to exist. This says the
+ * publish_time the program would record with it, which is what decides a
+ * fight: start_ts is the later side's start publish_time, and a timed round
+ * ends its duration after that (programs/duel/src/lib.rs, start_duel). The two
+ * differ by the minute bar. A Pyth print carries its own moment, a pool's
+ * trimmed mean carries the boundary, and a bar's close carries the end of the
+ * bar, up to a minute after the boundary or the opening it waited for.
+ *
+ *   Pyth, US          firstPriceAt: the boundary in session, else the bell
+ *   signed, US        oracle.ts's sourceAt for the boundary: a pool at the
+ *                     boundary; otherwise the end of the first bar after
+ *                     firstPriceAt, the exchange's, or the perp's when shut
+ *   outside the US    a Pyth print at the boundary, a signed bar's end after it
+ *
+ * Nominal, like the price clock: a minute nobody traded moves a bar-priced
+ * side to the next bar, and a thin pool falls back to the exchange (see
+ * firstPriceAt). A test holds this to priceClock's readyAt second for second,
+ * less PYTH_GRACE_SECS or BAR_SETTLE_SECS. Null as for firstPriceAt. */
+export function priceTimeAt(ticker: string, boundary: number): number | null {
+  const s = byTicker(ticker);
+  if (!s) return null;
+  if (s.market !== "US") return s.source === "pyth" ? boundary : firstBarEnd(boundary);
+  if (s.source === "pyth") return openingAfter(boundary, "regular");
+  if (sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin }) === "pool") {
+    return boundary;
+  }
+  const from = firstPriceAt(ticker, boundary);
+  return from === null ? null : firstBarEnd(from);
+}
+
+/* HOW FAR APART TWO SIDES' PRICES MAY BE.
+ *
+ * In session, a Pyth side's price carries the boundary and a bar-priced side's
+ * the end of the minute the boundary falls in, up to a minute later. Fights
+ * have always started and ended that far apart, and nobody's round is decided
+ * by it. So two sides whose price times (priceTimeAt) are within a minute of
+ * each other count as together. It compares the times the program records,
+ * not the boundaries: taken at 9:28:59, TSLA's 9:30:00 print and NVDA's
+ * pre-market bar closing at 9:30:00 are the same moment, while a pool's price
+ * at 3:59:02am and a 4:01:00 bar are two minutes apart. Beyond a minute the
+ * gap is the fight. */
 export const SAME_PRICE_SECS = 60;
+
+/* HOW LATE A TAKE CAN LAND AFTER IT WAS CHECKED.
+ *
+ * The program prices a fight from accepted_ts, the moment the accept lands,
+ * not the moment a page looked. A signed transaction carries a recent
+ * blockhash and Solana drops it once that blockhash is 150 blocks old: about a
+ * minute at 400ms a block, and ninety seconds allows for slow blocks. The
+ * fight page checks at the click and fetches its blockhash after, and the
+ * Action route checks again after fetching the one it hands out. So a take
+ * checked at `now` lands between now and now + TAKE_SLACK_SECS, and it has to
+ * be fair wherever in that window it lands. */
+export const TAKE_SLACK_SECS = 90;
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -205,7 +258,7 @@ function nyWords(unix: number): string {
 }
 
 /** "Monday's 9:30 AM ET opening bell", "Monday's 4:00 AM ET pre-market open". */
-function openingWords(unix: number): string {
+export function openingWords(unix: number): string {
   const p = nyParts(unix * 1_000);
   const what = p.hh === 9 && p.mm === 30 ? " opening bell" : p.hh === 4 && p.mm === 0 ? " pre-market open" : "";
   return `${WEEKDAY_NAMES[p.wd]}'s ${clockWords(p)}${what}`;
@@ -214,12 +267,150 @@ function openingWords(unix: number): string {
 /** "days", "hours" or "minutes": how far apart two prices would land, said plainly. */
 const apart = (secs: number) => (secs >= 86_400 ? "days" : secs >= 3_600 ? "hours" : "minutes");
 
-/* WHETHER TWO STOCKS CAN FIGHT FAIRLY, STARTING AT `start`.
+/** A fight's end rule as the program holds it (DuelView fits): a duration
+ *  counted from the later start price, or a fixed end; and, for a challenge
+ *  already made, when it stops being takeable. */
+export type EndRule = { durationSecs: number; endTs: number; expiresTs?: number };
+
+/** Where a fight's two sides would part: which of its prices, the boundary
+ *  they are taken after, the side whose price comes first and the side whose
+ *  price comes later, when each can first exist, and how far apart the two
+ *  prices would be stamped. */
+export type Apart = {
+  at: "start" | "end";
+  boundary: number;
+  early: string;
+  late: string;
+  earlyFrom: number;
+  lateFrom: number;
+  secs: number;
+};
+
+/** Undefined when either side's hours are unknown. */
+function apartAtBoundary(a: string, b: string, boundary: number, at: Apart["at"]): Apart | null | undefined {
+  const pa = priceTimeAt(a, boundary);
+  const pb = priceTimeAt(b, boundary);
+  const fa = firstPriceAt(a, boundary);
+  const fb = firstPriceAt(b, boundary);
+  if (pa === null || pb === null || fa === null || fb === null) return undefined;
+  if (Math.abs(pa - pb) <= SAME_PRICE_SECS) return null;
+  return pa < pb
+    ? { at, boundary, early: a, late: b, earlyFrom: fa, lateFrom: fb, secs: pb - pa }
+    : { at, boundary, early: b, late: a, earlyFrom: fb, lateFrom: fa, secs: pa - pb };
+}
+
+/* WHERE A FIGHT TAKEN AT `acceptedTs` WOULD PART, IF ANYWHERE.
+ *
+ * The program's own sums, with priceTimeAt for each side's price: the start
+ * boundary is acceptedTs + START_DELAY_SECS, start_ts is the later side's price
+ * time there, and a timed round ends durationSecs after start_ts while a fixed
+ * one ends at endTs (programs/duel/src/lib.rs, start_duel). The start is
+ * checked first, then the end. Null when both prices land within
+ * SAME_PRICE_SECS at both, and for a ticker off the roster, whose hours
+ * nothing here knows. */
+export function apartIfTakenAt(a: string, b: string, acceptedTs: number, round?: EndRule): Apart | null {
+  const start = acceptedTs + START_DELAY_SECS;
+  const began = apartAtBoundary(a, b, start, "start");
+  if (began === undefined) return null;
+  if (began || !round) return began;
+  const startTs = Math.max(priceTimeAt(a, start)!, priceTimeAt(b, start)!);
+  const end = round.durationSecs > 0 ? startTs + round.durationSecs : round.endTs;
+  return end > 0 ? (apartAtBoundary(a, b, end, "end") ?? null) : null;
+}
+
+/** Where a take checked at `now` could part, wherever in the next
+ *  TAKE_SLACK_SECS it lands. Two checks cover it: the hours that part a pair
+ *  are hours long, and a later accept only ever moves both boundaries later,
+ *  so a window fair at both ends is fair throughout (a test walks it second by
+ *  second). */
+function apartWithin(a: string, b: string, now: number, round?: EndRule): Apart | null {
+  return apartIfTakenAt(a, b, now, round) ?? apartIfTakenAt(a, b, now + TAKE_SLACK_SECS, round);
+}
+
+/** When the later side of a start that parts still prices at `now` itself,
+ *  the close a take sent now could land after: the first whole minute of the
+ *  take window at which it no longer prices. Null otherwise. */
+function closeAhead(p: Apart, now: number): number | null {
+  if (p.at !== "start" || firstPriceAt(p.late, now) !== now) return null;
+  const last = now + TAKE_SLACK_SECS + START_DELAY_SECS;
+  for (let m = Math.ceil((now + START_DELAY_SECS) / 60) * 60; m <= last; m += 60) {
+    if (firstPriceAt(p.late, m) !== m) return m;
+  }
+  return null;
+}
+
+/* WHY TWO SIDES WOULD PART, IN WORDS.
+ *
+ * From the side of whoever is reading, and true for each kind of stock:
+ *
+ *   A Pyth stock outside the regular session is not waiting for its exchange,
+ *   which may be busy with after-hours trading. It is waiting for Pyth, which
+ *   does not print until the bell, and it says so. Shut, the old sentence
+ *   stands: TSLA waits for its exchange to open.
+ *
+ *   A listing abroad is priced on its own exchange's hours, which nothing here
+ *   tracks, so it is never said to trade now, and no gap is put on it.
+ *
+ *   A take sent while the later side still prices, which could land after its
+ *   close, says so with the close (`stops`), rather than claiming a side that
+ *   still trades has stopped. */
+function apartWords(p: Apart, stops: number | null, round?: EndRule): string {
+  const gap = apart(p.secs);
+  const abroad = byTicker(p.early)?.market !== "US";
+  const earlyPrices = p.earlyFrom === p.boundary;
+  const lateFrom = openingWords(p.lateFrom);
+
+  if (p.at === "end") {
+    const when = `${round && round.durationSecs > 0 ? "around" : "at"} ${nyWords(p.boundary)}`;
+    const middle = !earlyPrices
+      ? `when neither trades, and ${p.early} would take its end price at ${openingWords(p.earlyFrom)} but ${p.late} not until ${lateFrom}`
+      : abroad
+        ? `when ${p.late} waits for ${lateFrom} but ${p.early} is priced on its own exchange's hours`
+        : `when ${p.early} still trades but ${p.late} waits for ${lateFrom}`;
+    const tail = abroad ? "so the two would not end together." : `so their end prices would be ${gap} apart.`;
+    return `This round would end ${when}, ${middle}, ${tail}`;
+  }
+
+  const tail = abroad ? "so the two would not start together." : `so their start prices would be ${gap} apart.`;
+  if (stops !== null) {
+    const then = !earlyPrices
+      ? `${p.early} would then start at ${openingWords(p.earlyFrom)}`
+      : abroad
+        ? `${p.early} would then start on its own exchange's hours`
+        : `${p.early} would then start at once`;
+    return (
+      `${p.late} stops pricing at ${clockWords(nyParts(stops * 1_000))}, and a take now could land after that. ` +
+      `${then} but ${p.late} not until ${lateFrom}, ${tail}`
+    );
+  }
+  if (!earlyPrices) return `${p.early} would start at ${openingWords(p.earlyFrom)} but ${p.late} not until ${lateFrom}, ${tail}`;
+  const early = abroad ? `${p.early} is priced on its own exchange's hours` : `${p.early} trades now`;
+  if (byTicker(p.late)?.source === "pyth" && session(p.boundary * 1_000) !== "closed") {
+    return `${p.late} is priced by Pyth, which does not print until ${lateFrom}, but ${early}, ${tail}`;
+  }
+  return `${p.late} waits for its exchange to open but ${early}, ${tail}`;
+}
+
+/* THE FIRST MOMENT A FIGHT COULD BE TAKEN FAIRLY, AFTER `from`.
+ *
+ * Two sides that part now can only line up again when some market opens, so
+ * this asks at each opening before the challenge expires (round.expiresTs, or
+ * ten days on when there is none) and returns the first whose whole take
+ * window is fair. Null when none is. */
+export function nextFairTake(a: string, b: string, from: number, round?: EndRule): number | null {
+  const until = round?.expiresTs || from + 10 * 86_400;
+  for (const t of openingsBetween(from, until)) {
+    if (!apartWithin(a, b, t, round)) return t;
+  }
+  return null;
+}
+
+/* WHETHER TWO STOCKS CAN FIGHT FAIRLY, TAKEN AT `now`.
  *
  * Each side's start is its own first price after the boundary, and so is each
- * side's end. When the two can first exist more than SAME_PRICE_SECS apart,
- * the fight is decided by the gap between them rather than by the round. That
- * happens three ways:
+ * side's end. When the program would stamp the two more than SAME_PRICE_SECS
+ * apart, the fight is decided by the gap between them rather than by the
+ * round. That happens three ways:
  *
  *   One side waits and the other trades now: TSLA (Pyth) at 7pm on a Friday
  *   against NVDA, which has after-hours bars. NVDA would start then and TSLA
@@ -233,64 +424,41 @@ const apart = (secs: number) => (secs >= 86_400 ? "days" : secs >= 3_600 ? "hour
  *   NVDA, an hour from 3:30pm on a Monday. TSLA's session closes at 4, so the
  *   round would end on NVDA's 4:30 bar and on TSLA's Tuesday 9:30 print.
  *
- * Two that start and end together are fair whatever their markets. `round`
- * is the fight's end rule as the program holds it: a duration counted from
- * the later side's start price, or a fixed end. A duration's end is checked at
- * both ends of the minute that start price can take. Without `round` only the
- * start is checked.
+ * `now` is when the take is sent, and it lands up to TAKE_SLACK_SECS later,
+ * so the pair must be fair for an accept anywhere in that window: a fixed-end
+ * challenge taken at 3:59:58pm starts at 4:00:00, after Pyth's last print.
+ * `round` is the fight's end rule; without it only the start is checked.
  *
  * Returns the sentence that explains the unfair case, for the page to show
- * beside the button it disables, or null when the pair can fight. A ticker
- * off the roster is left alone: nothing here knows its hours. */
+ * beside the button it disables, or null when the pair can fight. The advice
+ * that ends it depends on who reads it: somebody making the challenge can pick
+ * other stocks or another round, and somebody taking it can only pick a time,
+ * so a taker is told the next moment it can be taken. A ticker off the roster
+ * is left alone: nothing here knows its hours. */
 export function mixedHoursAt(
   a: string,
   b: string,
-  start: number,
-  round?: { durationSecs: number; endTs: number },
+  now: number,
+  round?: EndRule,
+  reader: "creator" | "taker" = "creator",
 ): string | null {
-  const fa = firstPriceAt(a, start);
-  const fb = firstPriceAt(b, start);
-  if (fa === null || fb === null) return null;
-
-  if (Math.abs(fa - fb) > SAME_PRICE_SECS) {
-    const [early, late, fe, fl] = fa < fb ? [a, b, fa, fb] : [b, a, fb, fa];
-    const gap = apart(fl - fe);
-    if (fe - start <= SAME_PRICE_SECS) {
-      return (
-        `${late} waits for its exchange to open but ${early} trades now, so their start prices would be ${gap} apart. ` +
-        "Pick two that both trade now, or two that both wait."
-      );
-    }
-    return (
-      `${early} would start at ${openingWords(fe)} but ${late} not until ${openingWords(fl)}, ` +
-      `so their start prices would be ${gap} apart. Pick two that open at the same time, or two that both trade now.`
-    );
+  const p = apartWithin(a, b, now, round);
+  if (!p) return null;
+  const stops = closeAhead(p, now);
+  const reason = apartWords(p, stops, round);
+  if (reader === "taker") {
+    const from = nextFairTake(a, b, now, round);
+    return `${reason} ${from === null ? "It closes before the two line up again." : `You can take it from ${openingWords(from)}.`}`;
   }
-
-  if (!round) return null;
-  const begins = Math.max(fa, fb);
-  const ends =
-    round.durationSecs > 0
-      ? [begins + round.durationSecs, begins + SAME_PRICE_SECS + round.durationSecs]
-      : round.endTs > 0
-        ? [round.endTs]
-        : [];
-  for (const end of ends) {
-    const ea = firstPriceAt(a, end);
-    const eb = firstPriceAt(b, end);
-    if (ea === null || eb === null || Math.abs(ea - eb) <= SAME_PRICE_SECS) continue;
-    const [early, late, fe, fl] = ea < eb ? [a, b, ea, eb] : [b, a, eb, ea];
-    const when = `${round.durationSecs > 0 ? "around" : "at"} ${nyWords(end)}`;
-    const middle =
-      fe - end <= SAME_PRICE_SECS
-        ? `when ${early} still trades but ${late} waits for ${openingWords(fl)}`
-        : `when neither trades, and ${early} would take its end price at ${openingWords(fe)} but ${late} not until ${openingWords(fl)}`;
-    return (
-      `This round would end ${when}, ${middle}, so their end prices would be ${apart(fl - fe)} apart. ` +
-      "Pick a round that ends while both trade, or two that trade the same hours."
-    );
-  }
-  return null;
+  const advice =
+    p.at === "end"
+      ? "Pick a round that ends while both trade, or two that trade the same hours."
+      : stops !== null
+        ? "Pick two that trade the same hours."
+        : p.earlyFrom === p.boundary
+          ? "Pick two that both trade now, or two that both wait."
+          : "Pick two that open at the same time, or two that both trade now.";
+  return `${reason} ${advice}`;
 }
 
 /** How many of the roster can, for the pages that say so. */

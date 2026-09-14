@@ -236,6 +236,14 @@ describe("round clock", () => {
       expect(shutSides({ ...d, status: STATUS_OPEN }, ny(12, 12, 0))).to.deep.equal([]);
       expect(shutSides(d, 0)).to.deep.equal([]);
     });
+
+    /* A round whose end lands after the close has no price at its end until
+     * Tuesday, but until that end comes the round is simply live. */
+    it("waits on nothing before a bell that rings after the close, and on the Pyth sides once it has", () => {
+      const d = between(STATUS_LIVE, tsla, qqq, ny(14, 15, 30), ny(14, 16, 30));
+      expect(shutSides(d, ny(14, 16, 10))).to.deep.equal([]);
+      expect(shutSides(d, ny(14, 16, 30))).to.deep.equal(["TSLA", "QQQ"]);
+    });
   });
 
   it("has nothing to say about an open or finished fight", () => {

@@ -52,7 +52,17 @@ import { clock, etTime, pct, points, pythToNumber, shares, shortAddress, span, u
 import { explorerAddress, useDuel, useSend, useTokenBalance } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
 import { sourceAt, type PriceSource } from "@/lib/oracle";
-import { byTicker, CLUSTER, mixedHoursAt, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import {
+  byTicker,
+  CLUSTER,
+  firstPriceAt,
+  mixedHoursAt,
+  openingWords,
+  quoteSymbolFor,
+  STAKE_DECIMALS,
+  tickerForMint,
+  tokenSymbol,
+} from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 import { roundClock, shutSides } from "@/lib/roundClock";
 import { useNudgeStatus } from "@/lib/useSettlerNudge";
@@ -363,8 +373,14 @@ function Actions({
    * the end's that follow from it. A challenge picked while both sides traded
    * can be opened again after one exchange shuts, and taking it then would
    * start the two sides days apart. It stays takeable once the hours line up
-   * again. */
-  const mixedHours = canTake && now ? mixedHoursAt(t1, t2, now, d) : null;
+   * again, and the sentence says when. This is the render's clock, which can
+   * be seconds old, so the take button asks again at the click. */
+  const mixedHours = canTake && now ? mixedHoursAt(t1, t2, now, d, "taker") : null;
+  const take = () => {
+    const parts = mixedHoursAt(t1, t2, Math.floor(Date.now() / 1000), d, "taker");
+    if (parts) return setError(parts);
+    void run("take", () => send([buildAcceptDuel(d, publicKey!)]));
+  };
 
   /* While the market that prices a side is shut, its next price does not exist
    * yet, so neither the settler nor anyone else can lock a start or an end. A
@@ -393,7 +409,7 @@ function Actions({
         key="take"
         type="button"
         disabled={!publicKey || short || !!mixedHours || !!busy}
-        onClick={() => run("take", () => send([buildAcceptDuel(d, publicKey!)]))}
+        onClick={take}
         className="btn btn-p2 px-10 text-xl"
       >
         {busy === "take" ? "Signing..." : `Take it: stake ${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)}`}
@@ -483,12 +499,28 @@ function Actions({
   if (d.status === STATUS_OPEN && !canTake && !isCreator && isInviteOnly(d) && !expired)
     hints.push(`This one is for ${shortAddress(d.invitee.toBase58())}. Only that wallet can take it.`);
   const waitingFor = d.status === STATUS_ACCEPTED ? "starts" : d.status === STATUS_LIVE && now >= d.endTs ? "ends" : null;
-  if (waitingFor && shut.length)
-    hints.push(
-      shut.length > 1
-        ? `${shut.join(" and ")} are priced by their exchanges, which are shut. The round ${waitingFor} at their first prices when trading resumes.`
-        : `${shut[0]} is priced by its exchange, which is shut. The round ${waitingFor} at its first price when trading resumes.`,
-    );
+  /* Why each waiting side waits, from who prices it. A Pyth feed prints only
+   * in the regular session, so a Pyth stock waits through after-hours trading
+   * on a busy exchange. A signed stock waits only while its exchange is shut,
+   * which the price clock guarantees is so now. */
+  if (waitingFor && shut.length) {
+    const boundary = waitingFor === "starts" ? d.acceptedTs + START_DELAY_SECS : d.endTs;
+    const pyth = shut.filter((t) => byTicker(t)?.source === "pyth");
+    for (const group of [pyth, shut.filter((t) => !pyth.includes(t))]) {
+      if (!group.length) continue;
+      const one = group.length === 1;
+      const who =
+        group === pyth
+          ? "Pyth, which only prints from the opening bell to the close"
+          : one
+            ? "its exchange, which is shut"
+            : "their exchanges, which are shut";
+      const opens = Math.max(0, ...group.map((t) => firstPriceAt(t, boundary) ?? 0));
+      hints.push(
+        `${group.join(" and ")} ${one ? "is" : "are"} priced by ${who}. The round ${waitingFor} at ${one ? "its first price" : "their first prices"} ${opens ? `at ${openingWords(opens)}` : "when trading resumes"}.`,
+      );
+    }
+  }
   if (d.status === STATUS_ACCEPTED && !startDue && !waiting)
     hints.push("The start is each stock's first price at least two seconds after the accept. Posting it now.");
   if (d.status === STATUS_LIVE && now < d.endTs) hints.push(`${t1} vs ${t2}: whichever moves more, in percent, by the bell takes both stakes.`);
@@ -513,7 +545,9 @@ function Actions({
         </p>
       ))}
       {note ? <p className="text-sm text-up">{note}</p> : null}
-      {error ? <p className="max-w-xl text-center text-sm text-down">{error}</p> : null}
+      {/* A take refused at the click says why here until the page's own clock
+        * catches up and the hints say it instead. */}
+      {error && error !== mixedHours ? <p className="max-w-xl text-center text-sm text-down">{error}</p> : null}
     </section>
   );
 }

@@ -24,7 +24,10 @@ import {
   AROUND_THE_CLOCK,
   byTicker,
   CLUSTER,
+  firstPriceAt,
   mixedHoursAt,
+  nextFairTake,
+  openingWords,
   pricedAt,
   sourceLabel,
   STAKE_DECIMALS,
@@ -44,6 +47,15 @@ const ROUNDS: { id: Round; label: string; secs?: number }[] = [
 ];
 
 const STAKES = [10, 25, 50, 100];
+
+/** When a challenge made now stops being takeable. A fixed-end challenge must
+ *  close before the last minutes of its round; a timed one can wait up to a
+ *  week for a taker. */
+const expiryFor = (fixedEnd: number, nowSecs: number) =>
+  fixedEnd ? Math.min(fixedEnd - 5 * 60, nowSecs + 7 * 86_400) : nowSecs + 7 * 86_400;
+
+/** "TSLA", "TSLA and QQQ". */
+const andList = (tickers: string[]) => tickers.join(" and ");
 
 export function CreateFight() {
   const params = useSearchParams();
@@ -102,14 +114,36 @@ export function CreateFight() {
   /* The round starts when somebody takes the challenge, and the nearest that
    * can be is now. A pair whose start prices would land hours apart, or whose
    * round would end where one side still trades and the other waits, would be
-   * decided by that gap, so it cannot be picked. A timed round's end counts
-   * from a start nobody knows until it is taken, and a bell always rings in
-   * session, but both are checked the same way. The fight page makes the same
-   * check again when it is taken. */
-  const mixedHours =
-    p1 && p2 && now
-      ? mixedHoursAt(p1, p2, now, { durationSecs: roundDef.secs ?? 0, endTs: roundDef.secs ? 0 : endTs })
-      : null;
+   * decided by that gap, so a timed round on it cannot be picked: a timed
+   * challenge is made to be taken now.
+   *
+   * A bell is different. Its end is fixed and it is often set up before the
+   * session, to be taken during it, and the fight page and the Action route
+   * refuse the take itself at any moment the pair would part. So a bell
+   * challenge is refused only when nobody could take it fairly before it
+   * closes, and otherwise says when they can. */
+  const fixedEnd = roundDef.secs ? 0 : endTs;
+  const fightRound = { durationSecs: roundDef.secs ?? 0, endTs: fixedEnd, expiresTs: now ? expiryFor(fixedEnd, now) : 0 };
+  const partsNow = p1 && p2 && now ? mixedHoursAt(p1, p2, now, fightRound) : null;
+  const takeableFrom = p1 && p2 && partsNow && fixedEnd ? nextFairTake(p1, p2, now, fightRound) : null;
+  const mixedHours = takeableFrom === null ? partsNow : null;
+  /* Why a side waits, from who prices it. A Pyth feed prints only in the
+   * regular session, so a Pyth stock can wait while its exchange is busy with
+   * after-hours trading; only a signed stock waits because its exchange is
+   * shut. */
+  const waitingPyth = waiting.filter((t) => byTicker(t)?.source === "pyth");
+  const waitingShut = waiting.filter((t) => byTicker(t)?.source !== "pyth");
+  const reopens = endsAt ? Math.max(0, ...waiting.map((t) => firstPriceAt(t, endsAt) ?? 0)) : 0;
+  const waitingWhy = [
+    waitingPyth.length
+      ? `${andList(waitingPyth)} ${waitingPyth.length === 1 ? "is" : "are"} priced by Pyth, which only prints from the opening bell to the close`
+      : "",
+    waitingShut.length
+      ? `${andList(waitingShut)} ${waitingShut.length === 1 ? "is priced by its exchange" : "are priced by their exchanges"}, which will be shut when this round ends`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(", and ");
   const short = balance.data !== undefined && balance.data !== null && balance.data < amount1;
   const noAccount = balance.data === null;
 
@@ -134,10 +168,7 @@ export function CreateFight() {
     try {
       const seed = randomSeed();
       const nowSecs = Math.floor(Date.now() / 1000);
-      const fixedEnd = roundDef.secs ? 0 : endTs;
-      // A fixed-end challenge must close before the last minute of the round;
-      // a timed one can wait up to a week for a taker.
-      const expiresTs = fixedEnd ? Math.min(fixedEnd - 5 * 60, nowSecs + 7 * 86_400) : nowSecs + 7 * 86_400;
+      const expiresTs = expiryFor(fixedEnd, nowSecs);
       const { instruction, duel } = buildCreateDuel({
         creator: publicKey,
         seed,
@@ -327,15 +358,19 @@ export function CreateFight() {
             <p className="text-sm text-down">Prices are unavailable: {prices.data.error}</p>
           ) : null}
           {/* Mixed hours disables the button, so it is the one to explain. A
-            * fight that waits for the open is still allowed, so that warning
-            * only says it will sit. */}
+            * bell challenge nobody can take fairly yet, and a fight that waits
+            * for the open, are still allowed, so those only say when. */}
           {mixedHours ? (
             <p className="max-w-lg text-center text-sm text-cooked">{mixedHours}</p>
+          ) : takeableFrom !== null ? (
+            <p className="max-w-lg text-center text-sm text-cooked">
+              Nobody can take this challenge before {openingWords(takeableFrom)}. Taken any earlier, {p1} and {p2} would
+              not start together.
+            </p>
           ) : waiting.length ? (
             <p className="max-w-lg text-center text-sm text-cooked">
-              The exchange is shut, and {waiting.join(" and ")}{" "}
-              {waiting.length === 1 ? "is priced by it" : "are priced by it"}, so this fight would sit until trading
-              resumes. {AROUND_THE_CLOCK ? `${AROUND_THE_CLOCK} stocks fight around the clock if you want one now.` : ""}
+              {waitingWhy}, so this fight would sit until {reopens ? openingWords(reopens) : "trading resumes"}.{" "}
+              {AROUND_THE_CLOCK ? `${AROUND_THE_CLOCK} stocks fight around the clock if you want one now.` : ""}
             </p>
           ) : null}
           <button type="button" disabled={!ready} onClick={submit} className="btn btn-p1 px-10 text-xl">

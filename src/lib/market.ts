@@ -133,6 +133,29 @@ export function openingAfter(boundary: number, hours: "extended" | "regular"): n
   return ms === null ? null : Math.floor(ms / 1_000);
 }
 
+/* EVERY OPENING BETWEEN TWO MOMENTS.
+ *
+ * The starts of the extended sessions (4am) and the regular ones (9:30) after
+ * `from` and before `until`, in unix seconds and in order. Two stocks that
+ * cannot fight fairly now can only line up again when some market opens, so
+ * these are the only moments worth asking about. Walked like sessionFrom, by
+ * calendar day in New York, for at most forty days. */
+export function openingsBetween(from: number, until: number): number[] {
+  const out: number[] = [];
+  const p = nyParts(from * 1_000);
+  for (let i = 0; i < 40; i++) {
+    const noon = nyToMs(p.y, p.m, p.d + i, 12, 0);
+    if (noon / 1_000 - 86_400 > until) break;
+    if (!isTradingDay(noon)) continue;
+    const q = nyParts(noon);
+    for (const ms of [nyToMs(q.y, q.m, q.d, 4, 0), nyToMs(q.y, q.m, q.d, OPEN.hour, OPEN.minute)]) {
+      const t = Math.floor(ms / 1_000);
+      if (t > from && t < until) out.push(t);
+    }
+  }
+  return out;
+}
+
 /** The bell on the trading day containing `ms`, as unix seconds. */
 function bellOn(ms: number): number {
   const p = nyParts(ms);

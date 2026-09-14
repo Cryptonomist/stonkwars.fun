@@ -72,8 +72,9 @@ export async function GET(_req: Request, { params }: Params) {
   /* The site refuses a fight where one side would start or end hours after the
    * other, because that gap would decide it rather than the round. An Actions
    * client is only another way in, so it refuses the same fight for the same
-   * reason, instead of being the back door around the rule. */
-  const mixed = open ? mixedHoursAt(t1, t2, now, d) : null;
+   * reason, instead of being the back door around the rule, and tells the
+   * taker when it can be taken. */
+  const mixed = open ? mixedHoursAt(t1, t2, now, d, "taker") : null;
   const takeable = open && !mixed;
   const round = d.durationSecs ? `${span(d.durationSecs)} round` : "to the bell";
   const stake = `${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)}`;
@@ -118,11 +119,12 @@ export async function POST(req: Request, { params }: Params) {
   if (d.status !== STATUS_OPEN || d.expiresTs <= now) return actionError("This fight is no longer open.");
   if (account.equals(d.creator)) return actionError("You cannot take your own fight.");
   if (isInviteOnly(d) && !account.equals(d.invitee)) return actionError("This fight is addressed to someone else.");
-  const mixed = mixedHoursAt(tickerForMint(d.creatorMint) ?? "", tickerForMint(d.opponentMint) ?? "", now, d);
+  const t1 = tickerForMint(d.creatorMint) ?? "?";
+  const t2 = tickerForMint(d.opponentMint) ?? "?";
+  const mixed = mixedHoursAt(t1, t2, now, d, "taker");
   if (mixed) return actionError(mixed);
 
   const conn = connection();
-  const t2 = tickerForMint(d.opponentMint) ?? "?";
   let balance: bigint;
   try {
     balance = await conn
@@ -144,6 +146,12 @@ export async function POST(req: Request, { params }: Params) {
   } catch {
     return unreachable();
   }
+  /* The accept can land until this blockhash expires, which is what
+   * TAKE_SLACK_SECS allows for, but the reads above took time of their own.
+   * So the hours are checked again from the moment the blockhash was fetched. */
+  const late = mixedHoursAt(t1, t2, Math.floor(Date.now() / 1000), d, "taker");
+  if (late) return actionError(late);
+
   const tx = new Transaction({ feePayer: account, ...latest })
     .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }))
     .add(buildAcceptDuel(d, account));
