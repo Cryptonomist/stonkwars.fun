@@ -5,6 +5,10 @@
  * functions, and calling one throws. The share card found that out the first
  * time it drew a settled fight. */
 
+import type { LiveSource } from "@/lib/livePrice";
+
+export type { LiveSource };
+
 export type Quote = {
   ticker: string;
   /** Pyth mantissa, as a decimal string (bigint-safe over JSON). */
@@ -15,7 +19,28 @@ export type Quote = {
   /** The close of the session before this one, at the same exponent, where the
    *  source gave one. Display only: no outcome is measured against it. */
   prev?: string;
+  /** The market this price was read from, so a page can name it. Absent on
+   *  quotes that were never live (the development price wanderer). */
+  source?: LiveSource;
 };
+
+/** A live price's source, in the words a badge beside it uses. */
+export function sourceWords(source: LiveSource): string {
+  switch (source) {
+    case "pyth":
+      return "Pyth";
+    case "regular":
+      return "Exchange";
+    case "extended":
+      return "Extended hours";
+    case "perp":
+      return "Perp";
+    case "pool":
+      return "Pool";
+    case "last":
+      return "Last close";
+  }
+}
 
 export type Quotes = { quotes: Record<string, Quote>; at: number; error?: string };
 

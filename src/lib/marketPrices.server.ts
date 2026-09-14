@@ -8,14 +8,27 @@ import "server-only";
  * for Pyth-priced stocks (while this server holds a Pyth key), the market data
  * the oracle signs from for the rest. That source answers up to 20 symbols a
  * request, so the whole roster is a handful of requests, and the results are
- * shared for a few seconds by everyone polling. Once the exchange shuts, the
- * oracle reads a stock's perp or pool instead, and so does this; see
- * offHoursPrices below. */
+ * shared for a few seconds by everyone polling. Before the open and after the
+ * close, the oracle signs from the exchange's extended-hours minute bars, and
+ * this reads the latest of them; see extendedPrices. Once the exchange shuts,
+ * the oracle reads a stock's perp or pool instead, and so does this; see
+ * offHoursPrices. Every quote says which of those it came from (Quote.source),
+ * so a page can name it beside the number. */
 
 import { bareFeed, hermes } from "@/lib/hermes.server";
-import { BAR_SETTLE_SECS, fetchPoolBars, fxFor, QUOTE_EXPO, trimmedMeanAtBoundary } from "@/lib/oracle";
+import { lastClose, liveSourceFor, parseAllMids, type LiveSource } from "@/lib/livePrice";
+import { session } from "@/lib/market";
+import {
+  BAR_SETTLE_SECS,
+  fetchPerpBars,
+  fetchPoolBars,
+  fxFor,
+  QUOTE_EXPO,
+  trimmedMeanAtBoundary,
+  type Bars,
+} from "@/lib/oracle";
 import type { Quote } from "@/lib/pricemath";
-import { byFeed, pricedAt, quoteSymbolFor, type Stock } from "@/lib/stocks";
+import { byFeed, quoteSymbolFor, type Stock } from "@/lib/stocks";
 
 const SPARK = "https://query1.finance.yahoo.com/v7/finance/spark";
 const HYPERLIQUID = "https://api.hyperliquid.xyz/info";
@@ -120,11 +133,111 @@ export async function pythQuotes(stocks: Stock[]): Promise<Record<string, Quote>
   return quotes;
 }
 
+/* A few at a time, however many stocks a page asks for, so one busy page
+ * never fires a burst of requests at a free source. */
+async function eachLimited<T>(items: T[], limit: number, run: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) await run(items[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+/* EXTENDED HOURS: THE LATEST MINUTE, NOT THE REGULAR CLOSE.
+ *
+ * From 4am to the open and from the close to 8pm New York time, the oracle
+ * signs from the exchange's one-minute bars, pre-market and after-hours
+ * included, while the daily quote above stays frozen at the regular session's
+ * last price. A round in those hours showed that frozen price and moved
+ * nothing. So each stock is shown at its latest minute bar instead.
+ *
+ * The same source answers minute bars for up to 20 symbols in one request.
+ * That was checked against the per-symbol chart the oracle reads (fetchBars)
+ * across a whole Friday for five stocks, pre-market to 8pm: the same minutes at
+ * the same closes to within float rounding, except that minutes with no trade
+ * are left out rather than sent as null. Asking per symbol instead would cost a
+ * stock picker sixty requests every few seconds, from the address the settling
+ * crank also reads bars from; this costs three.
+ *
+ * Only bars from the last hour count, so a quiet stock never passes off a print
+ * from the day before as now. A stock with none is left out here and shown at
+ * its regular close, labelled as that. */
+const EXTENDED_LOOKBACK_SECS = 3_600;
+
+type MinuteSpark = {
+  symbol: string;
+  response?: {
+    meta?: { regularMarketPrice?: number };
+    timestamp?: number[];
+    indicators?: { quote?: { close?: (number | null)[] }[] };
+  }[];
+};
+
+async function extendedBatch(
+  symbols: string[],
+  now: number,
+): Promise<Map<string, { price: number; time: number; close?: number }>> {
+  const r = await fetch(
+    `${SPARK}?symbols=${symbols.map(encodeURIComponent).join(",")}&range=1d&interval=1m&includePrePost=true`,
+    { headers: { "user-agent": "Mozilla/5.0 (compatible; stonkwars/1.0)" }, cache: "no-store" },
+  );
+  if (!r.ok) throw new Error(`market data HTTP ${r.status}`);
+  const body = (await r.json()) as { spark?: { result?: MinuteSpark[] } };
+  const out = new Map<string, { price: number; time: number; close?: number }>();
+  for (const s of body.spark?.result ?? []) {
+    const res = s.response?.[0];
+    const t = res?.timestamp ?? [];
+    const c = res?.indicators?.quote?.[0]?.close ?? [];
+    const recent: Bars = { t: [], c: [] };
+    for (let i = 0; i < t.length; i++) {
+      if (t[i] < now - EXTENDED_LOOKBACK_SECS || t[i] > now) continue;
+      recent.t.push(t[i]);
+      recent.c.push(c[i] ?? null);
+    }
+    const last = lastClose(recent);
+    if (!last) continue;
+    const close = res?.meta?.regularMarketPrice;
+    out.set(s.symbol, { ...last, ...(close && close > 0 ? { close } : {}) });
+  }
+  return out;
+}
+
+/** Extended-hours quotes for US stocks priced in dollars, by ticker. A stock
+ * with no trade in the last hour, or whose batch failed, is left out. */
+async function extendedPrices(stocks: Stock[], now: number): Promise<Record<string, Quote>> {
+  const symbols = [...new Set(stocks.map((s) => s.quote))];
+  const batches: string[][] = [];
+  for (let i = 0; i < symbols.length; i += PER_REQUEST) batches.push(symbols.slice(i, i + PER_REQUEST));
+  const seen = new Map<string, { price: number; time: number; close?: number }>();
+  const results = await Promise.allSettled(batches.map((b) => extendedBatch(b, now)));
+  for (const res of results) if (res.status === "fulfilled") for (const [k, v] of res.value) seen.set(k, v);
+
+  const quotes: Record<string, Quote> = {};
+  for (const s of stocks) {
+    const p = seen.get(s.quote);
+    if (!p) continue;
+    /* The move is measured from the regular close, as off-hours below: this
+     * price belongs to no regular session, so what it has moved is everything
+     * since the bell. The minute still forming ends in the future, so its
+     * time is capped at now. */
+    quotes[s.ticker] = {
+      ticker: s.ticker,
+      price: String(Math.round(p.price * 10 ** -EXPO)),
+      expo: EXPO,
+      conf: "0",
+      publishTime: Math.min(p.time, now),
+      ...(p.close ? { prev: String(Math.round(p.close * 10 ** -EXPO)) } : {}),
+      source: "extended",
+    };
+  }
+  return quotes;
+}
+
 /* Every mid on a perp dex, in one request. Asked with no dex, `allMids`
  * answers for Hyperliquid's own markets; naming one ("xyz", where the roster's
  * equity perps trade) answers for that dex instead, keyed by the full coin
  * name ("xyz:NVDA") that src/data/perps.json already pins. */
-async function perpMids(dex: string): Promise<Record<string, string>> {
+async function perpMids(dex: string): Promise<Record<string, number>> {
   const r = await fetch(HYPERLIQUID, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -132,7 +245,7 @@ async function perpMids(dex: string): Promise<Record<string, string>> {
     cache: "no-store",
   });
   if (!r.ok) throw new Error(`perp mids HTTP ${r.status}`);
-  return ((await r.json()) as Record<string, string> | null) ?? {};
+  return parseAllMids(await r.json());
 }
 
 /* OFF-HOURS, THE EXCHANGE IS NOT WHAT SETTLES.
@@ -142,7 +255,8 @@ async function perpMids(dex: string): Promise<Record<string, string>> {
  * perp, or on its pool, and both keep moving. Showing the close held a round's
  * health bars still all weekend and then reported a result they never showed.
  * So each stock goes through the oracle's own rule for a boundary of now
- * (pricedAt), and is read from the market that rule names.
+ * (pricedAt, by way of liveSourceFor), and is read from the market that rule
+ * names.
  *
  * By ticker: a price in dollars, or null where the stock is priced off-hours
  * but that market could not be read just now. A stock missing from the map is
@@ -157,12 +271,12 @@ async function perpMids(dex: string): Promise<Record<string, string>> {
 async function offHoursPrices(
   stocks: Stock[],
   now: number,
-): Promise<Map<string, { price: number; publishTime: number } | null>> {
-  const out = new Map<string, { price: number; publishTime: number } | null>();
+): Promise<Map<string, { price: number; publishTime: number; source: "perp" | "pool" } | null>> {
+  const out = new Map<string, { price: number; publishTime: number; source: "perp" | "pool" } | null>();
   const perps: { ticker: string; coin: string }[] = [];
   const pools: { ticker: string; pool: string }[] = [];
   for (const s of stocks) {
-    const from = pricedAt(s.ticker, now);
+    const from = liveSourceFor(s, now);
     const where = quoteSymbolFor(s.feed);
     if (from === "perp" && where?.perp) perps.push({ ticker: s.ticker, coin: where.perp });
     else if (from === "pool" && where?.pool) pools.push({ ticker: s.ticker, pool: where.pool });
@@ -173,7 +287,7 @@ async function offHoursPrices(
    * dex covers every coin on it. */
   const dexOf = (coin: string) => (coin.includes(":") ? coin.split(":")[0] : "");
   const dexes = [...new Set(perps.map((p) => dexOf(p.coin)))];
-  const mids = new Map<string, Record<string, string>>();
+  const mids = new Map<string, Record<string, number>>();
   await Promise.all(
     dexes.map((dex) =>
       perpMids(dex)
@@ -181,10 +295,34 @@ async function offHoursPrices(
         .catch(() => undefined),
     ),
   );
+  const unanswered: { ticker: string; coin: string }[] = [];
   for (const { ticker, coin } of perps) {
-    const mid = Number(mids.get(dexOf(coin))?.[coin]);
-    out.set(ticker, mid > 0 ? { price: mid, publishTime: now } : null);
+    const mid = mids.get(dexOf(coin))?.[coin];
+    if (mid) out.set(ticker, { price: mid, publishTime: now, source: "perp" });
+    else unanswered.push({ ticker, coin });
   }
+
+  /* A coin the mids left out, or a dex that did not answer: the same perp's
+   * latest finished minute, which is what the oracle itself reads. Pinned to
+   * whole minutes so fetchPerpBars can keep the answer (a finished candle never
+   * changes), and a few at a time. Still the perp or nothing, for the reason
+   * above. */
+  const minute = Math.floor(now / 60) * 60;
+  await eachLimited(unanswered, 6, async ({ ticker, coin }) => {
+    try {
+      const bars = await fetchPerpBars(coin, minute - 300, minute);
+      const finished: Bars = { t: [], c: [] };
+      for (let i = 0; i < bars.t.length; i++) {
+        if (bars.t[i] + 60 > minute) continue;
+        finished.t.push(bars.t[i]);
+        finished.c.push(bars.c[i]);
+      }
+      const last = lastClose(finished);
+      out.set(ticker, last ? { price: last.price, publishTime: last.time, source: "perp" } : null);
+    } catch {
+      out.set(ticker, null);
+    }
+  });
 
   /* The pool, read exactly as the oracle reads it: the trimmed mean of its
    * recent minutes, at the latest whole minute whose bars have settled. That
@@ -198,7 +336,9 @@ async function offHoursPrices(
         const m = trimmedMeanAtBoundary(await fetchPoolBars(pool, boundary), boundary);
         // A pool too quiet to price falls through to the exchange, as it does
         // in the oracle, so the stock stays off this map.
-        if (m) out.set(ticker, { price: Number(m.price) * 10 ** QUOTE_EXPO, publishTime: m.publishTime });
+        if (m) {
+          out.set(ticker, { price: Number(m.price) * 10 ** QUOTE_EXPO, publishTime: m.publishTime, source: "pool" });
+        }
       } catch {
         out.set(ticker, null);
       }
@@ -207,18 +347,45 @@ async function offHoursPrices(
   return out;
 }
 
-/** Every stock at the price of the source that settles it now: Pyth where it
- * prices the stock, the stock's perp or pool while its exchange is shut and
- * the oracle reads one of those, and the exchange's price otherwise. */
+/** Every stock at the price of the source that settles it now, tagged with
+ * that source: Pyth where it prices the stock; the latest extended-hours
+ * minute before the open and after the close; the stock's perp or pool while
+ * its exchange is shut and the oracle reads one of those; and the exchange's
+ * price otherwise, which outside the regular session is its last close. */
 export async function liveQuotes(stocks: Stock[]): Promise<Record<string, Quote>> {
   const now = Math.floor(Date.now() / 1000);
-  const pythStocks = stocks.filter((s) => s.source === "pyth");
-  const [market, pyth, offHours] = await Promise.all([
-    marketQuotes(stocks),
-    pythQuotes(pythStocks).catch(() => ({}) as Record<string, Quote>),
-    offHoursPrices(stocks, now),
+  const want = new Map(stocks.map((s) => [s.ticker, liveSourceFor(s, now)] as const));
+
+  /* A listing quoted in another currency keeps the daily path, which converts
+   * it to dollars; the minute path does not. */
+  const isExtended = (s: Stock) => want.get(s.ticker) === "extended" && s.currency === "USD";
+  const extendedStocks = stocks.filter(isExtended);
+  const daily = stocks.filter((s) => !isExtended(s));
+
+  const [market, pyth, offHours, extended] = await Promise.all([
+    marketQuotes(daily),
+    pythQuotes(daily.filter((s) => s.source === "pyth")).catch(() => ({}) as Record<string, Quote>),
+    offHoursPrices(daily, now),
+    extendedPrices(extendedStocks, now).catch(() => ({}) as Record<string, Quote>),
   ]);
-  const quotes: Record<string, Quote> = { ...market, ...pyth };
+  // Extended-hours stocks with no recent minute: their regular close, as before.
+  const unread = extendedStocks.filter((s) => !extended[s.ticker]);
+  const closes = unread.length ? await marketQuotes(unread).catch(() => ({}) as Record<string, Quote>) : {};
+
+  /* An exchange quote is a live price only in the regular session. Outside
+   * it, whatever reached this path (a Pyth stock without Pyth, a pool too quiet
+   * to price, a stock that waits for the open) is the last close, and says so.
+   * A listing abroad keeps its own hours, which session() does not model. */
+  const inSession = session(now * 1_000) === "open";
+  const quotes: Record<string, Quote> = {};
+  for (const s of stocks) {
+    const q = market[s.ticker] ?? closes[s.ticker];
+    if (!q) continue;
+    const source: LiveSource = s.market !== "US" || inSession ? "regular" : "last";
+    quotes[s.ticker] = { ...q, source };
+  }
+  for (const [ticker, q] of Object.entries(pyth)) quotes[ticker] = { ...q, source: "pyth" };
+
   for (const [ticker, live] of offHours) {
     if (!live) {
       delete quotes[ticker];
@@ -236,7 +403,9 @@ export async function liveQuotes(stocks: Stock[]): Promise<Record<string, Quote>
       conf: "0",
       publishTime: live.publishTime,
       ...(close ? { prev: close.price } : {}),
+      source: live.source,
     };
   }
+  for (const [ticker, q] of Object.entries(extended)) quotes[ticker] = q;
   return quotes;
 }
