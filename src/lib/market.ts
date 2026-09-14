@@ -90,6 +90,37 @@ export function session(ms = Date.now()): Session {
   return "closed";
 }
 
+/* WHEN A MARKET IS NEXT RUNNING, FROM A MOMENT.
+ *
+ * The first instant at or after `ms` inside a session, or `ms` itself when one
+ * is already running. "extended" is any session but closed, 4am to 8pm on a
+ * trading day (5pm on a half day): the hours the exchange's own minute bars
+ * cover. "regular" is 9:30 to the close only: the hours Pyth's US equity feeds
+ * print. It walks calendar days in New York, so a weekend, a holiday or a
+ * daylight saving change is simply a day with nothing in it.
+ *
+ * Asked about a boundary, this is the moment a side's first price after it
+ * can begin to exist, which is a fixed time: it does not move with the clock,
+ * and it stays in the past once the market that made it has shut again. Null
+ * only if nothing opens within ten days, which no closure on the calendar
+ * comes near. */
+export function sessionFrom(ms: number, hours: "extended" | "regular"): number | null {
+  const p = nyParts(ms);
+  for (let i = 0; i < 10; i++) {
+    // Noon on each calendar day; Date.UTC rolls a day past the month's end over.
+    const noon = nyToMs(p.y, p.m, p.d + i, 12, 0);
+    if (!isTradingDay(noon)) continue;
+    const q = nyParts(noon);
+    const early = EARLY_CLOSE.has(ymd(q));
+    const start =
+      hours === "regular" ? nyToMs(q.y, q.m, q.d, OPEN.hour, OPEN.minute) : nyToMs(q.y, q.m, q.d, 4, 0);
+    const end = hours === "regular" ? nyToMs(q.y, q.m, q.d, early ? 13 : 16, 0) : nyToMs(q.y, q.m, q.d, early ? 17 : 20, 0);
+    if (ms < start) return start;
+    if (ms < end) return ms;
+  }
+  return null;
+}
+
 /** The bell on the trading day containing `ms`, as unix seconds. */
 function bellOn(ms: number): number {
   const p = nyParts(ms);

@@ -163,8 +163,8 @@ describe("nudge schedule", () => {
       expect(nudgeJobFor(d, ny(13, 12, 0), { lookup: markets })).to.deep.equal({ kind: "start", shut: ["EXCH"] });
       const monday = ny(14, 4, 7);
       const j = nudgeJobFor(d, monday, { lookup: markets, since: monday });
-      // Due from 4:00 on Monday, when the exchange's day begins, not from "now".
-      expect(j).to.deep.equal({ kind: "start", readyAt: ny(14, 4, 0), since: monday });
+      // Due from 4:01:20 on Monday, when the exchange's first bar is final, not from "now".
+      expect(j).to.deep.equal({ kind: "start", readyAt: ny(14, 4, 1, 20), since: monday });
     });
   });
 });

@@ -1,6 +1,6 @@
 import { expect } from "chai";
 
-import { isTradingDay, nextBell, nyToMs, session, weekBell } from "../src/lib/market";
+import { isTradingDay, nextBell, nyToMs, session, sessionFrom, weekBell } from "../src/lib/market";
 
 const at = (iso: string) => Date.parse(iso);
 const iso = (unix: number) => new Date(unix * 1000).toISOString();
@@ -39,6 +39,29 @@ describe("market clock", () => {
     expect(iso(nextBell(at("2026-09-12T15:00:00Z")))).to.equal("2026-09-14T19:59:30.000Z");
     // The day after Thanksgiving closes early: its bell is 12:59:30 ET.
     expect(iso(nextBell(at("2026-11-27T14:00:00Z")))).to.equal("2026-11-27T17:59:30.000Z");
+  });
+
+  it("finds when a session is next running, from any moment", () => {
+    const from = (s: string, hours: "extended" | "regular") => {
+      const ms = sessionFrom(at(s), hours);
+      return ms === null ? null : new Date(ms).toISOString();
+    };
+    // Inside a session: that very moment.
+    expect(from("2026-09-11T18:00:00Z", "regular")).to.equal("2026-09-11T18:00:00.000Z");
+    expect(from("2026-09-11T12:00:00Z", "extended")).to.equal("2026-09-11T12:00:00.000Z");
+    // Friday 8 AM ET: pre-market is extended hours, not regular ones.
+    expect(from("2026-09-11T12:00:00Z", "regular")).to.equal("2026-09-11T13:30:00.000Z");
+    // Friday 7 PM ET is after-hours; 9 PM ET is shut until Monday.
+    expect(from("2026-09-11T23:00:00Z", "extended")).to.equal("2026-09-11T23:00:00.000Z");
+    expect(from("2026-09-12T01:00:00Z", "extended")).to.equal("2026-09-14T08:00:00.000Z");
+    expect(from("2026-09-12T01:00:00Z", "regular")).to.equal("2026-09-14T13:30:00.000Z");
+    // Labor Day weekend: Monday the 7th is shut, so Tuesday.
+    expect(from("2026-09-05T15:00:00Z", "regular")).to.equal("2026-09-08T13:30:00.000Z");
+    // A half day's after-hours end at 5 PM ET, and the next is Monday.
+    expect(from("2026-11-27T21:30:00Z", "extended")).to.equal("2026-11-27T21:30:00.000Z");
+    expect(from("2026-11-27T22:30:00Z", "extended")).to.equal("2026-11-30T09:00:00.000Z");
+    // Across the clocks going back (Sunday 1 November): Monday's open is EST.
+    expect(from("2026-10-31T16:00:00Z", "regular")).to.equal("2026-11-02T14:30:00.000Z");
   });
 
   it("puts the week bell on Friday, or the last trading day before the weekend", () => {

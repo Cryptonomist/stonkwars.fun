@@ -18,8 +18,8 @@
 
 import { boundaryOf } from "./crankTx";
 import { SOURCE_PYTH, STATUS_ACCEPTED, STATUS_LIVE, STATUS_VOID, type DuelView } from "./duel";
-import { session } from "./market";
-import { BAR_SETTLE_SECS, firstBarEnd, sourceAt } from "./oracle";
+import { session, sessionFrom } from "./market";
+import { BAR_SETTLE_SECS, exchangeBarFinal, firstBarEnd, sourceAt } from "./oracle";
 import { byFeed, quoteSymbolFor } from "./stocks";
 
 /* The end of the first one-minute bar that ends after a boundary, whose close
@@ -50,7 +50,20 @@ export type ClockDuel = Pick<
   "acceptedTs" | "endTs" | "creatorFeed" | "opponentFeed" | "creatorSource" | "opponentSource"
 >;
 
-const isOpen = (unixSecs: number) => session(unixSecs * 1_000) !== "closed";
+/* HAS THE MARKET OPENED SINCE THE BOUNDARY, AND WHEN?
+ *
+ * A side whose market was shut at its boundary is priced by the first session
+ * after it. That session's opening is a fixed moment, found from the boundary
+ * alone, and the side is shut only while that moment is still ahead. This used
+ * to ask whether the market was open NOW, so a fight whose price appeared on
+ * Monday and was never cranked went back to "shut" at Monday's close: its
+ * manual button vanished, the cron parked it, and the page said it was waiting
+ * for a market that had already priced it. Unix seconds, or null if nothing
+ * opens within ten days. */
+function openingAfter(boundary: number, hours: "extended" | "regular"): number | null {
+  const ms = sessionFrom(boundary * 1_000, hours);
+  return ms === null ? null : Math.floor(ms / 1_000);
+}
 
 function sideReady(
   feed: string,
@@ -79,11 +92,12 @@ function sideReady(
      * would spend a Hermes call and a crank slot on it every pass, which is
      * what 4yf7 did. A crypto feed off the roster is handled above and never
      * waits. */
-    const regular = (unixSecs: number) => session(unixSecs * 1_000) === "open";
-    if (regular(boundary)) return { at: boundary + PYTH_GRACE_SECS, why: "pyth" };
-    // The market was shut at the boundary, so the price is its first print
-    // after it reopens: due whenever the session is running again.
-    if (regular(now)) return { at: now, why: "pyth" };
+    const opening = openingAfter(boundary, "regular");
+    // In session at the boundary: the print a moment after it, never shut.
+    if (opening === boundary) return { at: boundary + PYTH_GRACE_SECS, why: "pyth" };
+    // Shut at the boundary: the first print after the next opening bell, from
+    // the moment that bell has rung, whether or not the session is still going.
+    if (opening !== null && opening <= now) return { at: opening + PYTH_GRACE_SECS, why: "pyth" };
     return { shut: name };
   }
 
@@ -97,10 +111,13 @@ function sideReady(
   if (src === "perp") return { at: firstBarEnd(boundary) + BAR_SETTLE_SECS, why: "minute-close" };
 
   /* The exchange. Shut at the boundary with nothing else to read means the
-   * price is its first bar after it reopens, so the side is due once the
-   * session is running again and shut until then. */
+   * price is its first bar after it reopens: final a bar and the settle time
+   * after the opening, and shut only until the opening. oracle.ts's
+   * exchangeBarFinal is the same rule, and the oracle asks nothing before it. */
   if (us && session(boundary * 1_000) === "closed") {
-    return isOpen(now) ? { at: now, why: "minute-close" } : { shut: name };
+    const opening = openingAfter(boundary, "extended");
+    if (opening === null || opening > now) return { shut: name };
+    return { at: exchangeBarFinal(boundary, market.market) ?? firstBarEnd(opening) + BAR_SETTLE_SECS, why: "minute-close" };
   }
   return { at: firstBarEnd(boundary) + BAR_SETTLE_SECS, why: "minute-close" };
 }
@@ -124,52 +141,24 @@ export function readyAt(
   return (sides as Ready[]).reduce((a, b) => (b.at > a.at ? b : a));
 }
 
-/* WHEN A PRICE BECAME READY, NOT ONLY WHETHER IT IS.
+/* WHEN A PRICE BECAME READY, FLOORED AT THE BOUNDARY.
  *
- * A side whose market was shut at its boundary is due from the moment that
- * market reopens, and readyAt says so by answering `now`, which moves with the
- * clock. That is right for a crank deciding whether to try, and wrong for a
- * page deciding how late the settler is: a time that is always "now" is never
- * three minutes ago, so a manual button waiting for readyAt + 180 would never
- * come, and a page nudge told to give up 15 minutes after readyAt never would.
- *
- * So this dates such a side to the reopening, found by bisecting between the
- * boundary (where the side is shut, or not yet due, by construction) and now.
- * Every other answer is readyAt's own, floored at the boundary as the crank
- * floors it. If the market has opened and shut more than once since the
- * boundary the bisection may land on a later reopening than the first; that
- * only makes the page more patient, and a fight that old has been cranked by
- * the cron long before. */
+ * A page deciding how late the settler is needs a time that stays put: one
+ * that moved with the clock would never be three minutes ago, so a manual
+ * button waiting for it would never come. readyAt's times are all fixed now,
+ * including a side that waited for its market (dated to the first opening
+ * after its boundary, not to "now"), so this is readyAt floored at the
+ * boundary, exactly as the crank floors it. It used to bisect for the
+ * reopening; that is no longer needed. */
 export function readySince(
   d: ClockDuel,
   which: "start" | "settle",
   now: number,
   lookup: MarketLookup = quoteSymbolFor,
 ): Ready | Shut {
-  const boundary = boundaryOf(d, which);
-  const at = (t: number): number | null => {
-    const c = readyAt(d, which, t, lookup);
-    return "shut" in c ? null : Math.max(c.at, boundary);
-  };
   const clock = readyAt(d, which, now, lookup);
   if ("shut" in clock) return clock;
-  const ready = { at: Math.max(clock.at, boundary), why: clock.why };
-  if (ready.at !== now || now <= boundary) return ready;
-  // A fixed time that happens to fall on this second was the same a second ago.
-  if (at(now - 1) === ready.at) return ready;
-
-  const due = (t: number) => {
-    const a = at(t);
-    return a !== null && a <= t;
-  };
-  let lo = boundary; // not due
-  let hi = now; // due
-  while (hi - lo > 1) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (due(mid)) hi = mid;
-    else lo = mid;
-  }
-  return { at: hi, why: clock.why };
+  return { at: Math.max(clock.at, boundaryOf(d, which)), why: clock.why };
 }
 
 export type ClockJob = { kind: "start" | "settle" | "refund"; boundary: number };

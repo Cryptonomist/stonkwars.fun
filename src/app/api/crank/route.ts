@@ -1,6 +1,6 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 
-import { crankOnce, CRON_YIELD_SECS, listJobs, type JobListing } from "@/lib/crank";
+import { crankOnce, CRON_PYTH_YIELD_SECS, CRON_YIELD_SECS, listJobs, type JobListing } from "@/lib/crank";
 import { authorise } from "@/lib/crankAuth.server";
 import { crankKeypair, settlerConnection, settlerHermes, settlerOracle } from "@/lib/settler.server";
 import { quoteSymbolFor } from "@/lib/stocks";
@@ -95,6 +95,8 @@ export async function GET(req: NextRequest) {
       concurrency: CONCURRENCY,
       deadlineMs: t0 + PASS_MS,
       yieldSecs: CRON_YIELD_SECS,
+      // A Pyth crank from a page takes far longer than a signed one; see crank.ts.
+      pythYieldSecs: CRON_PYTH_YIELD_SECS,
     });
 
   if (req.nextUrl.searchParams.get("wait") === "1") {

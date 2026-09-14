@@ -81,7 +81,8 @@ export class NudgeGate<A extends { state: NudgeState } = { state: NudgeState }> 
   private readonly buckets = new Map<string, { tokens: number; at: number }>();
   private readonly answers = new Map<string, { answer: A; until: number }>();
   private readonly inFlight = new Map<string, Promise<A>>();
-  private sends: number[] = [];
+  private sends: { token: number; at: number }[] = [];
+  private sendSeq = 0;
 
   constructor(opts: GateOptions = {}) {
     this.now = opts.now ?? Date.now;
@@ -155,18 +156,27 @@ export class NudgeGate<A extends { state: NudgeState } = { state: NudgeState }> 
 
   /* THE INSTANCE'S SEND BUDGET. Taken just before a crank attempt, which may
    * pay a fee; given back when the attempt turned out to send nothing (the
-   * fight was already done, or its price was not ready). At most
-   * `sendsPerMinute` in any sliding minute. */
-  takeSend(): boolean {
+   * fight was already done, its price was not ready, or it failed before
+   * anything reached the RPC). At most `sendsPerMinute` in any sliding minute.
+   *
+   * takeSend hands back a token, or null when the budget is spent, and
+   * returnSend takes that token. Giving back "the latest" instead, as this
+   * first did, removed whichever send was taken most recently: a run that took
+   * its slot at 0s and gave it back at 40s freed a slot a real send took at
+   * 39s, and left its own to expire early, so a minute could hold more sends
+   * than the limit. */
+  takeSend(): number | null {
     const t = this.now();
-    this.sends = this.sends.filter((s) => t - s < 60_000);
-    if (this.sends.length >= this.sendsPerMinute) return false;
-    this.sends.push(t);
-    return true;
+    this.sends = this.sends.filter((s) => t - s.at < 60_000);
+    if (this.sends.length >= this.sendsPerMinute) return null;
+    const token = ++this.sendSeq;
+    this.sends.push({ token, at: t });
+    return token;
   }
 
-  returnSend(): void {
-    this.sends.pop();
+  returnSend(token: number): void {
+    const i = this.sends.findIndex((s) => s.token === token);
+    if (i >= 0) this.sends.splice(i, 1);
   }
 }
 

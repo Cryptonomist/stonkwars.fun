@@ -163,18 +163,21 @@ describe("nudge gate", () => {
       const c = clock();
       const gate = new NudgeGate({ now: c.now });
       for (let i = 0; i < 30; i++) {
-        expect(gate.takeSend(), `send ${i + 1}`).to.equal(true);
+        expect(gate.takeSend(), `send ${i + 1}`).to.be.a("number");
         c.advance(100);
       }
-      expect(gate.takeSend()).to.equal(false);
+      expect(gate.takeSend()).to.equal(null);
     });
 
     it("gives back an attempt that sent nothing", () => {
       const gate = new NudgeGate({ now: () => 0 });
-      for (let i = 0; i < 30; i++) gate.takeSend();
-      expect(gate.takeSend()).to.equal(false);
-      gate.returnSend();
-      expect(gate.takeSend()).to.equal(true);
+      const tokens = Array.from({ length: 30 }, () => gate.takeSend());
+      expect(gate.takeSend()).to.equal(null);
+      gate.returnSend(tokens[7]!);
+      expect(gate.takeSend()).to.be.a("number");
+      // A token already given back gives nothing back twice.
+      gate.returnSend(tokens[7]!);
+      expect(gate.takeSend()).to.equal(null);
     });
 
     it("slides: an attempt a minute old no longer counts", () => {
@@ -183,10 +186,31 @@ describe("nudge gate", () => {
       gate.takeSend();
       c.advance(30_000);
       for (let i = 0; i < 29; i++) gate.takeSend();
-      expect(gate.takeSend()).to.equal(false);
+      expect(gate.takeSend()).to.equal(null);
       c.advance(30_000);
-      expect(gate.takeSend()).to.equal(true);
-      expect(gate.takeSend()).to.equal(false);
+      expect(gate.takeSend()).to.be.a("number");
+      expect(gate.takeSend()).to.equal(null);
+    });
+
+    /* The reviewer's sequence: a run takes its slot at 0s and gives it back at
+     * 40s, after 29 real sends in between and one more at 40s. Giving back the
+     * latest slot instead of its own let 31 sends into one minute. */
+    it("gives back the slot that was taken, not the latest, so a minute never holds more than 30", () => {
+      const c = clock();
+      const gate = new NudgeGate({ now: c.now });
+      const sent: number[] = [];
+      const a = gate.takeSend()!;
+      for (let i = 1; i <= 29; i++) {
+        c.advance(1_000);
+        if (gate.takeSend() !== null) sent.push(c.now());
+      }
+      c.advance(11_000); // 40s
+      gate.returnSend(a);
+      if (gate.takeSend() !== null) sent.push(c.now());
+      c.advance(20_001); // just past a minute from the start
+      while (gate.takeSend() !== null) sent.push(c.now());
+      const end = c.now();
+      expect(sent.filter((t) => end - t < 60_000)).to.have.length.at.most(30);
     });
   });
 

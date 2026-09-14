@@ -50,7 +50,15 @@ import {
   STATUS_VOID,
   type DuelView,
 } from "./duel";
-import { BAR_SETTLE_SECS, firstBarEnd, quoteAt, signedQuoteInstruction } from "./oracle";
+import {
+  BAR_SETTLE_SECS,
+  exchangeBarFinal,
+  firstBarEnd,
+  poolWindowThin,
+  quoteAt,
+  signedQuoteInstruction,
+  sourceAt,
+} from "./oracle";
 import { readyAt as clockReadyAt, PYTH_GRACE_SECS, type MarketLookup, type ReadyWhy } from "./priceClock";
 import { quoteSymbolFor } from "./stocks";
 
@@ -122,8 +130,11 @@ async function sleepUntil(ms: number): Promise<void> {
 /* ─── What is due ──────────────────────────────────────────────────────────── */
 
 export type JobKind = "start" | "settle" | "refund";
-/** A job, with the earliest unix second its prices can exist (priceClock). */
-export type CrankJob = { duel: DuelView; kind: JobKind; readyAt: number; why: ReadyWhy | "refund" };
+/** A job, with the earliest unix second its prices can exist (priceClock).
+ *  `since` is when it became due, a time that does not move with the clock,
+ *  for ordering (chooseJobs); readyAt is when to wake for it, and for a refund
+ *  that is simply now. Without `since`, readyAt stands in. */
+export type CrankJob = { duel: DuelView; kind: JobKind; readyAt: number; why: ReadyWhy | "refund"; since?: number };
 /** A job whose market is shut: nothing can price it, so nothing is tried. */
 export type ParkedJob = { duel: string; kind: "start" | "settle"; shut: string[] };
 export type JobListing = { due: CrankJob[]; parked: ParkedJob[]; errors: string[] };
@@ -182,7 +193,10 @@ export async function listJobs(
     const kind = kinds[i];
     for (const duel of list.value) {
       if (kind === "refund") {
-        due.push({ duel, kind, readyAt: now, why: "refund" });
+        /* A duel is voided only by start_duel, which records the price time it
+         * found (start_ts) before deciding the start came too late: that is
+         * when the refund became due, and it stays put. */
+        due.push({ duel, kind, readyAt: now, why: "refund", since: duel.startTs || boundaryOf(duel, "start") });
         continue;
       }
       // A settle is not a job before its bell, however close the bell is.
@@ -195,7 +209,7 @@ export async function listJobs(
       }
       // Never earlier than the boundary itself, whatever a session rule says.
       const at = Math.max(clock.at, boundary);
-      if (at <= now + lookahead) due.push({ duel, kind, readyAt: at, why: clock.why });
+      if (at <= now + lookahead) due.push({ duel, kind, readyAt: at, why: clock.why, since: at });
     }
   });
   return { due, parked, errors };
@@ -217,8 +231,30 @@ export async function pendingJobs(
  * minute had no trade and the price moved to a later bar, which cannot be
  * final before the next bar closes and settles, so asking every second and a
  * half until then would only be load on somebody else's API. A pool or Pyth
- * side that is late is asked again a few seconds on. */
-function retryAt(d: DuelView, which: "start" | "settle", now: number, lookup: MarketLookup): number | undefined {
+ * side that is late is asked again a few seconds on.
+ *
+ * A POOL TOO QUIET TO PRICE WAITS FOR THE EXCHANGE, NOT FIVE SECONDS. The
+ * oracle then falls back to the exchange's first bar after the boundary, which
+ * cannot exist before the exchange opens: on a Saturday, that is Monday. The
+ * clock cannot see this (it would have to read the pool), so it keeps calling
+ * the side due at boundary + 20, and retrying it every five seconds meant a
+ * page open all weekend kept a function busy asking for a price all weekend.
+ * Once this instance has read the pool and found it thin, the retry is the
+ * exchange's own time. A pool this instance was told to stop asking (a rate
+ * limit) has not been read, and is retried a few seconds on as before.
+ * Exported for tests. */
+export function retryAt(
+  d: DuelView,
+  which: "start" | "settle",
+  now: number,
+  lookup: MarketLookup,
+  side?: { market?: string; pool?: string; perp?: string },
+): number | undefined {
+  const boundary = boundaryOf(d, which);
+  if (side?.pool && sourceAt(boundary, side) === "pool" && poolWindowThin(side.pool, boundary)) {
+    const final = exchangeBarFinal(boundary, side.market);
+    if (final !== null) return final > now ? final : firstBarEnd(now - BAR_SETTLE_SECS) + BAR_SETTLE_SECS;
+  }
   const clock = clockReadyAt(d, which, now, lookup);
   if ("shut" in clock) return undefined;
   if (clock.at > now) return clock.at;
@@ -253,18 +289,32 @@ export async function signedQuotes(opts: {
   const quote = opts.quoteAt ?? quoteAt;
   const which = opts.which ?? (boundary === d.endTs ? "settle" : "start");
   // Both sides at once: they are different sources, and neither waits on the other.
-  return Promise.all(
+  const settled = await Promise.allSettled(
     feeds.map(async (feed) => {
       const market = opts.quoteSymbol(feed);
       if (!market) throw new Error(`No market symbol for feed ${feed.slice(0, 8)}`);
       const q = await quote({ feed, ...market, boundary });
       if (!q) {
         const now = nowSecs();
-        throw new NotYet(`${market.symbol}: waiting for the price at ${boundary} to be final`, retryAt(d, which, now, opts.quoteSymbol));
+        throw new NotYet(
+          `${market.symbol}: waiting for the price at ${boundary} to be final`,
+          retryAt(d, which, now, opts.quoteSymbol, market),
+        );
       }
       return signedQuoteInstruction(oracle, q);
     }),
   );
+  /* A broken side is reported first, since waiting will not mend it. Two
+   * sides that are both waiting wait for the later of them: the fight needs
+   * both, and asking at the earlier time only earns another "not yet". */
+  const broken = settled.find((s): s is PromiseRejectedResult => s.status === "rejected" && !(s.reason instanceof NotYet));
+  if (broken) throw broken.reason;
+  const waits = settled.flatMap((s) => (s.status === "rejected" ? [s.reason as NotYet] : []));
+  if (waits.length) {
+    const times = waits.flatMap((w) => (w.readyAt === undefined ? [] : [w.readyAt]));
+    throw new NotYet(waits.map((w) => w.message).join("; "), times.length ? Math.max(...times) : undefined);
+  }
+  return settled.map((s) => (s as PromiseFulfilledResult<TransactionInstruction>).value);
 }
 
 /** Hermes' update data for the fight's Pyth sides at a boundary, checked to be
@@ -302,22 +352,39 @@ export async function pythUpdateAt(hermes: HermesClient | undefined, d: DuelView
 
 /* ─── Sending ──────────────────────────────────────────────────────────────── */
 
-/* The program's refusal when a job has already been done by somebody else.
- * start_duel and settle_duel check the status first, so a start that lost the
- * race is refused with NotAccepted and a settle with NotLive; a refund of a
- * duel no longer void is NotRefundable (the crank refunds VOID duels only,
- * which are always refundable, so on this path it can only mean that). */
+/* THE PROGRAM'S REFUSAL WHEN A JOB HAS ALREADY BEEN DONE BY SOMEBODY ELSE.
+ *
+ * start_duel checks the status first, so a start that lost the race is
+ * refused with NotAccepted. settle_duel and refund_duel are different: both
+ * close the duel's two escrow accounts, so a second one never reaches its
+ * status check. Anchor refuses it while loading accounts, with
+ * AccountNotInitialized on creator_escrow (tests/duel.ts pins exactly that for
+ * a second settlement). An escrow is open from the accept until the settle or
+ * refund, so on this path a missing escrow can only mean the job is done.
+ * NotLive and NotRefundable stay for completeness. */
+const ESCROW_GONE = /caused by account: (?:creator|opponent)_escrow\. Error Code: AccountNotInitialized\b/;
 const DONE_CODE: Record<JobKind, RegExp> = {
   start: /Error Code: NotAccepted\b/,
-  settle: /Error Code: NotLive\b/,
-  refund: /Error Code: NotRefundable\b/,
+  settle: new RegExp(`Error Code: NotLive\\b|${ESCROW_GONE.source}`),
+  refund: new RegExp(`Error Code: NotRefundable\\b|${ESCROW_GONE.source}`),
 };
 
-function throwIfAlreadyDone(e: unknown, kind: JobKind, fightIndex: number): void {
+/* A refusal of the fight transaction in preflight is also read against the
+ * duel itself: if its status has moved, somebody else did the job, whatever
+ * words the refusal used. Preflight ran at "confirmed", and so does this read,
+ * so the two see the same chain. Nothing was paid either way. */
+async function throwIfAlreadyDone(conn: Connection, d: DuelView, kind: JobKind, e: unknown, fightIndex: number): Promise<void> {
   if (!(e instanceof SendFailed) || e.stage !== "preflight" || e.index !== fightIndex) return;
-  if (DONE_CODE[kind].test([e.message, ...e.logs].join("\n"))) {
-    throw new AlreadyDone(`already ${kind === "start" ? "started" : kind === "settle" ? "settled" : "refunded"}; refused in preflight, nothing paid`);
-  }
+  const done = `already ${kind === "start" ? "started" : kind === "settle" ? "settled" : "refunded"}; refused in preflight, nothing paid`;
+  if (DONE_CODE[kind].test([e.message, ...e.logs].join("\n"))) throw new AlreadyDone(done);
+  const info = await conn.getAccountInfo(d.address, "confirmed").catch(() => undefined);
+  if (info === null || (info && decodeDuel(d.address, info.data).status !== STATUS_FOR[kind])) throw new AlreadyDone(done);
+}
+
+/** Say whether a send failure stopped on the fight transaction itself. */
+function markFight(e: unknown, fightIndex: number): unknown {
+  if (e instanceof SendFailed) e.fight = e.index === fightIndex;
+  return e;
 }
 
 export type CrankContext = {
@@ -333,6 +400,15 @@ export type CrankContext = {
 
 /** The confirmation wait after a send, inside whatever deadline the caller has. */
 export const CONFIRM_WAIT_MS = 25_000;
+/* What one transaction of a Pyth crank is budgeted to be sent and confirmed
+ * in. Confirmation is polled every 700ms and devnet usually confirms in one to
+ * three seconds; this leaves room for a slow slot without letting a crank
+ * begin a chain of posts it cannot see through. */
+export const PYTH_MS_PER_TX = 5_000;
+
+/** Told as each transaction goes out, and whether it is the fight transaction
+ *  (a Pyth crank sends its price posts first). */
+export type OnSent = (signature: string, fight: boolean) => void;
 
 /** Post the boundary's prices and run start_duel or settle_duel: Pyth updates
  * for Pyth sides, the oracle's signed quotes for signed sides. Sent with
@@ -343,10 +419,13 @@ export async function postAndRun(
   opts: CrankContext & {
     duel: DuelView;
     which: "start" | "settle";
-    /** A Date.now() time to stop waiting for confirmation by. */
+    /** A Date.now() time to stop waiting for confirmation by. Nothing is sent
+     *  after it. */
     deadlineMs?: number;
     /** Told as each transaction goes out: from then on, it may land. */
-    onSent?: (signature: string) => void;
+    onSent?: OnSent;
+    /** Asked right before each send; false holds it back (see sendSigned). */
+    maySend?: () => boolean;
   },
 ): Promise<{ signature: string; signatures: string[] }> {
   const { conn, payer, duel: d, which } = opts;
@@ -373,12 +452,13 @@ export async function postAndRun(
         blockhash: latest.blockhash,
         lastValidBlockHeight: latest.lastValidBlockHeight,
         deadlineMs: confirmBy,
-        onSent: (sig) => opts.onSent?.(sig),
+        maySend: opts.maySend,
+        onSent: (sig) => opts.onSent?.(sig, true),
       });
       return { signature, signatures: [signature] };
     } catch (e) {
-      throwIfAlreadyDone(e, which, 0);
-      throw e;
+      await throwIfAlreadyDone(conn, d, which, e, 0);
+      throw markFight(e, 0);
     }
   }
 
@@ -401,6 +481,24 @@ export async function postAndRun(
   });
   const all = [...parts.post, parts.fight, ...parts.close];
   for (const { tx, signers } of all) tx.sign([payer, ...signers]);
+  const fightIndex = parts.post.length;
+
+  /* NOT STARTED UNLESS IT CAN BE FINISHED.
+   *
+   * The posts and the fight go out one after another, each confirmed before
+   * the next. Begun a few seconds before the deadline, the fight would be
+   * sent and then given up on unconfirmed, and its closes would have to choose
+   * between racing it and leaving rent behind. So a chain with too little time
+   * left for every transaction in it is not begun: nothing is paid, and the
+   * next call starts it with time to spare. */
+  const leftMs = (opts.deadlineMs ?? Infinity) - Date.now();
+  const needMs = (fightIndex + 1) * PYTH_MS_PER_TX;
+  if (leftMs < needMs) {
+    throw new NotYet(
+      `${Math.max(0, Math.round(leftMs / 1_000))}s left in this call, too few to post ${fightIndex} price update(s) and run the fight`,
+      nowSecs(),
+    );
+  }
 
   const fresh = await conn.getAccountInfo(d.address, "confirmed").catch(() => undefined);
   if (fresh === null || (fresh && decodeDuel(d.address, fresh.data).status !== STATUS_FOR[which])) {
@@ -413,12 +511,13 @@ export async function postAndRun(
       cleanup: parts.close.map((t) => t.tx),
       deadlineMs: opts.deadlineMs,
       lastValidBlockHeight: parts.lastValidBlockHeight,
-      onSent: (sig) => opts.onSent?.(sig),
+      maySend: opts.maySend,
+      onSent: (sig, i) => opts.onSent?.(sig, i === fightIndex),
     });
-    return { signature: signatures[parts.post.length], signatures };
+    return { signature: signatures[fightIndex], signatures };
   } catch (e) {
-    throwIfAlreadyDone(e, which, parts.post.length);
-    throw e;
+    await throwIfAlreadyDone(conn, d, which, e, fightIndex);
+    throw markFight(e, fightIndex);
   }
 }
 
@@ -428,7 +527,7 @@ export async function refund(
   conn: Connection,
   payer: Keypair,
   d: DuelView,
-  opts: { deadlineMs?: number; onSent?: (signature: string) => void } = {},
+  opts: { deadlineMs?: number; onSent?: OnSent; maySend?: () => boolean } = {},
 ): Promise<string> {
   const tx = new Transaction().add(buildRefundDuel(d, payer.publicKey));
   const latest = await conn.getLatestBlockhash("confirmed");
@@ -441,11 +540,12 @@ export async function refund(
       blockhash: latest.blockhash,
       lastValidBlockHeight: latest.lastValidBlockHeight,
       deadlineMs: Math.min(opts.deadlineMs ?? Infinity, Date.now() + CONFIRM_WAIT_MS),
-      onSent: opts.onSent,
+      maySend: opts.maySend,
+      onSent: (sig) => opts.onSent?.(sig, true),
     });
   } catch (e) {
-    throwIfAlreadyDone(e, "refund", 0);
-    throw e;
+    await throwIfAlreadyDone(conn, d, "refund", e, 0);
+    throw markFight(e, 0);
   }
 }
 
@@ -459,12 +559,19 @@ export type JobOutcome = {
   signature?: string;
   /** For not-yet: the earliest worth trying again, when known. */
   readyAt?: number;
+  /** Whether anything went to the RPC in this call, so a fee may have been
+   *  paid. A preflight refusal, a held-back send and a failure before sending
+   *  are not; an unconfirmed send is. The nudge gives its send budget back
+   *  when this is false. */
+  forwarded?: boolean;
 };
 
 export type JobOptions = CrankContext & {
   /** Seconds past readyAt before the first try. The cron gives page nudges
    *  this long to go first; a nudge itself uses 0. */
   yieldSecs?: number;
+  /** The same, for a start or settle with a Pyth side; default yieldSecs. */
+  pythYieldSecs?: number;
   /** The longest one attempt may run before it has sent anything. */
   attemptTimeoutMs?: number;
   /** Runs an attempt when a slot is free (crankOnce's pool); default: now. */
@@ -473,6 +580,18 @@ export type JobOptions = CrankContext & {
 
 /** Seconds of the plan's cron yield, for the route. */
 export const CRON_YIELD_SECS = 6;
+/* THE CRON YIELDS LONGER TO A PYTH CRANK.
+ *
+ * A page nudge on a signed fight is one transaction, confirmed a second or
+ * two after readyAt, so six seconds is enough for the cron to find it done.
+ * A Pyth side is two or three transactions confirmed one after another, often
+ * after a Hermes 404 and a retry, and the page's crank can take half a minute.
+ * A cron that went in at six seconds found the fight still ACCEPTED and posted
+ * a second set of prices, paying their fees again, on most watched Pyth
+ * fights. So it waits out the nudge's whole budget (JOB_MS in the nudge route)
+ * first. When no page is open that only makes the backstop later, which is
+ * what a backstop is for. */
+export const CRON_PYTH_YIELD_SECS = 45;
 export const ATTEMPT_TIMEOUT_MS = 20_000;
 /** Tries per job per call: a not-yet that keeps recurring is left to the next. */
 export const MAX_ATTEMPTS = 5;
@@ -480,6 +599,15 @@ export const MAX_ATTEMPTS = 5;
 export const RETRY_FLOOR_MS = 1_500;
 /** Not worth waking for a price if less than this is left before the deadline. */
 export const MIN_ATTEMPT_MS = 5_000;
+/** The same for a job with a Pyth side: Hermes, a build, and two or three
+ *  transactions confirmed in turn (see PYTH_MS_PER_TX). */
+export const PYTH_MIN_ATTEMPT_MS = 20_000;
+
+/** Whether a job needs Pyth: a start or settle with a Pyth side. A refund does not. */
+const needsPyth = (job: CrankJob) => job.kind !== "refund" && pythFeedsOf(job.duel).length > 0;
+const minAttemptMs = (job: CrankJob) => (needsPyth(job) ? PYTH_MIN_ATTEMPT_MS : MIN_ATTEMPT_MS);
+const yieldMsFor = (opts: JobOptions, job: CrankJob) =>
+  ((needsPyth(job) ? opts.pythYieldSecs ?? opts.yieldSecs : opts.yieldSecs) ?? 0) * 1_000;
 
 /* ONE JOB, SEEN THROUGH TO AN ANSWER INSIDE A DEADLINE.
  *
@@ -496,30 +624,48 @@ export const MIN_ATTEMPT_MS = 5_000;
  * that hangs before sending is abandoned after attemptTimeoutMs, so it
  * cannot hold the pass; once something has been sent, it is waited on until
  * its confirmation deadline instead, and never retried, because sending it
- * again blind could pay twice. */
+ * again blind could pay twice.
+ *
+ * ABANDONED MEANS ABANDONED. The work of a given-up attempt cannot be
+ * cancelled: a quote or a Hermes fetch in flight comes back when it comes
+ * back. So every send asks `maySend` first, and from the moment an attempt is
+ * given up it says no, so the answer "timed out before sending" stays true.
+ * The other way round is covered too: once a send has been let through, the
+ * attempt is no longer abandoned but waited on, so a transaction can never go
+ * out behind an answer that says nothing did. */
 export async function crankJob(opts: JobOptions, job: CrankJob, deadlineMs: number): Promise<JobOutcome> {
   const slot = opts.slot ?? ((work) => work());
-  const yieldMs = (opts.yieldSecs ?? 0) * 1_000;
   const timeoutMs = opts.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS;
-  let wakeMs = job.readyAt * 1_000 + yieldMs;
+  const minMs = minAttemptMs(job);
+  let wakeMs = job.readyAt * 1_000 + yieldMsFor(opts, job);
   let readyAt = job.readyAt;
   let lastNotYet = "";
+  // Across every attempt in this call: did anything reach the RPC?
+  let forwarded = false;
 
   for (let attempt = 1; ; attempt++) {
     if (wakeMs > Date.now()) {
-      if (wakeMs + MIN_ATTEMPT_MS > deadlineMs) {
-        return { state: "not-yet", detail: lastNotYet || `ready at ${readyAt}, after this call's deadline`, readyAt };
+      if (wakeMs + minMs > deadlineMs) {
+        return { state: "not-yet", detail: lastNotYet || `ready at ${readyAt}, after this call's deadline`, readyAt, forwarded };
       }
       await sleepUntil(wakeMs);
     }
 
     const outcome = await slot(async (): Promise<JobOutcome | NotYet> => {
       const left = deadlineMs - Date.now();
-      if (left < MIN_ATTEMPT_MS / 2) return new NotYet("no time left in this call", readyAt);
+      if (left < minMs / 2) return new NotYet("no time left in this call", readyAt);
 
-      /* The latest signature sent. Pyth's closes are sent without telling
-       * anyone, so after the fight transaction this stays the fight's. */
-      const sent: { sig?: string } = {};
+      const flight = { abandoned: false, letThrough: false, forwarded: false, fightSig: undefined as string | undefined };
+      // Checked and marked with no await between, so giving up and sending cannot interleave.
+      const maySend = () => {
+        if (flight.abandoned) return false;
+        flight.letThrough = true;
+        return true;
+      };
+      const onSent: OnSent = (sig, fight) => {
+        flight.forwarded = true;
+        if (fight) flight.fightSig = sig;
+      };
       const work = (async (): Promise<JobOutcome> => {
         const info = await opts.conn.getAccountInfo(job.duel.address, "confirmed").catch(() => undefined);
         if (info === null) return { state: "done", detail: "the duel account is gone" };
@@ -528,50 +674,62 @@ export async function crankJob(opts: JobOptions, job: CrankJob, deadlineMs: numb
         if (duel.status !== STATUS_FOR[job.kind]) {
           return { state: "done", detail: `status is now ${duel.status}; somebody else got there` };
         }
-        const onSent = (sig: string) => {
-          sent.sig = sig;
-        };
         const signature =
           job.kind === "refund"
-            ? await refund(opts.conn, opts.payer, duel, { deadlineMs, onSent })
-            : (await postAndRun({ ...opts, duel, which: job.kind, deadlineMs, onSent })).signature;
+            ? await refund(opts.conn, opts.payer, duel, { deadlineMs, onSent, maySend })
+            : (await postAndRun({ ...opts, duel, which: job.kind, deadlineMs, onSent, maySend })).signature;
         return { state: "sent", detail: signature, signature };
       })();
 
-      /* Before anything is sent, an attempt gets attemptTimeoutMs. Once
-       * something is out, it gets until the deadline plus the cleanup grace,
-       * so Pyth's closes are not cut off with their rent still held; every
-       * wait inside is bounded by those same deadlines, so this is a ceiling
-       * and not a wait. */
+      /* Before anything is sent, an attempt gets attemptTimeoutMs. Once a send
+       * has been let through, it gets until the deadline plus the cleanup
+       * grace, so Pyth's closes are not cut off with their rent still held;
+       * every wait inside is bounded by those same deadlines, so this is a
+       * ceiling and not a wait. */
       const firstWait = Math.min(timeoutMs, left);
       try {
-        const result = await raceTimeout(work, firstWait, () =>
-          sent.sig ? deadlineMs + CLEANUP_GRACE_MS - Date.now() : null,
-        );
+        const result = await raceTimeout(work, firstWait, () => {
+          if (flight.letThrough) return deadlineMs + CLEANUP_GRACE_MS - Date.now();
+          flight.abandoned = true;
+          return null;
+        });
         if (result === TIMED_OUT) {
-          // The work goes on in the background; its answer is no longer ours to wait for.
+          // The work goes on in the background, and can send nothing more if it was abandoned.
           work.catch(() => undefined);
-          return sent.sig
-            ? { state: "sent", detail: `${sent.sig} (not confirmed by the deadline)`, signature: sent.sig }
-            : { state: "failed", detail: `timed out after ${Math.round(firstWait / 1000)}s before sending` };
+          if (flight.fightSig) {
+            flight.forwarded = true;
+            return { state: "sent", detail: `${flight.fightSig} (not confirmed by the deadline)`, signature: flight.fightSig };
+          }
+          if (flight.letThrough) {
+            // Something may be on its way (a price post, or a send not yet answered): count it.
+            flight.forwarded = true;
+            return { state: "failed", detail: "timed out while sending; the fight transaction was not seen to go out" };
+          }
+          return { state: "failed", detail: `timed out after ${Math.round(firstWait / 1000)}s before sending; nothing was sent` };
         }
         return result;
       } catch (e) {
+        if (e instanceof SendFailed && e.stage === "unseen") flight.forwarded = true;
         if (e instanceof NotYet) return e;
         if (e instanceof AlreadyDone) return { state: "done", detail: e.message };
-        if (e instanceof SendFailed && e.stage === "unseen" && e.signature) {
+        /* Sent and not seen is "sent" only for the fight transaction itself. A
+         * price post that was not seen means the fight was never sent, and a
+         * later call must try it: that is a failure, not a send to wait on. */
+        if (e instanceof SendFailed && e.stage === "unseen" && e.signature && e.fight) {
           return { state: "sent", detail: `${e.signature} (not confirmed yet: ${e.message})`, signature: e.signature };
         }
         /* Refused or failed, whether or not a price post went out first: the
          * fight did not move, and a later call may try again. */
         return { state: "failed", detail: readableProgramError(e) };
+      } finally {
+        forwarded ||= flight.forwarded;
       }
     });
 
-    if (!(outcome instanceof NotYet)) return outcome;
+    if (!(outcome instanceof NotYet)) return { ...outcome, forwarded };
     lastNotYet = `not yet: ${outcome.message}`;
     readyAt = outcome.readyAt ?? readyAt;
-    if (attempt >= MAX_ATTEMPTS) return { state: "not-yet", detail: lastNotYet, readyAt };
+    if (attempt >= MAX_ATTEMPTS) return { state: "not-yet", detail: lastNotYet, readyAt, forwarded };
     // No yield on a retry: the nudges have had their turn.
     wakeMs = Math.max((outcome.readyAt ?? 0) * 1_000, Date.now() + RETRY_FLOOR_MS);
   }
@@ -615,16 +773,31 @@ export type CrankResult = {
 
 /* WHICH JOBS A PASS TAKES WHEN THERE ARE MORE THAN IT CAN.
  *
- * The newest by readyAt first, because a fight that just became due has two
- * people watching it, plus a couple of the oldest, so a job that keeps coming
- * back unanswered cannot starve behind a stream of new ones, and one that can
- * never succeed cannot hold every slot either. The shuffle this replaces gave
- * every job the same chance, which is fair to jobs and unfair to people. */
-export function chooseJobs(jobs: CrankJob[], limit: number): CrankJob[] {
-  const newestFirst = [...jobs].sort((a, b) => b.readyAt - a.readyAt);
+ * The newest first, because a fight that just became due has two people
+ * watching it, and a couple of the rest chosen at random, so nothing behind
+ * them is left out for good: not a job that keeps coming back unanswered, and
+ * not a crowd of jobs that can never succeed.
+ *
+ * "Newest" is by `since`, when a job became due, never by readyAt. A refund's
+ * readyAt is simply now, and a time that moves with the clock is the newest on
+ * every pass: six refunds that kept failing took the six fresh slots every
+ * minute, and a fight that missed one pass ranked below them on every pass
+ * after. The two spare slots were the two oldest, which is a fixed pair too,
+ * so a third old job never got a turn; the shuffle this replaced had been
+ * written to stop exactly that, so the spares are drawn at random. */
+export function chooseJobs(jobs: CrankJob[], limit: number, random: () => number = Math.random): CrankJob[] {
+  const key = (j: CrankJob) => j.since ?? j.readyAt;
+  const newestFirst = [...jobs].sort((a, b) => key(b) - key(a));
   if (newestFirst.length <= limit) return newestFirst;
-  const oldest = Math.min(2, Math.floor(limit / 3));
-  return [...newestFirst.slice(0, limit - oldest), ...newestFirst.slice(newestFirst.length - oldest)];
+  const spare = Math.min(2, Math.floor(limit / 3));
+  const fresh = newestFirst.slice(0, limit - spare);
+  const rest = newestFirst.slice(limit - spare);
+  // The first `spare` places of a partial Fisher-Yates shuffle.
+  for (let i = 0; i < spare; i++) {
+    const j = i + Math.floor(random() * (rest.length - i));
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  return [...fresh, ...rest.slice(0, spare)];
 }
 
 /** At most `n` pieces of work at once; the rest wait their turn, in order. */
@@ -657,6 +830,10 @@ export const DEFAULT_PASS_MS = 50_000;
  * price does not hold a slot, only trying does), each attempt is bounded, and
  * the pass returns by `deadlineMs`.
  *
+ * A job whose first try would come too late for this pass (a Pyth side the
+ * cron is still yielding to a page for, say) is answered "not yet" at once and
+ * does not count against `limit`, so it cannot crowd out a job that can run.
+ *
  * `now` moves only the listing; waiting is always by the real clock. */
 export async function crankOnce(
   opts: JobOptions & {
@@ -676,13 +853,26 @@ export async function crankOnce(
   const deadlineMs = opts.deadlineMs ?? startedMs + DEFAULT_PASS_MS;
   const listing =
     opts.listing ?? (await listJobs(opts.conn, now, { lookaheadSecs: opts.lookaheadSecs, lookup: opts.quoteSymbol }));
-  const jobs = chooseJobs(
-    listing.due.filter((j) => !opts.skip?.(j.duel.address.toBase58())),
-    opts.limit ?? Infinity,
-  );
+
+  const later: CrankResult[] = [];
+  const runnable = listing.due.filter((job) => {
+    if (opts.skip?.(job.duel.address.toBase58())) return false;
+    const wakeMs = job.readyAt * 1_000 + yieldMsFor(opts, job);
+    if (wakeMs <= startedMs || wakeMs + minAttemptMs(job) <= deadlineMs) return true;
+    later.push({
+      duel: job.duel.address.toBase58(),
+      kind: job.kind,
+      ok: false,
+      state: "not-yet",
+      detail: `not yet: first try at ${Math.ceil(wakeMs / 1_000)}, too late for this pass`,
+      readyAt: job.readyAt,
+    });
+    return false;
+  });
+  const jobs = chooseJobs(runnable, opts.limit ?? Infinity);
   const slot = limiter(opts.concurrency ?? DEFAULT_CONCURRENCY);
 
-  return Promise.all(
+  const results = await Promise.all(
     jobs.map(async (job): Promise<CrankResult> => {
       const key = job.duel.address.toBase58();
       const o = await crankJob({ ...opts, slot }, job, deadlineMs).catch(
@@ -698,4 +888,5 @@ export async function crankOnce(
       };
     }),
   );
+  return [...results, ...later];
 }

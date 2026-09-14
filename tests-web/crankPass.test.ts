@@ -28,6 +28,7 @@ import {
   crankOnce,
   listJobs,
   NotYet,
+  retryAt,
   signedQuotes,
   type CrankJob,
   type JobOptions,
@@ -43,13 +44,14 @@ import {
   START_DELAY_SECS,
   STATUS_ACCEPTED,
   STATUS_LIVE,
+  STATUS_SETTLED,
   STATUS_VOID,
   TOKEN_PROGRAM_ID,
   type DuelView,
   type PricePoint,
 } from "../src/lib/duel";
 import { nyToMs } from "../src/lib/market";
-import { BAR_SETTLE_SECS, firstBarEnd, type quoteAt } from "../src/lib/oracle";
+import { BAR_SETTLE_SECS, fetchPoolBars, firstBarEnd, type quoteAt } from "../src/lib/oracle";
 import { byTicker, quoteSymbolFor } from "../src/lib/stocks";
 
 const nowSecs = () => Math.floor(Date.now() / 1000);
@@ -160,6 +162,8 @@ class StubChain {
   /** Transactions the stub forwarded. */
   forwarded: { at: number; signature: string }[] = [];
   refuse: (call: number) => Error | null = () => null;
+  /** A signature the chain has not confirmed (yet): no status, no history. */
+  pending: (signature: string) => boolean = () => false;
   statusCalls = 0;
   blockhashCalls = 0;
   infoCalls = 0;
@@ -202,13 +206,16 @@ class StubChain {
       },
       async getSignatureStatuses(sigs: string[]) {
         self.statusCalls++;
-        return { context: { slot: 1 }, value: sigs.map(() => ({ confirmationStatus: "confirmed", err: null })) };
+        return {
+          context: { slot: 1 },
+          value: sigs.map((s) => (self.pending(s) ? null : { confirmationStatus: "confirmed", err: null })),
+        };
       },
       async getBlockHeight() {
         return 1;
       },
-      async getSignatureStatus() {
-        return { context: { slot: 1 }, value: { confirmationStatus: "confirmed", err: null } };
+      async getSignatureStatus(s: string) {
+        return { context: { slot: 1 }, value: self.pending(s) ? null : { confirmationStatus: "confirmed", err: null } };
       },
     } as unknown as Connection;
   }
@@ -237,6 +244,20 @@ const refusedBy = (code: string, message: string) =>
       `Program ${PROGRAM_ID.toBase58()} invoke [1]`,
       `Program log: AnchorError thrown in programs/duel/src/lib.rs:455. Error Code: ${code}. Error Number: 6015. Error Message: ${message}.`,
       `Program ${PROGRAM_ID.toBase58()} failed: custom program error`,
+    ],
+  });
+
+/** Anchor's refusal while loading accounts, before the handler runs: what a
+ *  second settle or refund really gets, since the first closed the escrows. */
+const refusedAtAccount = (account: string) =>
+  new SendTransactionError({
+    action: "simulate",
+    signature: "",
+    transactionMessage: "Transaction simulation failed: Error processing Instruction 3: custom program error: 0xbc4",
+    logs: [
+      `Program ${PROGRAM_ID.toBase58()} invoke [1]`,
+      `Program log: AnchorError caused by account: ${account}. Error Code: AccountNotInitialized. Error Number: 3012. Error Message: The program expected this account to be already initialized.`,
+      `Program ${PROGRAM_ID.toBase58()} failed: custom program error: 0xbc4`,
     ],
   });
 
@@ -404,21 +425,171 @@ describe("settler pass", () => {
   });
 
   /* A nudge or a person settled it a moment ago, and this RPC node has not
-   * caught up. Preflight runs the program, the program says NotLive, and the
-   * crank calls it done having paid nothing. */
-  it("takes a preflight NotLive as done, with nothing sent", async () => {
+   * caught up on the duel's status. The first settle closed both escrows, so
+   * the program never reaches its NotLive check: Anchor refuses the second one
+   * while loading creator_escrow. The crank calls that done, having paid
+   * nothing, and a refund the same. The old check looked only for NotLive and
+   * NotRefundable, which the real program cannot produce here. */
+  for (const kind of ["settle", "refund"] as const) {
+    it(`takes a ${kind} refused for a closed escrow as done, with nothing sent`, async () => {
+      const chain = new StubChain();
+      const now = nowSecs();
+      const d = duel({ status: kind === "settle" ? STATUS_LIVE : STATUS_VOID, acceptedTs: now - 900, endTs: now - 600 });
+      await chain.put(d);
+      chain.refuse = () => refusedAtAccount("creator_escrow");
+
+      const out = await crankJob(ctx(chain), jobOf(d, kind, now - 500), Date.now() + 10_000);
+      expect(out.state, out.detail).to.equal("done");
+      expect(out.forwarded).to.equal(false);
+      expect(chain.sendCalls).to.have.length(1);
+      expect(chain.sendCalls[0].skipPreflight).to.equal(false);
+      expect(chain.forwarded).to.have.length(0);
+      expect(chain.statusCalls).to.equal(0);
+    });
+  }
+
+  it("takes any preflight refusal as done when the duel's status has moved by then", async () => {
     const chain = new StubChain();
     const now = nowSecs();
     const d = duel({ status: STATUS_LIVE, acceptedTs: now - 900, endTs: now - 600 });
     await chain.put(d);
-    chain.refuse = () => refusedBy("NotLive", "This duel is not live");
-
+    const settled = await encode({ ...d, status: STATUS_SETTLED });
+    chain.refuse = () => {
+      // Somebody's settle landed between this crank's read and its send.
+      chain.accounts.set(d.address.toBase58(), settled);
+      return refusedBy("SomethingElse", "A refusal this crank has no pattern for");
+    };
     const out = await crankJob(ctx(chain), jobOf(d, "settle", now - 500), Date.now() + 10_000);
     expect(out.state, out.detail).to.equal("done");
-    expect(chain.sendCalls).to.have.length(1);
-    expect(chain.sendCalls[0].skipPreflight).to.equal(false);
     expect(chain.forwarded).to.have.length(0);
-    expect(chain.statusCalls).to.equal(0);
+  });
+
+  it("does not take a start refused for a missing account as done while the duel is still waiting", async () => {
+    const chain = new StubChain();
+    const d = duel({ acceptedTs: nowSecs() - 600 });
+    await chain.put(d);
+    chain.refuse = () => refusedAtAccount("creator_escrow");
+    const out = await crankJob(ctx(chain), jobOf(d, "start", nowSecs() - 1), Date.now() + 10_000);
+    expect(out.state, out.detail).to.equal("failed");
+    expect(out.forwarded).to.equal(false);
+  });
+
+  it("says whether anything reached the RPC, so the nudge can give its budget back", async () => {
+    const chain = new StubChain();
+    const good = duel({ acceptedTs: nowSecs() - 600 });
+    const foreign = duel({ acceptedTs: nowSecs() - 600, oracle: Keypair.generate().publicKey });
+    await chain.put(good, foreign);
+    const sent = await crankJob(ctx(chain), jobOf(good, "start", nowSecs() - 1), Date.now() + 10_000);
+    expect([sent.state, sent.forwarded]).to.deep.equal(["sent", true]);
+    // A fight that trusts another oracle key fails before any send.
+    const broken = await crankJob(ctx(chain), jobOf(foreign, "start", nowSecs() - 1), Date.now() + 10_000);
+    expect([broken.state, broken.forwarded]).to.deep.equal(["failed", false]);
+    expect(chain.sendCalls).to.have.length(1);
+  });
+
+  /* The reviewer's probe: a quote that comes back after the attempt was given
+   * up used to be sent anyway, after the answer "timed out before sending"
+   * had gone back, and past the deadline. */
+  it("sends nothing after it has given an attempt up", async function () {
+    this.timeout(8_000);
+    const chain = new StubChain();
+    const d = duel({ acceptedTs: nowSecs() - 600 });
+    await chain.put(d);
+    const slow: typeof quoteAt = (o) => new Promise((r) => setTimeout(() => r(goodQuote(o)), 1_200));
+
+    const out = await crankJob(ctx(chain, { quoteAt: slow, attemptTimeoutMs: 500 }), jobOf(d, "start", nowSecs() - 1), Date.now() + 6_000);
+    expect(out.state).to.equal("failed");
+    expect(out.detail).to.match(/before sending; nothing was sent/);
+    expect(out.forwarded).to.equal(false);
+    // Long past the moment the quote came back and the work tried to send.
+    await new Promise((r) => setTimeout(r, 1_500));
+    expect(chain.blockhashCalls, "the abandoned work did carry on to the send").to.equal(1);
+    expect(chain.sendCalls).to.have.length(0);
+  });
+
+  describe("a Pyth side", () => {
+    const pythDuel = () => duel({ acceptedTs: nowSecs() - 600, creatorSource: SOURCE_PYTH });
+    const noHermes = {
+      getPriceUpdatesAtTimestamp: () => {
+        throw new Error("Hermes must not be asked for a crank there is no time to finish");
+      },
+    } as unknown as HermesClient;
+
+    /* Posts, the fight, and confirmations one after another: begun with a few
+     * seconds left, the fight was sent and then abandoned unconfirmed. */
+    it("is not begun without the time to finish it", async () => {
+      const chain = new StubChain();
+      const d = pythDuel();
+      await chain.put(d);
+      const t0 = Date.now();
+      // Ready now, with 8 seconds left: enough for a signed crank, not a Pyth one.
+      const late = await crankJob(ctx(chain, { hermes: noHermes }), jobOf(d, "start", nowSecs() - 1), Date.now() + 8_000);
+      expect(late.state, late.detail).to.equal("not-yet");
+      // Ready in a second, with 15 left.
+      const soon = await crankJob(ctx(chain, { hermes: noHermes }), jobOf(d, "start", nowSecs() + 1), Date.now() + 15_000);
+      expect(soon.state, soon.detail).to.equal("not-yet");
+      expect(Date.now() - t0).to.be.below(2_500);
+      expect(chain.infoCalls).to.equal(0);
+      expect(chain.sendCalls).to.have.length(0);
+    });
+
+    /* A page's Pyth crank takes up to half a minute. The cron used to go in six
+     * seconds past readyAt, find the fight still ACCEPTED, and post a second
+     * set of prices. Now it waits longer for a Pyth side, and a job it cannot
+     * reach in this pass does not take a place from one it can. */
+    it("is left by the cron to a page for longer, without taking a signed fight's place", async function () {
+      this.timeout(8_000);
+      const chain = new StubChain();
+      const pyth = pythDuel();
+      const signed = duel({ acceptedTs: nowSecs() - 600 });
+      await chain.put(pyth, signed);
+      const readyAt = nowSecs() - 5;
+      const listing = {
+        due: [
+          { duel: pyth, kind: "start" as const, readyAt, why: "pyth" as const, since: readyAt + 1 },
+          { duel: signed, kind: "start" as const, readyAt, why: "minute-close" as const, since: readyAt },
+        ],
+        parked: [],
+        errors: [],
+      };
+      const results = await crankOnce({
+        ...ctx(chain, { hermes: noHermes }),
+        listing,
+        limit: 1,
+        yieldSecs: 6,
+        pythYieldSecs: 45,
+        deadlineMs: Date.now() + 8_000,
+      });
+      const by = Object.fromEntries(results.map((r) => [r.duel, r.state]));
+      expect(by[signed.address.toBase58()]).to.equal("sent");
+      expect(by[pyth.address.toBase58()]).to.equal("not-yet");
+      expect(chain.forwarded).to.have.length(1);
+    });
+  });
+
+  it("asks a quiet pool again when the exchange can price it, not every five seconds", async () => {
+    const realFetch = globalThis.fetch;
+    const b = ny(13, 21, 56, 32); // Sunday night: the exchange is shut
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ data: { attributes: { ohlcv_list: [[b - 600, 1, 1, 1, 100, 1]] } } }), {
+        status: 200,
+      })) as typeof fetch;
+    try {
+      await fetchPoolBars("crank-quietpool", b);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    const d = duel({ acceptedTs: b - START_DELAY_SECS });
+    const quiet = { symbol: "QUIET", currency: "USD", market: "US", pool: "crank-quietpool" };
+    const unread = { ...quiet, pool: "crank-unreadpool" };
+    const now = b + 3_600;
+    // Monday's first exchange bar, final at 4:01:20.
+    expect(retryAt(d, "start", now, () => quiet, quiet)).to.equal(ny(14, 4, 1, 20));
+    // Once the exchange is open, at its next minute close.
+    const later = ny(14, 4, 30, 5);
+    expect(retryAt(d, "start", later, () => quiet, quiet)).to.equal(firstBarEnd(later - BAR_SETTLE_SECS) + BAR_SETTLE_SECS);
+    // A pool this instance has not read (a rate limit, say) keeps the short retry.
+    expect(retryAt(d, "start", now, () => unread, unread)).to.equal(now + 5);
   });
 
   it("calls a job done without a quote when its status has already moved", async () => {
@@ -444,11 +615,39 @@ describe("settler pass", () => {
     expect(chain.infoCalls).to.equal(0);
   });
 
-  it("takes the newest fights first and still reaches the oldest", () => {
+  it("takes the newest fights first and gives every other job a turn", () => {
     const d = duel({});
     const jobs = Array.from({ length: 12 }, (_, i) => jobOf(d, "start", i + 1));
-    expect(chooseJobs(jobs, 8).map((j) => j.readyAt)).to.deep.equal([12, 11, 10, 9, 8, 7, 2, 1]);
+    const picked = chooseJobs(jobs, 8, () => 0).map((j) => j.readyAt);
+    expect(picked.slice(0, 6)).to.deep.equal([12, 11, 10, 9, 8, 7]);
+    expect(picked).to.have.length(8);
     expect(chooseJobs(jobs.slice(0, 5), 8).map((j) => j.readyAt)).to.deep.equal([5, 4, 3, 2, 1]);
+    // The two spare places are drawn from the rest, so over a few passes each gets one.
+    const seen = new Set<number>();
+    for (let pass = 0; pass < 200; pass++) chooseJobs(jobs, 8).slice(6).forEach((j) => seen.add(j.readyAt));
+    expect([...seen].sort((a, b) => a - b)).to.deep.equal([1, 2, 3, 4, 5, 6]);
+  });
+
+  /* Six refunds that keep failing have readyAt = now on every pass. Ordered by
+   * readyAt they were the newest every time, and a fight that missed one pass
+   * ranked below them on every pass after. Ordered by when each became due,
+   * the fresh fights go first. */
+  it("orders by when a job became due, so refunds dated now do not push fresh fights out", async () => {
+    const chain = new StubChain();
+    const now = nowSecs();
+    const refunds = Array.from({ length: 6 }, () => duel({ status: STATUS_VOID, startTs: now - 3_600 }));
+    await chain.put(...refunds);
+    const listed = await listJobs(chain.conn(), now, { lookup: hk });
+    const again = await listJobs(chain.conn(), now + 60, { lookup: hk });
+    expect(listed.due.map((j) => j.since)).to.deep.equal(Array(6).fill(now - 3_600));
+    expect(again.due.map((j) => j.since)).to.deep.equal(Array(6).fill(now - 3_600));
+
+    const fresh = [jobOf(duel({}), "start", now - 60), jobOf(duel({}), "start", now - 120)];
+    const old = [jobOf(duel({}), "start", now - 7_200), jobOf(duel({}), "start", now - 7_300)];
+    for (let pass = 0; pass < 20; pass++) {
+      const chosen = chooseJobs([...again.due, ...old, ...fresh], 8);
+      for (const f of fresh) expect(chosen).to.include(f);
+    }
   });
 
   describe("sending in order", () => {
@@ -488,6 +687,82 @@ describe("settler pass", () => {
       expect(chain.forwarded).to.have.length(2);
       // The expiry came from the blockhash the transactions were built with.
       expect(chain.blockhashCalls).to.equal(0);
+    });
+
+    const sigOf = (v: VersionedTransaction) => utils.bytes.bs58.encode(v.signatures[0]);
+
+    /* The reviewer's probe: the fight transaction went out and was not seen by
+     * the deadline, and the closes went straight out behind it. A close that
+     * lands first makes the fight fail on chain with its fee paid. */
+    it("holds the closes back while the fight transaction may still land", async function () {
+      this.timeout(10_000);
+      const chain = new StubChain();
+      const [post, fight, close] = [tx(1), tx(2), tx(3)];
+      chain.pending = (s) => s === sigOf(fight);
+      const err = await quiet(() =>
+        sendInOrder(chain.conn(), [post, fight], {
+          preflight: true,
+          cleanup: [close],
+          deadlineMs: Date.now() + 1_000,
+          lastValidBlockHeight: 1_000_000,
+        }).catch((e: unknown) => e),
+      );
+      expect(err).to.be.instanceOf(SendFailed);
+      expect((err as SendFailed).stage).to.equal("unseen");
+      expect((err as SendFailed).index).to.equal(1);
+      expect(chain.forwarded.map((f) => f.signature)).to.deep.equal([sigOf(post), sigOf(fight)]);
+    });
+
+    it("sends the closes once a late fight transaction has landed, and calls the list a success", async function () {
+      this.timeout(10_000);
+      const chain = new StubChain();
+      const [post, fight, close] = [tx(1), tx(2), tx(3)];
+      const landsAt = Date.now() + 1_800;
+      chain.pending = (s) => s === sigOf(fight) && Date.now() < landsAt;
+      const sigs = await quiet(() =>
+        sendInOrder(chain.conn(), [post, fight], {
+          preflight: true,
+          cleanup: [close],
+          deadlineMs: Date.now() + 1_000,
+          lastValidBlockHeight: 1_000_000,
+        }),
+      );
+      expect(sigs).to.deep.equal([sigOf(post), sigOf(fight), sigOf(close)]);
+      expect(chain.forwarded.at(-1)!.at).to.be.at.least(landsAt);
+    });
+
+    /* A post not seen means the fight was never sent, so nothing can read the
+     * accounts the closes remove: they go out, and the fight does not. */
+    it("still sends the closes when a price post is the one not seen", async function () {
+      this.timeout(10_000);
+      const chain = new StubChain();
+      const [post, fight, close] = [tx(1), tx(2), tx(3)];
+      chain.pending = (s) => s === sigOf(post);
+      const err = await quiet(() =>
+        sendInOrder(chain.conn(), [post, fight], {
+          preflight: true,
+          cleanup: [close],
+          deadlineMs: Date.now() + 1_000,
+          lastValidBlockHeight: 1_000_000,
+        }).catch((e: unknown) => e),
+      );
+      expect((err as SendFailed).stage).to.equal("unseen");
+      expect((err as SendFailed).index).to.equal(0);
+      expect(chain.forwarded.map((f) => f.signature)).to.deep.equal([sigOf(post), sigOf(close)]);
+    });
+
+    it("sends nothing once its deadline has passed", async () => {
+      const chain = new StubChain();
+      const err = await quiet(() =>
+        sendInOrder(chain.conn(), [tx(1), tx(2)], {
+          preflight: true,
+          cleanup: [tx(3)],
+          deadlineMs: Date.now() - 1,
+          lastValidBlockHeight: 1_000_000,
+        }).catch((e: unknown) => e),
+      );
+      expect((err as SendFailed).stage).to.equal("held");
+      expect(chain.sendCalls).to.have.length(0);
     });
 
     it("sends no closes when nothing was posted", async () => {

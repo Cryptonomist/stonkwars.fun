@@ -63,8 +63,12 @@ solana transfer --url devnet --allow-unfunded-recipient $(solana-keygen pubkey k
 cat keys/nudge-devnet.json   # the value of NUDGE_SECRET_KEY
 ```
 
-The nudge key is optional: without `NUDGE_SECRET_KEY` the nudge pays from the
-crank key, exactly as the cron would have.
+The nudge key is optional, but set it before relying on the nudge. Without
+`NUDGE_SECRET_KEY` the nudge pays from the crank key, so the nudge and the cron
+share one balance and there is no separate ceiling on what visitors can make
+the server spend: the whole crank key is the ceiling. In that mode the nudge
+stops at a higher floor (0.3 SOL by default, see `NUDGE_MIN_BALANCE_SOL`) to
+leave the cron room, and logs once that it is paying from the crank key.
 
 ## 4. Pyth
 
@@ -92,8 +96,8 @@ Production and Preview:
 | `ORACLE_SECRET_KEY` | from `.env.local` after step 2 |
 | `CRANK_SECRET_KEY` | the byte array from step 3 |
 | `CRON_SECRET` | any long random string, e.g. `openssl rand -hex 24` |
-| `NUDGE_SECRET_KEY` | optional: the nudge key's byte array from step 3. Unset, the nudge pays from `CRANK_SECRET_KEY` |
-| `NUDGE_MIN_BALANCE_SOL` | optional, default `0.05`. Below this the nudge sends nothing and answers "settler low" (and logs it); the cron and the manual button carry on |
+| `NUDGE_SECRET_KEY` | recommended: the nudge key's byte array from step 3. Unset, the nudge pays from `CRANK_SECRET_KEY` and shares its balance with the cron |
+| `NUDGE_MIN_BALANCE_SOL` | optional. Default `0.05` on the nudge's own key, `0.3` when it falls back to the crank key. Below this the nudge sends nothing and answers "settler low" (and logs it); the manual button still appears on schedule |
 | `NUDGE_DISABLED` | optional: `1` switches the page nudge off. Leave unset |
 
 No key, secret or keyed URL in this table may ever be given a `NEXT_PUBLIC_`
@@ -214,22 +218,33 @@ While a fight page is open it asks `POST /api/nudge` with the fight's address,
 and the server cranks the fight the moment its price can exist: the round goes
 live a second or two after the start price, and settles a second or two after
 the end price, with nobody signing anything. The cron stays the backstop for
-fights nobody is watching, and waits six seconds past each price so it does not
-race a page.
+fights nobody is watching, and waits past each price so it does not race a
+page: six seconds for a fight priced by signed quotes, and 45 seconds for one
+with a Pyth side, whose two or three transactions take a page far longer to
+send. An unwatched Pyth fight is therefore cranked by the cron about 45 to 75
+seconds after its price, rather than within a few.
 
 It spends only what a crank costs, and only on fights that are really due. A
 fight with nothing to do, a shut market, or a price more than ten seconds away
 is answered from one cached account read, with no price source asked. A crowd of
 pages on one fight becomes one crank; each IP gets 20 asks a minute, and each
-instance at most 30 crank attempts a minute. The key is `NUDGE_SECRET_KEY`
-(falling back to `CRANK_SECRET_KEY`); keep it on 0.5 SOL, since its balance is
-the hard ceiling on what visitors can make the server spend.
+instance at most 30 crank attempts a minute (an attempt that sent nothing does
+not count). The key is `NUDGE_SECRET_KEY`; keep it on 0.5 SOL, since its
+balance is then the hard ceiling on what visitors can make the server spend.
+
+**Without `NUDGE_SECRET_KEY` there is no such ceiling.** The nudge falls back to
+`CRANK_SECRET_KEY`, so the nudge and the cron spend one balance, and what
+visitors can make the server spend is bounded only by that key. The nudge then
+stops at 0.3 SOL instead of 0.05, so the cron keeps some room, but a "settler
+low" alert in this mode means the cron is running short too. Set the nudge key.
 
 What to watch for in the Vercel function log, one JSON line per crank:
 `{"nudge":true,"duel":...,"state":"sent"|"done"|"not-yet"|"failed",...}`, and
-`"alert":"settler low"` when the key is below `NUDGE_MIN_BALANCE_SOL`. Top it
-up then; until you do, the cron carries on and the manual button appears on
-its usual schedule.
+`"alert":"settler low"` when the paying key is below the floor. The line says
+`"sharedWithCron":true` when that key is the crank key. Top it up then. With a
+nudge key of its own, the cron carries on meanwhile on its own balance; with a
+shared key, the cron has at most the floor left, so top up at once. Either way
+the manual button appears on its usual schedule.
 
 To switch the nudge off, set `NUDGE_DISABLED=1` and redeploy. Pages then leave
 everything to the cron and, three minutes after a price exists, to whoever is

@@ -6,12 +6,14 @@ import { Keypair } from "@solana/web3.js";
 
 import {
   BAR_SETTLE_SECS,
+  exchangeBarFinal,
   FETCH_TIMEOUT_MS,
   fetchBars,
   fetchPerpBars,
   fetchPoolBars,
   firstBarEnd,
   POOL_ATTEMPTS,
+  poolWindowThin,
   priceAtBoundary,
   quoteAt,
   quoteMessage,
@@ -276,6 +278,41 @@ describe("oracle", () => {
       const q = await quoteAt({ ...opts, now: final });
       expect(calls).to.have.length(1);
       expect(q?.publishTime).to.equal(firstBarEnd(open));
+    });
+
+    /* A pool too quiet to price falls back to the exchange's first bar after
+     * the boundary. On a Sunday night that bar is Monday's 4:00, so asking the
+     * exchange's data source before then can only come back empty, and a page
+     * left open all night used to make it ask every few seconds. */
+    it("asks the exchange nothing for a quiet pool until the exchange has opened, and the pool only once", async () => {
+      const twoBars = { data: { attributes: { ohlcv_list: [[shut - 600, 1, 1, 1, 100, 1], [shut - 300, 1, 1, 1, 101, 1]] } } };
+      const monday = Math.floor(nyToMs(2026, 9, 14, 4, 1, 20) / 1000);
+      // The exchange's bars, as the data source has them: nothing before Monday's 4:00.
+      const exchange = (url: string) => {
+        const q = new URL(url).searchParams;
+        const timestamp = [];
+        for (let t = monday - 80; t < Number(q.get("period2")); t += 60) timestamp.push(t);
+        return json({ chart: { result: [{ timestamp, indicators: { quote: [{ close: timestamp.map(() => 99.5) }] } }] } });
+      };
+      stubFetch(({ url }) => (url.includes("geckoterminal") ? json(twoBars) : exchange(url)));
+      const opts = { feed, symbol: "QUIET", market: "US", pool: "quietpool", boundary: shut };
+      expect(exchangeBarFinal(shut, "US")).to.equal(monday);
+      expect(poolWindowThin("quietpool", shut)).to.equal(undefined);
+
+      for (const now of [shut + 20, shut + 60, shut + 3_600, monday - 1]) {
+        expect(await quoteAt({ ...opts, now })).to.equal(null);
+      }
+      expect(calls.map((c) => new URL(c.url).host)).to.deep.equal(["api.geckoterminal.com"]);
+      expect(poolWindowThin("quietpool", shut)).to.equal(true);
+
+      const q = await quoteAt({ ...opts, now: monday });
+      expect(calls.map((c) => new URL(c.url).host)).to.deep.equal(["api.geckoterminal.com", "query1.finance.yahoo.com"]);
+      expect(q?.publishTime).to.equal(monday - BAR_SETTLE_SECS);
+    });
+
+    it("never moves the exchange's time earlier than its bar, in session or out of the US", () => {
+      expect(exchangeBarFinal(open, "US")).to.equal(firstBarEnd(open) + BAR_SETTLE_SECS);
+      expect(exchangeBarFinal(shut, "HK")).to.equal(firstBarEnd(shut) + BAR_SETTLE_SECS);
     });
 
     it("asks the pool nothing until its window has settled", async () => {

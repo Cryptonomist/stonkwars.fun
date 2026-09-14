@@ -116,13 +116,30 @@ describe("round clock", () => {
       expect(at(READY + 2 - 41 - 5, { skew: 5 }).secondsLeft).to.equal(41);
     });
 
-    it("dates a side that waited for its market to the reopening, so the button still comes", () => {
+    it("dates a side that waited for its market to its first bar after the reopening, so the button still comes", () => {
       const sat = ny(12, 14, 0);
       const p = fight(STATUS_ACCEPTED, sat, FEED.exchange);
-      // The exchange's day starts at 4:00 on Monday; readyAt alone would say "now" forever.
+      // The exchange's day starts at 4:00 on Monday, and its first bar is final at 4:01:20.
+      expect(roundClock(p, ny(14, 4, 0, 30), null, markets).line).to.equal("Round starts in 52s, when this minute's price closes");
       expect(roundClock(p, ny(14, 4, 2), null, markets)).to.deep.equal({ line: "Locking the start prices", secondsLeft: null, manual: null });
-      expect(roundClock(p, ny(14, 4, 2, 59), null, markets).manual).to.equal(null);
-      expect(roundClock(p, ny(14, 4, 3), null, markets).manual).to.equal(MANUAL_START);
+      expect(roundClock(p, ny(14, 4, 4, 19), null, markets).manual).to.equal(null);
+      expect(roundClock(p, ny(14, 4, 4, 20), null, markets).manual).to.equal(MANUAL_START);
+    });
+
+    /* The case the manual button exists for: the settler missed a whole
+     * session. The price appeared at Monday's open and the exchange has shut
+     * again, and the button must still be there, not "waiting for the market". */
+    it("still offers the manual start after the session that priced the fight has closed", () => {
+      const sat = ny(12, 14, 0);
+      const p = fight(STATUS_ACCEPTED, sat, FEED.exchange);
+      expect(roundClock(p, ny(14, 21, 0), null, markets)).to.deep.equal({
+        line: "The settler is late. Anyone can lock the start prices.",
+        secondsLeft: null,
+        manual: MANUAL_START,
+      });
+      const tsla = fight(STATUS_ACCEPTED, ny(14, 8, 0), "ab".repeat(32), SOURCE_PYTH);
+      const us: MarketLookup = (feed) => (feed === "ab".repeat(32) ? { symbol: "TSLA", market: "US" } : undefined);
+      expect(roundClock(tsla, ny(14, 17, 0), null, us).manual).to.equal(MANUAL_START);
     });
 
     it("says nothing on the server render, where the page's clock is 0", () => {

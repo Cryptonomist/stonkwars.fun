@@ -57,10 +57,17 @@ export function crankKeypair(): Keypair | undefined {
  * Page nudges are paid by a key of their own so its balance is a hard ceiling
  * on what visitors can make this server spend, and so the chain can tell a
  * nudge from the cron. It is optional: with NUDGE_SECRET_KEY unset the nudge
- * pays from the crank key, exactly as the cron would have. */
+ * pays from the crank key, exactly as the cron would have. That shares one
+ * balance between the two, so there is then no separate ceiling, and the
+ * nudge route stops at a higher floor to leave the cron room. */
 export function nudgeKeypair(): Keypair | undefined {
   if (process.env.NUDGE_SECRET_KEY) return keyFrom(process.env.NUDGE_SECRET_KEY, "NUDGE_SECRET_KEY");
   return crankKeypair();
+}
+
+/** True when the nudge pays from CRANK_SECRET_KEY because it has no key of its own. */
+export function nudgeSharesCrankKey(): boolean {
+  return !process.env.NUDGE_SECRET_KEY;
 }
 
 /** The keyed Hermes client, or undefined when no Pyth key is set (fights with

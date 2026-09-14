@@ -24,7 +24,7 @@
 
 import { Ed25519Program, type Keypair, type TransactionInstruction } from "@solana/web3.js";
 
-import { session } from "./market";
+import { session, sessionFrom } from "./market";
 
 export const QUOTE_PREFIX = "STONKWARS:PRICE:v1";
 export const QUOTE_LEN = 78;
@@ -84,6 +84,26 @@ export type Bars = { t: number[]; c: (number | null)[] };
  *  and so the earliest a bar-priced side's price can close. A boundary exactly
  *  on the minute starts that minute's bar, which ends sixty seconds later. */
 export const firstBarEnd = (boundary: number) => Math.floor(boundary / 60) * 60 + 60;
+
+/* NO EXCHANGE BAR BEFORE THE EXCHANGE HAS OPENED.
+ *
+ * The earliest a US exchange price after `boundary` can be final: the first
+ * bar ending after the boundary, or, when the exchange was shut at the
+ * boundary, the first bar of the first session after it, plus the settle
+ * time. Its minute bars cover 4am to 8pm, so nothing can print before then,
+ * and asking the data source before then can only come back empty. A listing
+ * outside the US keeps the plain rule: its sessions are not modelled, and
+ * guessing would be worse than asking.
+ *
+ * Only ever later than the plain rule, never earlier, so it cannot move a
+ * signature forward. What is signed is still priceAtBoundary's answer from
+ * the bars themselves. Null if no session opens within ten days. */
+export function exchangeBarFinal(boundary: number, market = "US"): number | null {
+  if (market !== "US") return firstBarEnd(boundary) + BAR_SETTLE_SECS;
+  const opening = sessionFrom(boundary * 1_000, "extended");
+  if (opening === null) return null;
+  return firstBarEnd(Math.max(boundary, Math.floor(opening / 1_000))) + BAR_SETTLE_SECS;
+}
 
 /* THE PRICE FOR A MOMENT.
  *
@@ -292,6 +312,18 @@ export async function fetchPoolBars(pool: string, before: number): Promise<Bars>
   throw new Error(`pool ${pool.slice(0, 8)}: on-chain data ${last}`);
 }
 
+/* WAS THIS POOL'S WINDOW TOO THIN TO PRICE?
+ *
+ * True when its bars for this boundary have been read on this instance and
+ * hold too few closes, so quoteAt falls back to the exchange; false when they
+ * priced; undefined when they have not been read here. A crank uses it to
+ * tell a quiet pool, which waits for the exchange to open, from a pool it was
+ * told to stop asking for a minute, which does not. */
+export function poolWindowThin(pool: string, boundary: number): boolean | undefined {
+  const bars = poolBars.get(`${pool}:${boundary}`);
+  return bars ? trimmedMeanAtBoundary(bars, boundary) === null : undefined;
+}
+
 /* A TRIMMED MEAN, NOT A MEDIAN.
  *
  * A median is whichever close sits in the middle, so it moves in jumps: shift
@@ -472,7 +504,12 @@ export async function quoteAt(opts: {
      * answers are history, so falling back does not make the result depend on
      * when anybody asked. */
   }
-  if (now < barFinal) return null;
+  /* The exchange, asked nothing before its first bar after the boundary can
+   * be final. For a quiet pool on a Saturday that is Monday's pre-market, and
+   * without this every retry all weekend asked the exchange's data source for
+   * bars that could not exist yet. */
+  const exchangeFinal = exchangeBarFinal(opts.boundary, opts.market);
+  if (exchangeFinal === null || now < exchangeFinal) return null;
   // Minute bars come at most a week per request. Six days covers any closure
   // a duel can wait through: a start more than five days late is void.
   const to = Math.min(now, opts.boundary + 6 * 86_400);

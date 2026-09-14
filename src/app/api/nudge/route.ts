@@ -6,7 +6,14 @@ import { decodeDuel, PROGRAM_ID, readableProgramError, type DuelView } from "@/l
 import { clientIp, NudgeGate, Recent, redact, sameSite } from "@/lib/nudgeGate.server";
 import type { NudgeAnswer } from "@/lib/nudgeSchedule";
 import { jobFor, readyAt } from "@/lib/priceClock";
-import { nudgeKeypair, payerBalance, settlerConnection, settlerHermes, settlerOracle } from "@/lib/settler.server";
+import {
+  nudgeKeypair,
+  nudgeSharesCrankKey,
+  payerBalance,
+  settlerConnection,
+  settlerHermes,
+  settlerOracle,
+} from "@/lib/settler.server";
 import { quoteSymbolFor } from "@/lib/stocks";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +29,8 @@ export const maxDuration = 60;
  * The page (lib/useSettlerNudge.ts) asks on the schedule in
  * lib/nudgeSchedule.ts: once just before the price can exist, and again when
  * this says to. The cron is still the backstop for fights nobody is watching,
- * and it waits a few seconds past readyAt so it does not race a page.
+ * and it waits past readyAt so it does not race a page: six seconds for a
+ * signed fight, and this route's whole JOB_MS for a Pyth one (crank.ts).
  *
  * IT TAKES AN ADDRESS AND NOTHING ELSE. Every crank it can send is one the
  * chain accepts from anyone, with prices this server's oracle signs only once
@@ -45,6 +53,15 @@ const NEAR_SECS = 10;
 /** How long the crank itself may take, from the moment the price is ready. */
 const JOB_MS = 40_000;
 const DEFAULT_MIN_BALANCE_SOL = 0.05;
+/* WITHOUT A KEY OF ITS OWN, THE NUDGE STOPS EARLIER.
+ *
+ * With NUDGE_SECRET_KEY set, the nudge key's balance is the ceiling on what
+ * visitors can make this server spend, and at 0.05 SOL it simply stops. With
+ * it unset the nudge pays from the cron's key, and stopping at 0.05 would
+ * leave the cron a handful of settles. So the default floor rises to 0.3 SOL
+ * on a shared key: the nudge steps aside while the cron still has room to be
+ * the backstop. NUDGE_MIN_BALANCE_SOL overrides either default. */
+const SHARED_MIN_BALANCE_SOL = 0.3;
 const MAX_BODY = 1_000;
 
 type Reply = Omit<NudgeAnswer, "serverTime">;
@@ -63,12 +80,16 @@ const reply = (a: Reply, status = 200, headers: Record<string, string> = {}) =>
 
 const disabled = () => /^(1|true|yes|on)$/i.test(process.env.NUDGE_DISABLED?.trim() ?? "");
 
-/** NUDGE_MIN_BALANCE_SOL, or 0.05 when it is unset or not a number. */
-function minBalanceLamports(): number {
+/** NUDGE_MIN_BALANCE_SOL, or when it is unset or not a number, 0.05 on the
+ *  nudge's own key and 0.3 on the crank key it falls back to. */
+function minBalanceLamports(shared: boolean): number {
   const raw = process.env.NUDGE_MIN_BALANCE_SOL?.trim();
   const sol = raw ? Number(raw) : NaN;
-  return (Number.isFinite(sol) && sol >= 0 ? sol : DEFAULT_MIN_BALANCE_SOL) * LAMPORTS_PER_SOL;
+  const fallback = shared ? SHARED_MIN_BALANCE_SOL : DEFAULT_MIN_BALANCE_SOL;
+  return (Number.isFinite(sol) && sol >= 0 ? sol : fallback) * LAMPORTS_PER_SOL;
 }
+
+let saidShared = false;
 
 /** An error, fit for a visitor: no configured secret, no key-shaped query string. */
 const publicDetail = (text: string) =>
@@ -167,21 +188,29 @@ async function nudge(address: PublicKey): Promise<Reply> {
     log({ duel, state: "failed", detail: "no settler key (NUDGE_SECRET_KEY or CRANK_SECRET_KEY)" });
     return { state: "failed", detail: "The settler is not configured.", retryAt: nowSecs() + 60 };
   }
+  const shared = nudgeSharesCrankKey();
+  if (shared && !saidShared) {
+    saidShared = true;
+    console.warn(JSON.stringify({ nudge: true, note: "NUDGE_SECRET_KEY is unset: the nudge pays from CRANK_SECRET_KEY" }));
+  }
   let lamports: number;
   try {
     lamports = await payerBalance(payer.publicKey);
   } catch {
     return { state: "failed", detail: "Could not read the settler's balance.", retryAt: nowSecs() + 10 };
   }
-  if (lamports < minBalanceLamports()) {
-    console.error(JSON.stringify({ nudge: true, duel, alert: "settler low", payer: payer.publicKey.toBase58(), lamports }));
+  if (lamports < minBalanceLamports(shared)) {
+    console.error(
+      JSON.stringify({ nudge: true, duel, alert: "settler low", payer: payer.publicKey.toBase58(), lamports, sharedWithCron: shared }),
+    );
     return { state: "failed", detail: "settler low", retryAt: nowSecs() + 60 };
   }
 
   // Wait for the price here rather than make the page come back for it.
   await sleepUntil(at * 1_000);
 
-  if (!gate.takeSend()) {
+  const sendToken = gate.takeSend();
+  if (sendToken === null) {
     log({ duel, state: "failed", detail: "instance send budget spent" });
     return { state: "failed", detail: "This server is at its crank limit for the minute.", retryAt: nowSecs() + 10 };
   }
@@ -204,8 +233,13 @@ async function nudge(address: PublicKey): Promise<Reply> {
   } catch (e) {
     outcome = { state: "failed", detail: readableProgramError(e) };
   }
-  // Nothing was sent, so nothing came out of the budget.
-  if (outcome.state === "done" || outcome.state === "not-yet") gate.returnSend();
+  /* Nothing reached the RPC, so nothing came out of the budget: a fight
+   * already done, a price not ready, and also a failure before any send (a
+   * fight trusting another oracle key, a price source down, a Pyth side with
+   * no Pyth key). Keeping those would let a few broken fights, asked about
+   * every ten seconds, spend the budget every due fight on this instance
+   * needs. */
+  if (!outcome.forwarded) gate.returnSend(sendToken);
   log({ duel, kind: job.kind, state: outcome.state, ms: Date.now() - t0, readyAt: at, detail: publicDetail(outcome.detail) });
 
   const after = nowSecs();

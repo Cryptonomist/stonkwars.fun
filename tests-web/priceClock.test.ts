@@ -124,12 +124,27 @@ describe("price clock", () => {
       expect(readyAt(d, "start", b, markets)).to.deep.equal({ at: firstBarEnd(b) + BAR_SETTLE_SECS, why: "minute-close" });
     });
 
-    it("calls a stock with neither perp nor pool shut at a weekend, and due once its session runs", () => {
+    it("calls a stock with neither perp nor pool shut at a weekend, and due at its first bar once its session runs", () => {
       const b = ny(12, 14, 0);
       const d = starting(signed(FEED.exchange), signed(FEED.perp), b);
       expect(readyAt(d, "start", ny(13, 10, 0), markets)).to.deep.equal({ shut: ["EXCH"] });
-      const monday = ny(14, 4, 0, 5);
-      expect(readyAt(d, "start", monday, markets)).to.deep.equal({ at: monday, why: "minute-close" });
+      expect(readyAt(d, "start", ny(14, 3, 59, 59), markets)).to.deep.equal({ shut: ["EXCH"] });
+      // Monday's first bar, 4:00 to 4:01, is final at 4:01:20, whatever the clock says now.
+      const first = { at: ny(14, 4, 1, 20), why: "minute-close" };
+      for (const now of [ny(14, 4, 0), ny(14, 4, 0, 5), ny(14, 12, 0)]) {
+        expect(readyAt(d, "start", now, markets)).to.deep.equal(first);
+      }
+    });
+
+    /* NFLX-like, no perp or pool, accepted on a Saturday. Monday's session
+     * priced it and nobody cranked it (the settler was down all day). At 9pm
+     * Monday the exchange is shut again, but the price has existed since 4:01
+     * that morning: the fight is due, not parked until Tuesday. */
+    it("keeps a side due once its price has appeared, after its session has shut again", () => {
+      const b = ny(12, 12, 0);
+      const d = starting(signed(FEED.exchange), signed(FEED.exchange), b);
+      expect(readyAt(d, "start", ny(14, 21, 0), markets)).to.deep.equal({ at: ny(14, 4, 1, 20), why: "minute-close" });
+      expect(readyAt(d, "start", ny(15, 2, 0), markets)).to.deep.equal({ at: ny(14, 4, 1, 20), why: "minute-close" });
     });
 
     it("never parks a listing whose sessions it does not model, or a feed off the roster", () => {
@@ -151,7 +166,27 @@ describe("price clock", () => {
       const d = starting(real("TSLA", SOURCE_PYTH), real("NVDA"), b);
       expect(readyAt(d, "start", ny(13, 23, 0))).to.deep.equal({ shut: ["TSLA"] });
       const monday = ny(14, 9, 30, 1);
-      expect(readyAt(d, "start", monday)).to.deep.equal({ at: monday, why: "pyth" });
+      expect(readyAt(d, "start", monday)).to.deep.equal({ at: ny(14, 9, 30) + PYTH_GRACE_SECS, why: "pyth" });
+    });
+
+    /* TSLA by Pyth, boundary 8am Monday (pre-market, no regular print). Hermes
+     * has held the 9:30 print, the first after the boundary, all day. At 5pm
+     * the regular session is over, and the old clock called the side shut
+     * again: no manual button, parked by the cron, until Tuesday's open. */
+    it("keeps a Pyth side due after the session that printed its price has closed", () => {
+      const d = starting(real("TSLA", SOURCE_PYTH), real("TSLA", SOURCE_PYTH), ny(14, 8, 0));
+      const due = { at: ny(14, 9, 30) + PYTH_GRACE_SECS, why: "pyth" };
+      expect(readyAt(d, "start", ny(14, 17, 0))).to.deep.equal(due);
+      expect(readyAt(d, "start", ny(15, 3, 0))).to.deep.equal(due);
+      // A Saturday boundary, looked at on Monday afternoon after the close.
+      const sat = starting(real("TSLA", SOURCE_PYTH), real("NVDA"), ny(12, 12, 0));
+      expect(readyAt(sat, "start", ny(14, 16, 30))).to.deep.equal(due);
+    });
+
+    it("never calls a side shut whose boundary is in session, even before the boundary", () => {
+      const b = ny(15, 15, 59, 30); // a bell
+      const d = settling(real("TSLA", SOURCE_PYTH), real("QQQ", SOURCE_PYTH), b);
+      expect(readyAt(d, "settle", b - 30)).to.deep.equal({ at: b + PYTH_GRACE_SECS, why: "pyth" });
     });
 
     /* Pyth's regular US equity feeds print from 9:30 to 4 only; extended
@@ -164,7 +199,7 @@ describe("price clock", () => {
       expect(readyAt(d, "start", ny(14, 4, 0, 5))).to.deep.equal({ shut: ["TSLA"] });
       expect(readyAt(d, "start", ny(14, 9, 29, 59))).to.deep.equal({ shut: ["TSLA"] });
       const open = ny(14, 9, 30, 0);
-      expect(readyAt(d, "start", open)).to.deep.equal({ at: open, why: "pyth" });
+      expect(readyAt(d, "start", open)).to.deep.equal({ at: open + PYTH_GRACE_SECS, why: "pyth" });
     });
 
     /* 4yf7, TSLA (Pyth) v NVDA, accepted on a Saturday: parked through the
@@ -176,7 +211,7 @@ describe("price clock", () => {
         expect(readyAt(d, "start", now)).to.deep.equal({ shut: ["TSLA"] });
       }
       const open = ny(14, 9, 30, 2);
-      expect(readyAt(d, "start", open)).to.deep.equal({ at: open, why: "pyth" });
+      expect(readyAt(d, "start", open)).to.deep.equal({ at: ny(14, 9, 30) + PYTH_GRACE_SECS, why: "pyth" });
     });
 
     it("lists every shut side once", () => {
