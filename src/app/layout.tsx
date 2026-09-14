@@ -59,14 +59,19 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${display.variable} ${stencil.variable} ${body.variable} ${mono.variable}`}>
-      <body className="arena has-bottom-nav min-h-dvh antialiased">
+      {/* A column at least a screen tall, with main taking the slack, so a
+        * short page (a quiet tab, the 404) keeps its footer at the bottom of
+        * the window instead of floating it halfway up over a void. */}
+      <body className="arena has-bottom-nav flex min-h-dvh flex-col antialiased">
         <Providers>
           <SiteNav />
           {/* The phone's bottom bar is fixed over the end of the page. Its
             * height is reserved once, under the footer (see SiteFooter), since
             * the footer always follows main: reserving it here as well would
-            * only open a 56px hole between every page and its footer. */}
-          <main className="mx-auto max-w-7xl px-4 pb-4">{children}</main>
+            * only open a 56px hole between every page and its footer. w-full
+            * because auto side margins in a flex column would otherwise shrink
+            * main to its content. */}
+          <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-4">{children}</main>
           <SiteFooter />
           <Toaster />
           <FightWatcher />

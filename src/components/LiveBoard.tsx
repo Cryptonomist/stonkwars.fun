@@ -20,7 +20,7 @@ import { useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 
-import { FightRow } from "@/components/FightRow";
+import { FightRow, isLate } from "@/components/FightRow";
 import { Empty } from "@/components/ui/Empty";
 import { Notice } from "@/components/ui/Notice";
 import { SkeletonRows } from "@/components/ui/Skeleton";
@@ -70,15 +70,19 @@ function useHiddenTestFights() {
   });
 }
 
-/** The ring's order: live by bell, taken, open by newest, then results. */
+/** The ring's order: live by bell, taken, open by newest, fights the settler
+ *  is late on (FightRow isLate), then results. A stalled fight is still in
+ *  play, but it is not what somebody opening the board came to see. */
 export function ringOrder(duels: DuelView[], now: number, limit: number): DuelView[] {
   const roster = duels.filter(isRosterFight);
-  const live = roster.filter((d) => d.status === STATUS_LIVE).sort((a, b) => a.endTs - b.endTs);
-  const taken = roster.filter((d) => d.status === STATUS_ACCEPTED).sort((a, b) => b.acceptedTs - a.acceptedTs);
-  const open = roster
+  const late = roster.filter((d) => isLate(d, now)).sort((a, b) => b.acceptedTs - a.acceptedTs);
+  const moving = roster.filter((d) => !isLate(d, now));
+  const live = moving.filter((d) => d.status === STATUS_LIVE).sort((a, b) => a.endTs - b.endTs);
+  const taken = moving.filter((d) => d.status === STATUS_ACCEPTED).sort((a, b) => b.acceptedTs - a.acceptedTs);
+  const open = moving
     .filter((d) => d.status === STATUS_OPEN && (!now || d.expiresTs > now))
     .sort((a, b) => b.createdTs - a.createdTs);
-  const active = [...live, ...taken, ...open].slice(0, limit);
+  const active = [...live, ...taken, ...open, ...late].slice(0, limit);
   const finished = roster
     .filter((d) => isDecided(d) || isDeadHeat(d))
     .sort((a, b) => b.endTs - a.endTs)

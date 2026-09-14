@@ -47,7 +47,7 @@ import {
 import { isDecided, loserTake, margin, moves, winnerSide, type Side } from "@/lib/derive";
 import { ago, clock, points, shares, shortAddress, span, until, usd } from "@/lib/format";
 import { movePct, stakeValue, type Quotes } from "@/lib/prices";
-import { shutSides } from "@/lib/roundClock";
+import { roundClock, shutSides } from "@/lib/roundClock";
 import { decimalsForMint, tickerForMint, tokenSymbol } from "@/lib/stocks";
 
 /** The default key: an empty opponent or invitee slot. */
@@ -253,7 +253,9 @@ function rowStatus(d: DuelView, now: number): { badge: ReactNode; age: ReactNode
       if (!now || d.endTs > now) {
         return { badge: <Badge variant="live" />, age: <Countdown to={d.endTs} now={now} className="text-ink" /> };
       }
-      return { badge: <Badge>Bell</Badge>, age: text(waitingForMarket(d, now) ? "waiting for the open" : "settling") };
+      if (waitingForMarket(d, now)) return { badge: <Badge>Bell</Badge>, age: text("waiting for the open") };
+      if (isLate(d, now)) return { badge: <Badge>Late</Badge>, age: text(`settle late · bell ${ago(d.endTs, now)}`) };
+      return { badge: <Badge>Bell</Badge>, age: text("settling") };
     case STATUS_OPEN:
       if (now && d.expiresTs <= now) return { badge: <Badge>Expired</Badge>, age: text(ago(d.expiresTs, now)) };
       return {
@@ -261,7 +263,9 @@ function rowStatus(d: DuelView, now: number): { badge: ReactNode; age: ReactNode
         age: text(now ? `closes ${until(d.expiresTs, now)}` : null),
       };
     case STATUS_ACCEPTED:
-      return { badge: <Badge>Taken</Badge>, age: text(waitingForMarket(d, now) ? "waiting for the open" : "locking prices") };
+      if (waitingForMarket(d, now)) return { badge: <Badge>Taken</Badge>, age: text("waiting for the open") };
+      if (isLate(d, now)) return { badge: <Badge>Late</Badge>, age: text(`start late · taken ${ago(d.acceptedTs, now)}`) };
+      return { badge: <Badge>Taken</Badge>, age: text("locking prices") };
     case STATUS_SETTLED:
       return { badge: <Badge>Final</Badge>, age: text(now && d.endTs ? ago(d.endTs, now) : null) };
     case STATUS_REFUNDED:
@@ -290,10 +294,12 @@ function statusLine(d: DuelView, now: number): string {
       /* "Locking prices" reads as broken when it lasts all weekend. If the
        * market that prices either side is shut, say that instead: the fight is
        * fine, it is the exchange that is closed. */
-      return waitingForMarket(d, now) ? "Waiting for the open" : "Locking prices";
+      if (waitingForMarket(d, now)) return "Waiting for the open";
+      return isLate(d, now) ? "Start late" : "Locking prices";
     case STATUS_LIVE:
       if (!now || d.endTs > now) return now ? `Live · ${clock(d.endTs - now)}` : "Live";
-      return waitingForMarket(d, now) ? "Bell · waiting for the open" : "Bell · settling";
+      if (waitingForMarket(d, now)) return "Bell · waiting for the open";
+      return isLate(d, now) ? "Bell · settle late" : "Bell · settling";
     case STATUS_SETTLED:
       return now && d.endTs ? `Final · ${ago(d.endTs, now)}` : "Final";
     case STATUS_VOID:
@@ -309,6 +315,21 @@ function statusLine(d: DuelView, now: number): string {
  *  price clock sees it for the boundary the fight is at (roundClock.ts). */
 export function waitingForMarket(d: DuelView, now: number): boolean {
   return shutSides(d, now).length > 0;
+}
+
+/* A FIGHT THE SETTLER HAS LEFT BEHIND.
+ *
+ * "Locking prices" is true for the first minutes after a take and false two
+ * days later, yet a stalled fight used to wear it on every board, dressed as a
+ * fight in progress. The fight page already knows the difference: roundClock
+ * offers the do-it-yourself button only MANUAL_FALLBACK_SECS after the price
+ * could exist, and never while a market that prices a side is shut. A board
+ * row asks the same clock (with no nudge, since a board sends none), so the
+ * row says "Late" at exactly the moment the fight page says the settler is,
+ * and both boards sort such fights below the ones really moving. */
+export function isLate(d: DuelView, now: number): boolean {
+  if (!now || (d.status !== STATUS_ACCEPTED && d.status !== STATUS_LIVE)) return false;
+  return roundClock(d, now).manual !== null;
 }
 
 export { statusLine };

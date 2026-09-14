@@ -55,6 +55,21 @@ export function dayChangePct(q?: Quote): number | null {
   return prev > 0 ? ((Number(q.price) - prev) / prev) * 100 : null;
 }
 
+/* A PREVIOUS CLOSE BORROWED FROM ANOTHER SOURCE.
+ *
+ * Pyth sends a price and never the close before it, so a Pyth-priced stock
+ * (TSLA, QQQ) used to show no move on the day anywhere: not in the tape, the
+ * picker, the movers or its own page. The exchange quote for the same stock
+ * does carry that close, and the day's move is measured from the regular close
+ * whichever feed the price comes from. So the price keeps its own source and
+ * the close is carried over, rescaled to the price's exponent, because the two
+ * feeds count in different powers of ten. Display only, like every `prev`. */
+export function withPrev(q: Quote, from?: Pick<Quote, "prev" | "expo">): Quote {
+  if (q.prev || !from?.prev) return q;
+  const prev = Number(from.prev) * 10 ** (from.expo - q.expo);
+  return Number.isFinite(prev) && prev > 0 ? { ...q, prev: String(Math.round(prev)) } : q;
+}
+
 /* STAKE SIZING, IN INTEGERS.
  *
  * `dollars` of a stock at a Pyth price `price * 10^expo`, as base units of a

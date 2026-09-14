@@ -27,7 +27,7 @@ import {
   trimmedMeanAtBoundary,
   type Bars,
 } from "@/lib/oracle";
-import type { Quote } from "@/lib/pricemath";
+import { withPrev, type Quote } from "@/lib/pricemath";
 import { byFeed, quoteSymbolFor, type Stock } from "@/lib/stocks";
 
 const SPARK = "https://query1.finance.yahoo.com/v7/finance/spark";
@@ -384,7 +384,11 @@ export async function liveQuotes(stocks: Stock[]): Promise<Record<string, Quote>
     const source: LiveSource = s.market !== "US" || inSession ? "regular" : "last";
     quotes[s.ticker] = { ...q, source };
   }
-  for (const [ticker, q] of Object.entries(pyth)) quotes[ticker] = { ...q, source: "pyth" };
+  /* Pyth's quote replaces the exchange's, but Pyth never sends a previous
+   * close, and the day's move is measured from the regular close whichever
+   * feed the price comes from. So the exchange's close rides along, rescaled
+   * to Pyth's exponent (withPrev); the price and its source stay Pyth's. */
+  for (const [ticker, q] of Object.entries(pyth)) quotes[ticker] = { ...withPrev(q, market[ticker]), source: "pyth" };
 
   for (const [ticker, live] of offHours) {
     if (!live) {

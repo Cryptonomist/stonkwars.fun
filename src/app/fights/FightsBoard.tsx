@@ -35,7 +35,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 
-import { FightRow } from "@/components/FightRow";
+import { FightRow, isLate } from "@/components/FightRow";
 import { cx } from "@/components/ui/cx";
 import { Empty } from "@/components/ui/Empty";
 import { FighterName } from "@/components/ui/FighterName";
@@ -44,6 +44,7 @@ import { LiveDot } from "@/components/ui/LiveDot";
 import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Plate } from "@/components/ui/Plate";
+import { SectionHead } from "@/components/ui/SectionHead";
 import { Skeleton, SkeletonRows } from "@/components/ui/Skeleton";
 import { Tabs, useUrlTab, type TabItem } from "@/components/ui/Tabs";
 import {
@@ -114,15 +115,25 @@ const latestStep = (d: DuelView) => Math.max(d.createdTs, d.acceptedTs, d.endTs)
 
 const byAddress = (a: DuelView, b: DuelView) => a.address.toBase58().localeCompare(b.address.toBase58());
 
-/** Every tab's list, each in the order its tab is read in. */
-function tabLists(duels: DuelView[], now: number, me: string | null): Record<TabId, DuelView[]> {
-  const live = duels.filter((d) => d.status === STATUS_LIVE).sort((a, b) => a.endTs - b.endTs || byAddress(a, b));
-  const taken = duels
+/* Every tab's list, each in the order its tab is read in.
+ *
+ * Live ends with the fights the settler is late on (FightRow isLate), under
+ * their own line, and `late` says how many there are. They are still in play,
+ * so they stay on the tab, but the tab's count leaves them out: a count of 2
+ * beside a header saying one round is live read as a board padding itself. */
+function tabLists(duels: DuelView[], now: number, me: string | null): Record<TabId, DuelView[]> & { late: DuelView[] } {
+  const late = duels
+    .filter((d) => isLate(d, now))
+    .sort((a, b) => b.acceptedTs - a.acceptedTs || byAddress(a, b));
+  const moving = duels.filter((d) => !isLate(d, now));
+  const live = moving.filter((d) => d.status === STATUS_LIVE).sort((a, b) => a.endTs - b.endTs || byAddress(a, b));
+  const taken = moving
     .filter((d) => d.status === STATUS_ACCEPTED)
     .sort((a, b) => b.acceptedTs - a.acceptedTs || byAddress(a, b));
   const recent = (a: DuelView, b: DuelView) => latestStep(b) - latestStep(a) || byAddress(a, b);
   return {
-    live: [...live, ...taken],
+    late,
+    live: [...live, ...taken, ...late],
     open: duels
       .filter((d) => d.status === STATUS_OPEN && d.expiresTs > now)
       .sort((a, b) => b.createdTs - a.createdTs || byAddress(a, b)),
@@ -280,7 +291,7 @@ export function FightsBoard() {
   const ready = !!duels.data && now > 0;
   const lists = tabLists(pool.filter((d) => matchWallet(d) && matchTicker(d)), now, me);
 
-  const fallbackTab: TabId = lists.live.length ? "live" : lists.open.length ? "open" : "final";
+  const fallbackTab: TabId = lists.live.length > lists.late.length ? "live" : lists.open.length ? "open" : "final";
   const [autoTab, setAutoTab] = useState<TabId | null>(null);
   if (ready && autoTab === null) setAutoTab(fallbackTab);
   const tab: TabId = urlTab === AUTO ? (autoTab ?? fallbackTab) : urlTab;
@@ -371,7 +382,9 @@ export function FightsBoard() {
     );
   }
 
-  const count = (id: TabId) => (ready ? lists[id].length : null);
+  /* Live's count leaves out fights the settler is late on; they are listed
+   * under their own line (tabLists). */
+  const count = (id: TabId) => (ready ? lists[id].length - (id === "live" ? lists.late.length : 0) : null);
   const items: TabItem<TabId>[] = [
     { id: "live", label: TAB_LABEL.live, count: count("live") },
     { id: "open", label: TAB_LABEL.open, count: count("open") },
@@ -430,16 +443,57 @@ export function FightsBoard() {
   } else if (tab === "final") {
     body = <DatedList all={list} visible={visible} now={now} quotes={prices.data} />;
   } else {
-    body = (
+    const lateFrom = tab === "live" ? list.length - lists.late.length : list.length;
+    const rows = (from: number, to: number) => (
       <ul className="flex flex-col gap-2">
-        {visible.map((d) => (
+        {visible.slice(from, to).map((d) => (
           <li key={d.address.toBase58()} className="min-w-0">
             <FightRow d={d} now={now} quotes={prices.data} />
           </li>
         ))}
       </ul>
     );
+    body =
+      lateFrom < visible.length ? (
+        <>
+          {lateFrom > 0 ? rows(0, lateFrom) : null}
+          <section aria-label="The settler is late" className="flex min-w-0 flex-col gap-2">
+            <h2 className="micro flex items-center gap-3 text-dim">
+              <span className="shrink-0">Settler late · anyone can post the prices</span>
+              <span aria-hidden="true" className="h-px min-w-4 flex-1 bg-line" />
+              <span className="num shrink-0">{plural(lists.late.length, "fight", "fights")}</span>
+            </h2>
+            {rows(lateFrom, visible.length)}
+          </section>
+        </>
+      ) : (
+        rows(0, visible.length)
+      );
   }
+
+  /* A SHORT TAB STILL LOOKS LIKE A BOARD. With fewer than four rows the page
+   * used to end a fifth of the way down, over a void, and read as broken
+   * rather than quiet. Real recent results fill the rest, under their own
+   * head, so nothing pretends to be on the tab it is not on. They follow the
+   * same filters, so a ticker filter tops up with that stock's results. */
+  const latest = lists.final.slice(0, 5);
+  const topUp =
+    ready && tab !== "final" && !(needsWallet && !me) && list.length < 4 && latest.length ? (
+      <section aria-labelledby="latest-results" className="mt-6 flex min-w-0 flex-col gap-2">
+        <SectionHead
+          id="latest-results"
+          title="Latest results"
+          action={{ href: hrefWith({ tab: "final" }), label: "All results" }}
+        />
+        <ul className="flex flex-col gap-2">
+          {latest.map((d) => (
+            <li key={d.address.toBase58()} className="min-w-0">
+              <FightRow d={d} now={now} />
+            </li>
+          ))}
+        </ul>
+      </section>
+    ) : null;
 
   return (
     <div className="pb-6">
@@ -534,6 +588,8 @@ export function FightsBoard() {
               </button>
             ) : null}
           </div>
+
+          {topUp}
         </div>
 
         <aside className="hidden min-w-0 lg:sticky lg:top-20 lg:block lg:self-start" aria-label="Filter the fights">
