@@ -40,28 +40,32 @@ export function FightRow({ d, now, quotes }: { d: DuelView; now: number; quotes?
 
   const status = statusLine(d, now);
 
+  /* A plain 1fr column will not shrink below its content, so on a 375px phone
+   * a ticker, its move and "cooked" pushed the row to 467px and the card
+   * panned sideways. minmax(0,1fr) plus min-w-0 lets the sides shrink and
+   * wrap instead, and the tickers and label step down below sm. */
   return (
     <Link
       href={`/f/${d.address.toBase58()}`}
-      className="card group grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 transition-colors hover:bg-panel-2"
+      className="card group grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-4 py-3 transition-colors hover:bg-panel-2"
     >
-      <div className="flex items-baseline gap-3">
-        <span className="display text-3xl text-p1">{t1}</span>
+      <div className="flex min-w-0 flex-wrap items-baseline gap-3">
+        <span className="display text-2xl text-p1 sm:text-3xl">{t1}</span>
         {m1 !== null ? <Move value={m1} className="text-sm" /> : null}
         {d.status === STATUS_SETTLED && d.outcome === OUTCOME_OPPONENT ? (
-          <span className="label !text-cooked">cooked</span>
+          <span className="label hidden !text-cooked sm:inline">cooked</span>
         ) : null}
       </div>
       <div className="flex flex-col items-center">
         <span className="display text-lg text-ink">VS</span>
         <span className="label whitespace-nowrap">{status}</span>
       </div>
-      <div className="flex items-baseline justify-end gap-3">
+      <div className="flex min-w-0 flex-wrap items-baseline justify-end gap-3">
         {d.status === STATUS_SETTLED && d.outcome === OUTCOME_CREATOR ? (
-          <span className="label !text-cooked">cooked</span>
+          <span className="label hidden !text-cooked sm:inline">cooked</span>
         ) : null}
         {m2 !== null ? <Move value={m2} className="text-sm" /> : null}
-        <span className="display text-3xl text-p2">{t2}</span>
+        <span className="display text-2xl text-p2 sm:text-3xl">{t2}</span>
       </div>
       <div className="col-span-3 flex justify-between text-xs text-dim">
         <span>
