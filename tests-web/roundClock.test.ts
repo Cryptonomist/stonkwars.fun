@@ -8,6 +8,7 @@ import { expect } from "chai";
 import {
   SOURCE_PYTH,
   SOURCE_SIGNED,
+  STALL_REFUND_SECS,
   START_DELAY_SECS,
   STATUS_ACCEPTED,
   STATUS_LIVE,
@@ -17,7 +18,16 @@ import {
 import { nyToMs } from "../src/lib/market";
 import { BAR_SETTLE_SECS } from "../src/lib/oracle";
 import { firstBarEnd, MANUAL_FALLBACK_SECS, PYTH_GRACE_SECS, type MarketLookup } from "../src/lib/priceClock";
-import { MANUAL_SETTLE, MANUAL_START, roundClock, shutSides, type RoundClockDuel } from "../src/lib/roundClock";
+import {
+  MANUAL_SETTLE,
+  MANUAL_START,
+  neverSides,
+  neverWords,
+  refundWords,
+  roundClock,
+  shutSides,
+  type RoundClockDuel,
+} from "../src/lib/roundClock";
 import { byTicker } from "../src/lib/stocks";
 
 const utc = (iso: string) => Math.floor(Date.parse(iso) / 1000);
@@ -223,11 +233,14 @@ describe("round clock", () => {
       expect(roundClock(d, ny(14, 16, 5)).manual).to.equal(MANUAL_SETTLE);
     });
 
-    it("names each Pyth side of a fight taken after the close, until the opening bell", () => {
+    /* Pyth prints from Sunday 8 PM to Friday 8 PM, so a fight taken at 7pm on
+     * a Friday is priced a few seconds later, whatever Nasdaq is doing. The old
+     * clock called both sides shut until Monday's opening bell. */
+    it("never calls a Pyth side shut: taken after the close, it prices at once", () => {
       const d = between(STATUS_ACCEPTED, tsla, qqq, ny(11, 19, 0), 0);
-      expect(shutSides(d, ny(11, 19, 0))).to.deep.equal(["TSLA", "QQQ"]);
-      expect(shutSides(d, ny(14, 9, 29, 59))).to.deep.equal(["TSLA", "QQQ"]);
-      expect(shutSides(d, ny(14, 9, 30))).to.deep.equal([]);
+      expect(shutSides(d, ny(11, 19, 0))).to.deep.equal([]);
+      expect(neverSides(d, ny(11, 19, 0))).to.equal(null);
+      expect(roundClock(d, ny(11, 19, 0)).line).to.equal("Round starts in a few seconds, at Pyth's first price");
     });
 
     it("waits on nothing before the bell, or for an open fight", () => {
@@ -237,12 +250,70 @@ describe("round clock", () => {
       expect(shutSides(d, 0)).to.deep.equal([]);
     });
 
-    /* A round whose end lands after the close has no price at its end until
-     * Tuesday, but until that end comes the round is simply live. */
-    it("waits on nothing before a bell that rings after the close, and on the Pyth sides once it has", () => {
-      const d = between(STATUS_LIVE, tsla, qqq, ny(14, 15, 30), ny(14, 16, 30));
-      expect(shutSides(d, ny(14, 16, 10))).to.deep.equal([]);
-      expect(shutSides(d, ny(14, 16, 30))).to.deep.equal(["TSLA", "QQQ"]);
+    /* A round whose end lands after Pyth's Friday 8 PM has no price at its end
+     * and never will, but until that end comes the round is simply live. */
+    it("waits on nothing before a bell that rings in Pyth's dark hours, and calls it never once it has", () => {
+      const d = between(STATUS_LIVE, tsla, qqq, ny(11, 19, 30), ny(11, 20, 30));
+      expect(shutSides(d, ny(11, 20, 10))).to.deep.equal([]);
+      expect(neverSides(d, ny(11, 20, 10))).to.equal(null);
+      expect(shutSides(d, ny(11, 20, 30))).to.deep.equal([]);
+      expect(neverSides(d, ny(11, 20, 30))).to.deep.equal({ never: ["TSLA", "QQQ"], refundAt: d.endTs + STALL_REFUND_SECS });
+      // After Monday's close the same bell is still never, not a wait for Tuesday.
+      const monday = between(STATUS_LIVE, tsla, qqq, ny(14, 15, 30), ny(14, 16, 30));
+      expect(shutSides(monday, ny(14, 16, 30))).to.deep.equal([]);
+      expect(neverSides(monday, ny(14, 16, 30))).to.equal(null);
+    });
+  });
+
+  /* 4yf7Hpjh33t8qJ4TqwnQSM5s2Pr6SCH3712MbT4yono5 as devnet holds it: TSLA by
+   * Pyth v NVDA, accepted_ts 1789179709, Friday 11 Sep 10:21:49 PM New York,
+   * two hours into Pyth's weekend gap. The page must not count down to a price
+   * that will never exist, must not offer to post one, and must say when the
+   * stakes can go home: a week after the accept. */
+  describe("a fight nothing will ever price", () => {
+    const d: RoundClockDuel = {
+      status: STATUS_ACCEPTED,
+      creatorFeed: byTicker("TSLA")!.feed,
+      creatorSource: SOURCE_PYTH,
+      opponentFeed: byTicker("NVDA")!.feed,
+      opponentSource: SOURCE_SIGNED,
+      acceptedTs: 1_789_179_709,
+      endTs: 0,
+    };
+    const refundAt = 1_789_179_709 + STALL_REFUND_SECS;
+
+    it("reads 4yf7 as unable to start, with no countdown and no button, until and after its refund opens", () => {
+      expect(refundAt).to.equal(ny(18, 22, 21, 49));
+      const line =
+        "Can never start · Pyth has no TSLA price for the moment it was taken, and never will. " +
+        "Both stakes can be sent home from Fri 18 Sep, 10:22 PM ET.";
+      for (const now of [d.acceptedTs + 5, ny(13, 20, 30), ny(14, 9, 30, 5), ny(15, 12, 0), refundAt - 1]) {
+        expect(roundClock(d, now), String(now)).to.deep.equal({ line, secondsLeft: null, manual: null });
+        expect(shutSides(d, now)).to.deep.equal([]);
+      }
+      expect(roundClock(d, refundAt)).to.deep.equal({
+        line: "Can never start · Pyth has no TSLA price for the moment it was taken, and never will. Anyone can send both stakes home.",
+        secondsLeft: null,
+        manual: null,
+      });
+    });
+
+    it("never offers the manual start, however late the settler looks", () => {
+      for (let now = d.acceptedTs; now < refundAt + 86_400; now += 3_517) expect(roundClock(d, now).manual, String(now)).to.equal(null);
+    });
+
+    it("names every side nothing will price, and counts a live fight's refund from its bell", () => {
+      const both = { ...d, opponentFeed: byTicker("QQQ")!.feed, opponentSource: SOURCE_PYTH };
+      expect(neverWords(neverSides(both, ny(14, 12, 0))!, "start")).to.equal("Pyth has no TSLA or QQQ price for the moment it was taken, and never will.");
+      const live = { ...d, status: STATUS_LIVE, endTs: ny(12, 9, 0) };
+      expect(neverSides(live, ny(12, 8, 59))).to.equal(null);
+      const n = neverSides(live, ny(12, 9, 0))!;
+      expect(n).to.deep.equal({ never: ["TSLA"], refundAt: ny(19, 9, 0) });
+      expect(neverWords(n, "settle")).to.equal("Pyth has no TSLA price for its bell, and never will.");
+      expect(roundClock(live, ny(13, 12, 0)).line).to.equal(
+        "Can never settle · Pyth has no TSLA price for its bell, and never will. Both stakes can be sent home from Sat 19 Sep, 9:00 AM ET.",
+      );
+      expect(refundWords(n, ny(19, 9, 0))).to.equal("Anyone can send both stakes home.");
     });
   });
 

@@ -70,12 +70,21 @@ describe("fight clock", () => {
       expect(at).to.equal(ny(14, 4, 1, 22));
     });
 
-    it("gives a Pyth stock Monday's opening bell", () => {
-      const d = fight(STATUS_ACCEPTED, SAT, PYTH, PERP);
-      expect(pricesFrom(d, ny(13, 9, 0), markets)).to.deep.equal({
+    /* A Pyth side never waits for an opening (priceClock.ts): inside Pyth's
+     * hours it prices a few seconds after its boundary, and in its dark hours
+     * it never prices at all, which is no time to count down to. It used to be
+     * given Monday's opening bell. */
+    it("never waits on a Pyth side: it prices at once in Pyth's hours, and never in its dark ones", () => {
+      expect(pricesFrom(fight(STATUS_ACCEPTED, SAT, PYTH, PERP), ny(13, 9, 0), markets)).to.equal(null);
+      expect(pricesFrom(fight(STATUS_ACCEPTED, SAT, PYTH, EXCH), ny(13, 9, 0), markets)).to.equal(null);
+      // A Tuesday night: only the exchange-only side waits, for Wednesday's 4am bar.
+      const tue = ny(15, 22, 0);
+      expect(pricesFrom(fight(STATUS_ACCEPTED, tue, PYTH, PERP), tue + 1, markets)).to.equal(null);
+      expect(pricesFrom(fight(STATUS_ACCEPTED, tue, PYTH, EXCH), tue + 1, markets)).to.deep.equal({
         which: "start",
-        at: ny(14, 9, 30) + PYTH_GRACE_SECS + LANDING_SECS,
+        at: ny(16, 4, 1, 22),
       });
+      expect(ny(16, 4, 1, 22)).to.be.above(tue + PYTH_GRACE_SECS + LANDING_SECS);
     });
 
     it("does not wait for a pair that trades around the clock", () => {

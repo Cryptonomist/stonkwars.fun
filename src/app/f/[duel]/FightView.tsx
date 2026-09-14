@@ -63,7 +63,7 @@ import { loserTake, winnerSide } from "@/lib/derive";
 import { ago, etTime, etWhen, points, span, usd } from "@/lib/format";
 import { useDuel } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
-import { roundClock, shutSides, type RoundClock } from "@/lib/roundClock";
+import { neverSides, roundClock, shutSides, type RoundClock } from "@/lib/roundClock";
 import { play } from "@/lib/sfx";
 import { decimalsForMint, tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
@@ -167,6 +167,7 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
 
   const clock = roundClock(d, now, nudge);
   const shut = shutSides(d, now);
+  const never = neverSides(d, now) !== null;
   const beforeBell = d.status === STATUS_LIVE && (!now || now < d.endTs);
 
   const finished = d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.creatorEnd.price > BigInt(0));
@@ -233,6 +234,7 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
               ticker={t1}
               quote={q1}
               shut={shut.includes(t1)}
+              never={never}
               leading={lead === "p1"}
               hits={hits}
               hurt={landing?.side === "p2"}
@@ -248,6 +250,7 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
               ticker={t2}
               quote={q2}
               shut={shut.includes(t2)}
+              never={never}
               leading={lead === "p2"}
               hits={hits}
               hurt={landing?.side === "p1"}

@@ -1,6 +1,6 @@
 import { expect } from "chai";
 
-import { ago, etWhen, pct, pctPair, points, until } from "../src/lib/format";
+import { ago, etDay, etWhen, pct, pctPair, points, until } from "../src/lib/format";
 import { nyToMs } from "../src/lib/market";
 
 const et = (y: number, m: number, d: number, hh: number, mm: number) => Math.floor(nyToMs(y, m, d, hh, mm, 0) / 1000);
@@ -137,7 +137,14 @@ describe("a round on the market's clock", () => {
   });
 
   it("uses no dashes of any length", () => {
-    const out = [etWhen(et(2026, 9, 12, 16, 21), et(2026, 9, 14, 9, 30)), ago(0, 1e9), until(1e9, 0)].join(" ");
+    const out = [etWhen(et(2026, 9, 12, 16, 21), et(2026, 9, 14, 9, 30)), etDay(et(2026, 9, 18, 22, 22)), ago(0, 1e9), until(1e9, 0)].join(" ");
     expect(out).to.not.match(/[\u2013\u2014]/);
+  });
+});
+
+describe("a moment days away", () => {
+  it("carries its date", () => {
+    expect(etDay(et(2026, 9, 18, 22, 22))).to.equal("Fri 18 Sep, 10:22 PM ET");
+    expect(etDay(et(2026, 11, 2, 9, 5))).to.equal("Mon 2 Nov, 9:05 AM ET");
   });
 });

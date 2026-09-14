@@ -9,7 +9,8 @@
  *   accepted  Now, and when the start price will post; or, while the market
  *             that prices this side is shut, that the start posts at the open;
  *             or, once roundClock says the settler is late, that it is late
- *             and anyone can post it
+ *             and anyone can post it; or, for a fight nothing will ever price,
+ *             that no start price can post
  *   live      Start (the on-chain price, and when it printed), Now (live, with
  *             its source), and the move since the start
  *   final     Start and Bell, both on chain, and the move the program measured
@@ -44,6 +45,7 @@ export function PriceToBeat({
   side,
   quote,
   shut,
+  never = false,
   late = false,
   other = null,
   className,
@@ -55,6 +57,8 @@ export function PriceToBeat({
   quote?: Quote;
   /** This side's market is shut at the boundary the fight is waiting on. */
   shut: boolean;
+  /** Some side of the fight can never be priced there (roundClock, neverSides). */
+  never?: boolean;
   /** roundClock(...).manual is set: the settler has missed its window. */
   late?: boolean;
   className?: string;
@@ -80,7 +84,12 @@ export function PriceToBeat({
      * after a take, "posts at its first price" contradicted the status line
      * right above it, which says the settler is late. */
     rows =
-      d.status === STATUS_ACCEPTED && shut ? (
+      d.status === STATUS_ACCEPTED && never ? (
+        <>
+          {now}
+          <p className="text-meta text-dim">No start price can post: this fight can never be priced.</p>
+        </>
+      ) : d.status === STATUS_ACCEPTED && shut ? (
         <p className="text-meta text-dim">Start price posts when its market opens.</p>
       ) : d.status === STATUS_ACCEPTED ? (
         <>

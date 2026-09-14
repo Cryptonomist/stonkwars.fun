@@ -77,7 +77,14 @@ const SESSION_WORDS: Record<Session, string> = {
   closed: "Exchange shut",
 };
 
-const PRICED_WORDS = { exchange: "Exchange", perp: "Perp", pool: "Pool", waits: "Waits for the open" } as const;
+const PRICED_WORDS = {
+  exchange: "Exchange",
+  pyth: "Pyth",
+  perp: "Perp",
+  pool: "Pool",
+  waits: "Waits for the open",
+  never: "Pyth is dark",
+} as const;
 
 /* The same three explanations the tale of the tape gives, word for word, so a
  * stat means one thing wherever it is read. */

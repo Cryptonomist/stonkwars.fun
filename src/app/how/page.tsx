@@ -122,7 +122,9 @@ const RULES: Rule[] = [
     label: "Fighting at 3am",
     q: "Can I fight at three in the morning?",
     a: `Yes, on ${AROUND_THE_CLOCK.toLocaleString("en-US")} of them. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside even that, and at weekends, the price comes from a market that never closes: the stock's perpetual future on Hyperliquid, which trades every minute of every day. The rule is the same one the exchange gets, so a round measures exactly the interval it says it does.${
-      PYTH.length ? ` The stocks priced by Pyth (${listWords(PYTH)}) keep the regular session, because that is when Pyth's equity feeds print.` : ""
+      PYTH.length
+        ? ` The stocks priced by Pyth (${listWords(PYTH)}) fight while Pyth's equity feeds print, from 8pm Sunday to 8pm Friday New York time, except on market holidays and after 1pm on a half day. A fight that would start or end while Pyth is dark is refused, because nothing could ever price it.`
+        : ""
     }`,
     dev: "Off-hours, a perpetual future is read exactly as the exchange is: the close of its first one-minute bar at or after the moment in question.",
   },

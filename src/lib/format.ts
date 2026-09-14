@@ -171,6 +171,12 @@ function etParts(unix: number): EtParts {
   };
 }
 
+/** "Fri 18 Sep, 10:21 PM ET": a moment days away, so with its date. */
+export function etDay(unix: number): string {
+  const p = etParts(unix);
+  return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute} ${p.period} ET`;
+}
+
 /** "now", "45s ago", "12m ago", "3h ago", "2d ago", then "Sep 3" (in ET). */
 export function ago(unix: number, now: number): string {
   const s = Math.floor(now - unix);

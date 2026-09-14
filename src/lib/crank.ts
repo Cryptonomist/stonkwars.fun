@@ -135,8 +135,12 @@ export type JobKind = "start" | "settle" | "refund";
  *  for ordering (chooseJobs); readyAt is when to wake for it, and for a refund
  *  that is simply now. Without `since`, readyAt stands in. */
 export type CrankJob = { duel: DuelView; kind: JobKind; readyAt: number; why: ReadyWhy | "refund"; since?: number };
-/** A job whose market is shut: nothing can price it, so nothing is tried. */
-export type ParkedJob = { duel: string; kind: "start" | "settle"; shut: string[] };
+/** A job whose market is shut, so nothing can price it yet; or one nothing
+ *  will ever price, which only the stall refund at `refundAt` ends. Either
+ *  way nothing is tried. */
+export type ParkedJob =
+  | { duel: string; kind: "start" | "settle"; shut: string[] }
+  | { duel: string; kind: "start" | "settle"; never: string[]; refundAt: number };
 export type JobListing = { due: CrankJob[]; parked: ParkedJob[]; errors: string[] };
 
 const STATUS_FOR: Record<JobKind, number> = { start: STATUS_ACCEPTED, settle: STATUS_LIVE, refund: STATUS_VOID };
@@ -159,7 +163,10 @@ const STATUS_FOR: Record<JobKind, number> = { start: STATUS_ACCEPTED, settle: ST
  *
  * A job whose market is shut is PARKED, not due: it gets no Hermes call, no
  * price source call and no slot. Before this, a Pyth fight accepted on a
- * Saturday (4yf7) was tried, and refused, on every pass all weekend. */
+ * Friday night (4yf7) was tried, and refused, on every pass all weekend. A job
+ * the price clock says can never be priced is parked too, for good: 4yf7's
+ * start fell where Pyth prints nothing, no pass will ever find a price for it,
+ * and only the stall refund at its `refundAt` ends it. */
 export async function listJobs(
   conn: Connection,
   now: number,
@@ -203,6 +210,10 @@ export async function listJobs(
       const boundary = boundaryOf(duel, kind);
       if (kind === "settle" && now + lookahead < boundary) continue;
       const clock = clockReadyAt(duel, kind, now, lookup);
+      if ("never" in clock) {
+        parked.push({ duel: duel.address.toBase58(), kind, never: clock.never, refundAt: clock.refundAt });
+        continue;
+      }
       if ("shut" in clock) {
         parked.push({ duel: duel.address.toBase58(), kind, shut: clock.shut });
         continue;
@@ -270,7 +281,7 @@ export function retryAt(
     if (final !== null) return final > now ? final : firstBarEnd(now - BAR_SETTLE_SECS) + BAR_SETTLE_SECS;
   }
   const clock = clockReadyAt(d, which, now, lookup);
-  if ("shut" in clock) return undefined;
+  if (!("at" in clock)) return undefined;
   if (clock.at > now) return clock.at;
   if (side?.perp && sourceAt(boundary, side) === "perp") {
     return now + (now - clock.at < PERP_FAST_RETRY_WINDOW_SECS ? 5 : PERP_SLOW_RETRY_SECS);
@@ -345,8 +356,9 @@ export async function pythUpdateAt(hermes: HermesClient | undefined, d: DuelView
     update = await hermes.getPriceUpdatesAtTimestamp(boundary, feeds, { encoding: "base64", parsed: true });
   } catch (e) {
     /* Just past a boundary, Hermes answers 404 until it has indexed the first
-     * print after it. The price clock has already parked every side whose
-     * market is shut, so a 404 here is Hermes being a moment behind. */
+     * print after it. The price clock has already set aside every Pyth side
+     * whose boundary fell where Pyth prints nothing (priceClock.ts, Never), so
+     * a 404 here is Hermes being a moment behind. */
     if (/status: 404/.test(e instanceof Error ? e.message : String(e))) {
       throw new NotYet(`Hermes has no price after ${boundary} yet`, nowSecs() + PYTH_GRACE_SECS);
     }

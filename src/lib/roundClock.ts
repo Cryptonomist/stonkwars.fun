@@ -20,13 +20,24 @@
  * The countdown runs to readyAt + 2 because a crank sent at readyAt takes a
  * second or two to land. " · retrying" follows the waiting lines after a nudge
  * has failed. A side whose market is shut keeps the page's existing wording.
+ * A fight the price clock says can never be priced gets no countdown and no
+ * button, only that, and when the program lets its stakes go home.
  *
  * IT ADVISES, IT NEVER DECIDES, like the price clock under it. Pure: all times
  * are unix seconds, `now` is the page's clock, and the nudge's measured skew
  * turns it into the server's. */
 
 import { STATUS_ACCEPTED, STATUS_LIVE, type DuelView } from "./duel";
-import { MANUAL_FALLBACK_SECS, readyAt, readySince, type ClockDuel, type MarketLookup, type ReadyWhy } from "./priceClock";
+import { etDay } from "./format";
+import {
+  MANUAL_FALLBACK_SECS,
+  readyAt,
+  readySince,
+  type ClockDuel,
+  type MarketLookup,
+  type Never,
+  type ReadyWhy,
+} from "./priceClock";
 
 export type RoundClockDuel = ClockDuel & Pick<DuelView, "status">;
 
@@ -82,15 +93,45 @@ function waitingOn(why: ReadyWhy, n: number, which: "start" | "settle"): string 
  * its bell once that has rung. It used to ask whether each stock priced NOW,
  * so a fight whose end price printed at the bell and was not yet settled read
  * "waiting for the open" as soon as its market closed, and lost its button
- * for a price that already existed. With Pyth stocks rightly shut in
- * after-hours, that would have been every late Pyth settle from 4pm. Empty
- * when nothing waits, or the fight is at no boundary. */
+ * for a price that already existed. A Pyth side is never shut: it prices at
+ * once or never (neverSides). Empty when nothing waits, or the fight is at no
+ * boundary. */
 export function shutSides(d: RoundClockDuel, now: number, lookup?: MarketLookup): string[] {
   if (!now) return [];
   const which = d.status === STATUS_ACCEPTED ? "start" : d.status === STATUS_LIVE && now >= d.endTs ? "settle" : null;
   if (!which) return [];
   const clock = readyAt(d, which, now, lookup);
   return "shut" in clock ? clock.shut : [];
+}
+
+/* A FIGHT NOTHING WILL EVER PRICE, AT THE BOUNDARY IT IS AT.
+ *
+ * The price clock's "never", asked the way shutSides asks for "shut": the
+ * start once a fight is accepted, the bell once it has rung. 4yf7 is the case:
+ * TSLA by Pyth, taken at 10:21 PM on a Friday, when Pyth prints nothing until
+ * Sunday night. The page must neither count down to a price nor offer to post
+ * one, and must say when the stakes can go home. Null when every side can be
+ * priced, or the fight is at no boundary. */
+export function neverSides(d: RoundClockDuel, now: number, lookup?: MarketLookup): Never | null {
+  if (!now) return null;
+  const which = d.status === STATUS_ACCEPTED ? "start" : d.status === STATUS_LIVE && now >= d.endTs ? "settle" : null;
+  if (!which) return null;
+  const clock = readyAt(d, which, now, lookup);
+  return "never" in clock ? clock : null;
+}
+
+/** "Pyth has no TSLA price for the moment it was taken, and never will." */
+export function neverWords(n: Never, which: "start" | "settle"): string {
+  const moment = which === "start" ? "the moment it was taken" : "its bell";
+  return `Pyth has no ${n.never.join(" or ")} price for ${moment}, and never will.`;
+}
+
+/** "Both stakes can be sent home from Fri 18 Sep, 10:22 PM ET.", or that they
+ *  can now. The minute is rounded up: 4yf7's refund opens at 10:21:49, and
+ *  "from 10:21" would send somebody to a button the program still refuses. */
+export function refundWords(n: Never, now: number): string {
+  if (now >= n.refundAt) return "Anyone can send both stakes home.";
+  return `Both stakes can be sent home from ${etDay(Math.ceil(n.refundAt / 60) * 60)}.`;
 }
 
 export function roundClock(
@@ -112,6 +153,13 @@ export function roundClock(
   } else return NOTHING;
 
   const clock = readySince(d, which, Math.floor(t), lookup);
+  if ("never" in clock) {
+    return {
+      line: `${which === "start" ? "Can never start" : "Can never settle"} · ${neverWords(clock, which)} ${refundWords(clock, t)}`,
+      secondsLeft: null,
+      manual: null,
+    };
+  }
   if ("shut" in clock) {
     return {
       line:

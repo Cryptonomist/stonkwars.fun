@@ -40,7 +40,8 @@ export const maxDuration = 60;
  * leaves settler.server.ts.
  *
  * CHEAP UNTIL SOMETHING IS REALLY DUE. A fight with nothing to do, or whose
- * market is shut, or whose price is more than NEAR_SECS away, is answered from
+ * market is shut, or that can never be priced (a Pyth side in Pyth's dark
+ * hours), or whose price is more than NEAR_SECS away, is answered from
  * one cached account read and the price clock, with no price source asked.
  * Only a fight whose price is about to exist gets a crank attempt, and the gate
  * (lib/nudgeGate.server.ts) turns any crowd asking about it into one. */
@@ -169,6 +170,7 @@ async function nudge(address: PublicKey): Promise<Reply> {
   let why: CrankJob["why"] = "refund";
   if (job.kind !== "refund") {
     const clock = readyAt(d, job.kind, now, quoteSymbolFor);
+    if ("never" in clock) return { state: "never-priced", tickers: clock.never, refundAt: clock.refundAt };
     if ("shut" in clock) return { state: "waiting-for-market", tickers: clock.shut };
     // Never earlier than the boundary itself, as the cron's listing floors it.
     at = Math.max(clock.at, job.boundary);

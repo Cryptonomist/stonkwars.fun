@@ -1,7 +1,7 @@
 import { expect } from "chai";
 
-import { SOURCE_PYTH, SOURCE_SIGNED, START_DELAY_SECS } from "../src/lib/duel";
-import { nyToMs } from "../src/lib/market";
+import { SOURCE_PYTH, SOURCE_SIGNED, STALL_REFUND_SECS, START_DELAY_SECS } from "../src/lib/duel";
+import { isTradingDay, nyParts, nyToMs } from "../src/lib/market";
 import { BAR_SETTLE_SECS } from "../src/lib/oracle";
 import { firstBarEnd, PYTH_GRACE_SECS, readyAt, type ClockDuel, type Ready } from "../src/lib/priceClock";
 import {
@@ -25,8 +25,9 @@ const ny = (y: number, m: number, d: number, hh: number, mm: number, ss = 0) =>
 /** September 2026: the 11th is a Friday, the 12th and 13th the weekend, the
  *  14th a Monday. The 7th was Labor Day. */
 const sep = (day: number, hh: number, mm: number, ss = 0) => ny(2026, 9, day, hh, mm, ss);
+const nov = (day: number, hh: number, mm: number, ss = 0) => ny(2026, 11, day, hh, mm, ss);
 
-const SATURDAY = at("2026-09-12T18:00:00Z");
+const SATURDAY = at("2026-09-12T18:00:00Z"); // 2 PM ET
 const FRIDAY_OPEN = at("2026-09-11T18:00:00Z"); // 2 PM ET
 
 // The other side prices at once and is never shut: a Pyth feed off the roster.
@@ -46,6 +47,12 @@ const oneSided = (ticker: string, boundary: number): ClockDuel => {
   };
 };
 
+/* The sentence for a Pyth side whose start would land in Pyth's dark hours. */
+const darkStart = (names: string, from: string, until: string, back: string, stocks = "a stock") =>
+  `Pyth does not publish ${names} from ${from} to ${until} ET, and a fight whose start lands then, or within a minute of it, ` +
+  `can never be priced. Pick ${stocks} Pyth does not price, or come back from ${back}.`;
+const WEEKEND = ["Friday 8:00 PM", "Sunday 8:00 PM"] as const;
+
 describe("fights across trading hours", () => {
   it("starts from two stocks that trade around the clock", () => {
     // The page's default pair and the faucet's starter set.
@@ -56,17 +63,17 @@ describe("fights across trading hours", () => {
   });
 
   it("refuses a pair with exactly one side waiting for its exchange", () => {
-    expect(pricedAt("TSLA", SATURDAY)).to.equal("waits");
+    expect(pricedAt("NFLX", SATURDAY)).to.equal("waits");
     const said =
-      "TSLA waits for its exchange to open but NVDA trades now, so their start prices would be days apart. " +
+      "NFLX waits for its exchange to open but NVDA trades now, so their start prices would be days apart. " +
       "Pick two that both trade now, or two that both wait.";
-    expect(mixedHoursAt("TSLA", "NVDA", SATURDAY)).to.equal(said);
-    expect(mixedHoursAt("NVDA", "TSLA", SATURDAY)).to.equal(said);
+    expect(mixedHoursAt("NFLX", "NVDA", SATURDAY)).to.equal(said);
+    expect(mixedHoursAt("NVDA", "NFLX", SATURDAY)).to.equal(said);
   });
 
   it("allows two that both trade, two that both wait, and any pair in session", () => {
     expect(mixedHoursAt("AAPL", "NVDA", SATURDAY)).to.equal(null);
-    expect(mixedHoursAt("TSLA", "QQQ", SATURDAY)).to.equal(null);
+    expect(mixedHoursAt("NFLX", "JPM", SATURDAY)).to.equal(null);
     expect(mixedHoursAt("TSLA", "NVDA", FRIDAY_OPEN)).to.equal(null);
   });
 
@@ -93,17 +100,31 @@ describe("fights across trading hours", () => {
     expect(kind("BYDCO")).to.equal("signed HK false false");
   });
 
-  describe("a Pyth stock keeps the regular session's hours", () => {
-    it("prices only from 9:30 to the close, whatever its perp or the exchange's bars do", () => {
-      expect(pricedAt("TSLA", sep(14, 8, 0))).to.equal("waits"); // pre-market
-      expect(pricedAt("TSLA", sep(14, 9, 29, 59))).to.equal("waits");
-      expect(pricedAt("TSLA", sep(14, 9, 30))).to.equal("exchange");
-      expect(pricedAt("TSLA", sep(14, 10, 0))).to.equal("exchange"); // open
-      expect(pricedAt("TSLA", sep(14, 15, 59, 59))).to.equal("exchange");
-      expect(pricedAt("TSLA", sep(14, 16, 0))).to.equal("waits");
-      expect(pricedAt("TSLA", sep(11, 19, 0))).to.equal("waits"); // after-hours
-      expect(pricedAt("TSLA", SATURDAY)).to.equal("waits"); // closed
-      expect(pricedAt("TSLA", sep(14, 22, 0))).to.equal("waits"); // closed, a weekday night
+  /* PYTH PRINTS FIVE DAYS A WEEK (market.ts, pythSpanAt).
+   *
+   * From 8 PM New York the evening before each trading day to 8 PM on it, so
+   * Sunday 8 PM to Friday 8 PM with holidays out, and a boundary less than a
+   * minute into a span is never priced. Its perp and the exchange's bars have
+   * nothing to do with it. */
+  describe("a Pyth stock prices while Pyth prints, and never in its dark hours", () => {
+    it("prices pre-market, in session, after-hours and on a weekday night, whatever its perp does", () => {
+      for (const t of [sep(14, 8, 0), sep(14, 9, 29, 59), sep(14, 9, 30), sep(14, 15, 59, 59), sep(14, 16, 0), sep(11, 19, 0), sep(14, 22, 0), sep(10, 3, 59, 59)]) {
+        expect(pricedAt("TSLA", t), new Date(t * 1000).toISOString()).to.equal("pyth");
+        expect(firstPriceAt("TSLA", t)).to.equal(t);
+        expect(priceTimeAt("TSLA", t)).to.equal(t);
+      }
+    });
+
+    it("never prices from Friday 8 PM until a minute after Sunday 8 PM", () => {
+      expect(pricedAt("TSLA", sep(11, 19, 59, 59))).to.equal("pyth");
+      for (const t of [sep(11, 20, 0), SATURDAY, sep(13, 19, 59, 59), sep(13, 20, 0), sep(13, 20, 0, 30), sep(13, 20, 0, 59)]) {
+        expect(pricedAt("TSLA", t), new Date(t * 1000).toISOString()).to.equal("never");
+        expect(firstPriceAt("TSLA", t)).to.equal(null);
+        expect(priceTimeAt("TSLA", t)).to.equal(null);
+      }
+      expect(pricedAt("TSLA", sep(13, 20, 1))).to.equal("pyth");
+      // Its perp would price it all weekend; Pyth is what prices it.
+      expect(pricedAt("NVDA", SATURDAY)).to.equal("perp");
     });
 
     it("leaves a signed stock on its exchange's bars from 4am to 8pm", () => {
@@ -116,10 +137,10 @@ describe("fights across trading hours", () => {
       expect(pricedAt("BYDCO", SATURDAY)).to.equal("exchange");
     });
 
-    it("dates each side's first price to the opening it waits for", () => {
-      expect(firstPriceAt("TSLA", sep(11, 19, 0))).to.equal(sep(14, 9, 30));
-      expect(firstPriceAt("TSLA", sep(14, 8, 0))).to.equal(sep(14, 9, 30));
-      expect(firstPriceAt("TSLA", sep(14, 10, 0))).to.equal(sep(14, 10, 0));
+    it("dates each side's first price to the opening it waits for, and a Pyth side to none", () => {
+      expect(firstPriceAt("TSLA", sep(11, 19, 0))).to.equal(sep(11, 19, 0));
+      expect(firstPriceAt("TSLA", sep(14, 8, 0))).to.equal(sep(14, 8, 0));
+      expect(firstPriceAt("TSLA", SATURDAY)).to.equal(null);
       expect(firstPriceAt("NFLX", SATURDAY)).to.equal(sep(14, 4, 0));
       expect(firstPriceAt("NFLX", sep(11, 19, 0))).to.equal(sep(11, 19, 0));
       expect(firstPriceAt("NVDA", SATURDAY)).to.equal(SATURDAY);
@@ -128,41 +149,141 @@ describe("fights across trading hours", () => {
     });
   });
 
-  describe("refuses a start the gap between two markets would decide", () => {
-    /* The bug: at 7pm on a Friday TSLA v NVDA could be taken. NVDA started
-     * from its 7:01pm after-hours bar and TSLA from Monday's 9:30 Pyth print,
-     * so the weekend decided the fight. */
-    /* Nasdaq is trading at both moments, so TSLA is not waiting for its
-     * exchange: it is waiting for Pyth, and the sentence says that. */
-    it("refuses TSLA v NVDA at 7pm on a Friday, and at 8am on a Monday, saying Pyth is what TSLA waits for", () => {
-      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 0))).to.equal(
-        "TSLA is priced by Pyth, which does not print until Monday's 9:30 AM ET opening bell, but NVDA trades now, " +
-          "so their start prices would be days apart. Pick two that both trade now, or two that both wait.",
+  /* A FIGHT WHOSE PYTH SIDE CAN NEVER BE PRICED IS REFUSED, WHATEVER THE OTHER SIDE.
+   *
+   * The plan's cases (docs/247-pricing.md, Step 1), for the boundary a take
+   * lands on: accepted_ts + START_DELAY_SECS, anywhere in the TAKE_SLACK_SECS
+   * after the take is sent. A boundary is refused within PYTH_EDGE_SECS of
+   * either end of a gap, and in it. */
+  describe("refuses a fight whose Pyth side would land where Pyth is dark", () => {
+    const week = sep(18, 15, 59, 30);
+    const bell = { durationSecs: 0, endTs: week, expiresTs: sep(18, 15, 54, 30) };
+
+    it("allows a TSLA boundary at Fri 7:58:59 PM, and refuses one at 7:59:30 PM and on Saturday", () => {
+      // Sent at 7:57:27, the latest landing starts at 7:58:59; sent at 7:57:28, at 7:59:00, the last allowed second.
+      expect(sep(11, 19, 57, 27) + TAKE_SLACK_SECS + START_DELAY_SECS).to.equal(sep(11, 19, 58, 59));
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 57, 27), bell)).to.equal(null);
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 57, 28), bell)).to.equal(null);
+      const refused = darkStart("TSLA", ...WEEKEND, "Sunday's 8:01 PM ET");
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 57, 29), bell)).to.equal(refused);
+      // A take that lands at once, with its boundary at 7:59:30.
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 59, 28), bell)).to.equal(refused);
+      expect(mixedHoursAt("TSLA", "NVDA", SATURDAY)).to.equal(refused);
+      expect(mixedHoursAt("NVDA", "TSLA", SATURDAY)).to.equal(refused);
+    });
+
+    it("refuses a boundary at Sun 8:00:30 PM and allows one at 8:01:00 PM", () => {
+      const refused = darkStart("TSLA", ...WEEKEND, "Sunday's 8:01 PM ET");
+      expect(mixedHoursAt("TSLA", "NVDA", sep(13, 20, 0, 28), bell)).to.equal(refused);
+      expect(mixedHoursAt("TSLA", "NVDA", sep(13, 20, 0, 57), bell)).to.equal(refused);
+      expect(mixedHoursAt("TSLA", "NVDA", sep(13, 20, 0, 58), bell)).to.equal(null);
+      expect(mixedHoursAt("TSLA", "NVDA", sep(13, 20, 0, 58))).to.equal(null);
+    });
+
+    it("allows a boundary at Thu 3:59:59 AM, in the middle of a weekday night", () => {
+      expect(mixedHoursAt("TSLA", "NVDA", sep(10, 3, 59, 57), bell)).to.equal(null);
+      expect(mixedHoursAt("TSLA", "QQQ", sep(10, 3, 59, 57), { durationSecs: 900, endTs: 0 })).to.equal(null);
+      expect(mixedHoursAt("VOO", "TSLA", sep(9, 19, 59, 58), { durationSecs: 3_600, endTs: 0 })).to.equal(null);
+    });
+
+    it("refuses Sun 6 Sep 9 PM, before Labor Day, and allows Mon 7 Sep 8:01 PM", () => {
+      expect(mixedHoursAt("TSLA", "NVDA", sep(6, 20, 59, 58))).to.equal(
+        darkStart("TSLA", "Friday 8:00 PM", "Monday 8:00 PM", "Monday's 8:01 PM ET"),
       );
-      expect(mixedHoursAt("NVDA", "TSLA", sep(14, 8, 0))).to.equal(
-        "TSLA is priced by Pyth, which does not print until Monday's 9:30 AM ET opening bell, but NVDA trades now, " +
-          "so their start prices would be hours apart. Pick two that both trade now, or two that both wait.",
+      expect(mixedHoursAt("TSLA", "NVDA", sep(7, 10, 0))).to.match(/^Pyth does not publish TSLA from Friday 8:00 PM to Monday 8:00 PM ET/);
+      expect(mixedHoursAt("TSLA", "NVDA", sep(7, 20, 0, 58))).to.equal(null);
+    });
+
+    it("refuses two Pyth stocks in the same gap, which used to be allowed as waiting together", () => {
+      expect(mixedHoursAt("TSLA", "QQQ", SATURDAY)).to.equal(darkStart("TSLA or QQQ", ...WEEKEND, "Sunday's 8:01 PM ET", "stocks"));
+      expect(mixedHoursAt("VOO", "VOO", SATURDAY)).to.equal(darkStart("VOO", ...WEEKEND, "Sunday's 8:01 PM ET"));
+    });
+
+    it("refuses a round whose end would land in the dark, and allows one that ends before", () => {
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 30), { durationSecs: 3_600, endTs: 0 })).to.equal(
+        "This round would end around Friday 8:31 PM ET, but Pyth does not publish TSLA from Friday 8:00 PM to Sunday 8:00 PM ET, " +
+          "and an end that lands then, or within a minute of it, can never be priced. " +
+          "Pick a round that ends while Pyth publishes, or a stock Pyth does not price.",
+      );
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 30), { durationSecs: 900, endTs: 0 })).to.equal(null);
+      expect(mixedHoursAt("TSLA", "QQQ", sep(11, 15, 0), { durationSecs: 5 * 3_600, endTs: 0 })).to.equal(
+        "This round would end around Friday 8:00 PM ET, but Pyth does not publish TSLA or QQQ from Friday 8:00 PM to Sunday 8:00 PM ET, " +
+          "and an end that lands then, or within a minute of it, can never be priced. " +
+          "Pick a round that ends while Pyth publishes, or stocks Pyth does not price.",
+      );
+      // A fixed end on Saturday, taken on Friday afternoon.
+      expect(mixedHoursAt("VOO", "NVDA", sep(11, 14, 0), { durationSecs: 0, endTs: SATURDAY })).to.equal(
+        "This round would end at Saturday 2:00 PM ET, but Pyth does not publish VOO from Friday 8:00 PM to Sunday 8:00 PM ET, " +
+          "and an end that lands then, or within a minute of it, can never be priced. " +
+          "Pick a round that ends while Pyth publishes, or a stock Pyth does not price.",
       );
     });
 
-    it("allows TSLA v NVDA at 10am on a Monday", () => {
+    /* Five minutes from 7:52:28pm: the far end of the take window starts at
+     * 7:54:00, NVDA's start bar closes at 7:55:00, and the round ends at
+     * 8:00:00. A take sent a second earlier ends at 7:59:00 at the latest. */
+    it("ends a timed round where the program does, from the later side's start price, across the take window", () => {
+      const five = { durationSecs: 300, endTs: 0 };
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 52, 27), five)).to.equal(null);
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 52, 28), five)).to.match(
+        /^This round would end around Friday 8:00 PM ET, but Pyth does not publish TSLA from Friday 8:00 PM to Sunday 8:00 PM ET/,
+      );
+    });
+
+    it("knows the half day after Thanksgiving: Pyth is taken to stop at 1 PM", () => {
+      expect(mixedHoursAt("TSLA", "NVDA", nov(27, 12, 30))).to.equal(null);
+      expect(mixedHoursAt("TSLA", "NVDA", nov(27, 12, 57, 28))).to.equal(null);
+      expect(mixedHoursAt("TSLA", "NVDA", nov(27, 12, 57, 29))).to.equal(
+        darkStart("TSLA", "Friday 1:00 PM", "Sunday 8:00 PM", "Sunday's 8:01 PM ET"),
+      );
+      expect(pricedAt("TSLA", nov(27, 13, 0))).to.equal("never");
+      expect(firstPriceAt("TSLA", nov(27, 13, 30))).to.equal(null);
+      expect(mixedHoursAt("TSLA", "NFLX", nov(27, 16, 30))).to.match(/^Pyth does not publish TSLA from Friday 1:00 PM to Sunday 8:00 PM ET/);
+      // Thanksgiving itself is dark from Wednesday 8 PM, and Friday's span starts Thursday 8 PM.
+      expect(firstPriceAt("VOO", nov(26, 12, 0))).to.equal(null);
+      expect(mixedHoursAt("VOO", "NVDA", nov(26, 12, 0))).to.equal(
+        darkStart("VOO", "Wednesday 8:00 PM", "Thursday 8:00 PM", "Thursday's 8:01 PM ET"),
+      );
+      expect(pricedAt("VOO", nov(26, 21, 0))).to.equal("pyth");
+      expect(pricedAt("NVDA", nov(26, 12, 0))).to.equal("perp");
+    });
+
+    it("keeps Pyth's 8 PM on New York's clock across daylight saving changes", () => {
+      // Clocks go back on Sunday 1 November 2026: 8 PM that night is 01:00 UTC.
+      expect(firstPriceAt("TSLA", at("2026-11-02T01:00:30Z"))).to.equal(null);
+      expect(firstPriceAt("TSLA", at("2026-11-02T01:01:00Z"))).to.equal(at("2026-11-02T01:01:00Z"));
+      expect(firstPriceAt("TSLA", at("2026-10-31T00:00:00Z"))).to.equal(null); // Friday 30 Oct, 8 PM EDT
+      expect(firstPriceAt("TSLA", at("2026-10-30T23:59:59Z"))).to.equal(at("2026-10-30T23:59:59Z"));
+      // And forward on Sunday 14 March 2027: 8 PM is 00:00 UTC again.
+      expect(firstPriceAt("TSLA", at("2027-03-15T00:00:30Z"))).to.equal(null);
+      expect(firstPriceAt("TSLA", at("2027-03-15T00:01:00Z"))).to.equal(at("2027-03-15T00:01:00Z"));
+      expect(mixedHoursAt("TSLA", "NVDA", at("2027-03-13T16:00:00Z"))).to.equal(darkStart("TSLA", ...WEEKEND, "Sunday's 8:01 PM ET"));
+    });
+  });
+
+  describe("refuses a start the gap between two markets would decide", () => {
+    /* The bug this began with: at 7pm on a Friday TSLA v NVDA could be taken,
+     * with TSLA's start at Monday's opening bell. Pyth prints at 7pm, so both
+     * start then; a stock with neither perp nor pool is the one that waits. */
+    it("allows TSLA v NVDA at 7pm on a Friday and 8am on a Monday, when Pyth prints", () => {
+      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 0))).to.equal(null);
+      expect(mixedHoursAt("NVDA", "TSLA", sep(14, 8, 0))).to.equal(null);
       expect(mixedHoursAt("TSLA", "NVDA", sep(14, 10, 0))).to.equal(null);
     });
 
-    it("allows two Pyth stocks together outside the session, waiting for the same bell", () => {
-      expect(mixedHoursAt("TSLA", "QQQ", SATURDAY)).to.equal(null);
-      expect(mixedHoursAt("TSLA", "QQQ", sep(11, 19, 0))).to.equal(null);
-      expect(mixedHoursAt("VOO", "TSLA", sep(14, 8, 0))).to.equal(null);
+    it("refuses a stock that waits for its exchange against a Pyth stock or a perp on a weekday night", () => {
+      const said =
+        "NFLX waits for its exchange to open but TSLA trades now, so their start prices would be hours apart. " +
+        "Pick two that both trade now, or two that both wait.";
+      expect(mixedHoursAt("TSLA", "NFLX", sep(14, 21, 0))).to.equal(said);
+      expect(mixedHoursAt("NFLX", "TSLA", sep(14, 21, 0))).to.equal(said);
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 21, 0))).to.equal(said.replace("TSLA", "NVDA"));
     });
 
-    it("refuses a Pyth stock against one with neither perp nor pool on a Saturday: both wait, for different openings", () => {
-      const said =
-        "NFLX would start at Monday's 4:00 AM ET pre-market open but TSLA not until Monday's 9:30 AM ET opening bell, " +
-        "so their start prices would be hours apart. Pick two that open at the same time, or two that both trade now.";
-      expect(mixedHoursAt("TSLA", "NFLX", SATURDAY)).to.equal(said);
-      expect(mixedHoursAt("NFLX", "TSLA", SATURDAY)).to.equal(said);
-      // After 8pm on a weekday, the same two openings the next morning.
-      expect(mixedHoursAt("TSLA", "NFLX", sep(14, 21, 0))).to.equal(said.replace(/Monday/g, "Tuesday"));
+    it("allows two Pyth stocks together whenever Pyth prints", () => {
+      expect(mixedHoursAt("TSLA", "QQQ", sep(11, 19, 0))).to.equal(null);
+      expect(mixedHoursAt("VOO", "TSLA", sep(14, 8, 0))).to.equal(null);
+      expect(mixedHoursAt("TSLA", "QQQ", sep(14, 22, 0), { durationSecs: 3_600, endTs: 0 })).to.equal(null);
     });
 
     it("allows two stocks with neither perp nor pool on a Saturday, and a stock abroad against a perp", () => {
@@ -171,21 +292,24 @@ describe("fights across trading hours", () => {
     });
 
     /* The tolerance is on the times the program records, not on boundaries.
-     * Taken at 9:28:59, the start boundary is 9:29:01: NVDA's price is the
-     * pre-market bar closing at 9:30:00 and TSLA's the 9:30:00 print, the same
-     * moment. Taken at 9:27:57 the bar closes at 9:28:00, two minutes early. */
+     * A Pyth print carries its boundary and a bar the end of the minute the
+     * boundary falls in, never more than a minute apart, so a Pyth stock and a
+     * bar-priced one that both price start together. Across the 4am opening:
+     * taken at 3:58:58, NVDA's perp bar closes at 4:00:00 and NFLX's first bar
+     * at 4:01:00; taken at 3:58:57, NVDA's closes at 3:59:00, two minutes early. */
     it("counts two price times within a minute as starting together", () => {
       expect(SAME_PRICE_SECS).to.equal(60);
       expect(priceTimeAt("NVDA", sep(14, 9, 29, 1))).to.equal(sep(14, 9, 30));
-      expect(priceTimeAt("TSLA", sep(14, 9, 29, 1))).to.equal(sep(14, 9, 30));
-      expect(apartIfTakenAt("TSLA", "NVDA", sep(14, 9, 29, 59))).to.equal(null);
-      expect(apartIfTakenAt("TSLA", "NVDA", sep(14, 9, 28, 59))).to.equal(null);
-      expect(apartIfTakenAt("TSLA", "NVDA", sep(14, 9, 27, 58))).to.equal(null);
-      expect(apartIfTakenAt("TSLA", "NVDA", sep(14, 9, 27, 57))).to.deep.include({ at: "start", early: "NVDA", secs: 120 });
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 9, 27, 58))).to.equal(null);
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 9, 27, 57))).to.equal(
-        "TSLA is priced by Pyth, which does not print until Monday's 9:30 AM ET opening bell, but NVDA trades now, " +
-          "so their start prices would be minutes apart. Pick two that both trade now, or two that both wait.",
+      expect(priceTimeAt("TSLA", sep(14, 9, 29, 1))).to.equal(sep(14, 9, 29, 1));
+      for (const t of [sep(14, 9, 27, 57), sep(14, 9, 27, 58), sep(14, 21, 59, 58), sep(11, 19, 11, 35)]) {
+        expect(apartIfTakenAt("TSLA", "NVDA", t), new Date(t * 1000).toISOString()).to.equal(null);
+      }
+      expect(apartIfTakenAt("NFLX", "NVDA", sep(14, 3, 58, 58))).to.equal(null);
+      expect(apartIfTakenAt("NFLX", "NVDA", sep(14, 3, 58, 57))).to.deep.include({ at: "start", early: "NVDA", late: "NFLX", secs: 120 });
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 3, 58, 58))).to.equal(null);
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 3, 58, 57))).to.equal(
+        "NFLX waits for its exchange to open but NVDA trades now, so their start prices would be minutes apart. " +
+          "Pick two that both trade now, or two that both wait.",
       );
     });
 
@@ -201,25 +325,16 @@ describe("fights across trading hours", () => {
       expect(apartIfTakenAt("SPY", "NFLX", sep(3, 3, 59, 58))).to.equal(null);
     });
 
-    /* NFLX has neither perp nor pool, so at 3:59:30am it does not trade yet:
-     * both wait, for different openings. */
-    it("says a side trades now only when it prices at the start itself", () => {
-      expect(mixedHoursAt("NFLX", "TSLA", sep(14, 3, 59, 30))).to.equal(
-        "NFLX would start at Monday's 4:00 AM ET pre-market open but TSLA not until Monday's 9:30 AM ET opening bell, " +
-          "so their start prices would be hours apart. Pick two that open at the same time, or two that both trade now.",
-      );
-    });
-
     /* BYDCO trades in Hong Kong, whose hours nothing here models. It is still
      * never called a wait, so these pairs are refused as before, but nobody is
      * told that BYDCO trades now when Hong Kong is shut. */
     it("never says a listing abroad trades now", () => {
-      expect(mixedHoursAt("BYDCO", "TSLA", sep(14, 8, 0))).to.equal(
-        "TSLA is priced by Pyth, which does not print until Monday's 9:30 AM ET opening bell, but BYDCO is priced on " +
-          "its own exchange's hours, so the two would not start together. Pick two that both trade now, or two that both wait.",
+      expect(mixedHoursAt("BYDCO", "NFLX", sep(14, 22, 0))).to.equal(
+        "NFLX waits for its exchange to open but BYDCO is priced on its own exchange's hours, so the two would not start together. " +
+          "Pick two that both trade now, or two that both wait.",
       );
-      expect(mixedHoursAt("BYDCO", "TSLA", sep(14, 15, 30), { durationSecs: 3_600, endTs: 0 })).to.equal(
-        "This round would end around Monday 4:31 PM ET, when TSLA waits for Tuesday's 9:30 AM ET opening bell but BYDCO " +
+      expect(mixedHoursAt("BYDCO", "NFLX", sep(14, 19, 30), { durationSecs: 3_600, endTs: 0 })).to.equal(
+        "This round would end around Monday 8:31 PM ET, when NFLX waits for Tuesday's 4:00 AM ET pre-market open but BYDCO " +
           "is priced on its own exchange's hours, so the two would not end together. " +
           "Pick a round that ends while both trade, or two that trade the same hours.",
       );
@@ -227,92 +342,80 @@ describe("fights across trading hours", () => {
 
     it("knows a holiday: Labor Day waits for Tuesday", () => {
       const labor = sep(7, 10, 0);
-      expect(pricedAt("TSLA", labor)).to.equal("waits");
+      expect(pricedAt("TSLA", labor)).to.equal("never");
       expect(pricedAt("NVDA", labor)).to.equal("perp");
-      expect(firstPriceAt("TSLA", labor)).to.equal(sep(8, 9, 30));
       expect(firstPriceAt("NFLX", labor)).to.equal(sep(8, 4, 0));
-      expect(mixedHoursAt("TSLA", "NVDA", labor)).to.equal(
-        "TSLA waits for its exchange to open but NVDA trades now, so their start prices would be hours apart. " +
+      expect(mixedHoursAt("NFLX", "NVDA", labor)).to.equal(
+        "NFLX waits for its exchange to open but NVDA trades now, so their start prices would be hours apart. " +
           "Pick two that both trade now, or two that both wait.",
       );
-      expect(mixedHoursAt("TSLA", "NFLX", labor)).to.match(/^NFLX would start at Tuesday's 4:00 AM ET pre-market open but TSLA not until Tuesday's 9:30 AM ET opening bell,/);
-      expect(mixedHoursAt("TSLA", "QQQ", labor)).to.equal(null);
+      expect(mixedHoursAt("NFLX", "JPM", labor)).to.equal(null);
     });
 
     /* The day after Thanksgiving the session closes at 1pm and after-hours at
      * 5pm, and the next session is Monday's. */
     it("knows an early close", () => {
-      const nov = (day: number, hh: number, mm: number) => ny(2026, 11, day, hh, mm);
-      expect(mixedHoursAt("TSLA", "NVDA", nov(27, 12, 30))).to.equal(null);
-      expect(pricedAt("TSLA", nov(27, 13, 0))).to.equal("waits");
-      expect(firstPriceAt("TSLA", nov(27, 13, 30))).to.equal(nov(30, 9, 30));
-      expect(mixedHoursAt("TSLA", "NVDA", nov(27, 13, 30))).to.match(/would be days apart/);
       expect(pricedAt("NFLX", nov(27, 16, 30))).to.equal("exchange");
-      expect(mixedHoursAt("TSLA", "NFLX", nov(27, 16, 30))).to.match(
-        /^TSLA is priced by Pyth, which does not print until Monday's 9:30 AM ET opening bell, but NFLX trades now/,
-      );
       expect(firstPriceAt("NFLX", nov(27, 17, 30))).to.equal(nov(30, 4, 0));
-      expect(mixedHoursAt("TSLA", "NFLX", nov(27, 17, 30))).to.match(/^NFLX would start at Monday's 4:00 AM ET/);
+      expect(mixedHoursAt("NFLX", "NVDA", nov(27, 17, 30))).to.match(/^NFLX waits for its exchange to open but NVDA trades now, so their start prices would be days apart\./);
       // Thanksgiving itself: nothing on the exchange, the perp as ever.
       expect(pricedAt("NVDA", nov(26, 12, 0))).to.equal("perp");
-      expect(firstPriceAt("VOO", nov(26, 12, 0))).to.equal(nov(27, 9, 30));
+      expect(firstPriceAt("NFLX", nov(26, 12, 0))).to.equal(nov(27, 4, 0));
     });
 
     /* Clocks go back on 1 November 2026 and forward on 14 March 2027. The
-     * openings stay at 9:30 and 4:00 in New York, so they move an hour in UTC,
-     * and the words stay the same. */
+     * openings stay at 4:00 in New York, so they move an hour in UTC, and the
+     * words stay the same. */
     it("keeps the openings on New York's clock across daylight saving changes", () => {
-      expect(firstPriceAt("TSLA", at("2026-10-31T16:00:00Z"))).to.equal(at("2026-11-02T14:30:00Z"));
       expect(firstPriceAt("NFLX", at("2026-10-31T16:00:00Z"))).to.equal(at("2026-11-02T09:00:00Z"));
-      expect(firstPriceAt("TSLA", at("2026-10-29T21:00:00Z"))).to.equal(at("2026-10-30T13:30:00Z"));
-      expect(firstPriceAt("TSLA", at("2027-03-13T16:00:00Z"))).to.equal(at("2027-03-15T13:30:00Z"));
       expect(firstPriceAt("NFLX", at("2027-03-13T16:00:00Z"))).to.equal(at("2027-03-15T08:00:00Z"));
-      expect(mixedHoursAt("TSLA", "NFLX", at("2026-10-31T16:00:00Z"))).to.match(
-        /^NFLX would start at Monday's 4:00 AM ET pre-market open but TSLA not until Monday's 9:30 AM ET opening bell,/,
+      const round = { durationSecs: 300, endTs: 0, expiresTs: at("2026-11-03T16:00:00Z") };
+      expect(mixedHoursAt("NFLX", "NVDA", at("2026-10-31T16:00:00Z"), round, "taker")).to.match(
+        / You can take it from Monday's 4:00 AM ET pre-market open\.$/,
       );
-      // 9:29 and 9:31 New York on the Monday after the change, in session or not.
-      expect(pricedAt("TSLA", at("2026-11-02T14:29:00Z"))).to.equal("waits");
-      expect(pricedAt("TSLA", at("2026-11-02T14:31:00Z"))).to.equal("exchange");
+      expect(nextFairTake("NFLX", "NVDA", at("2026-10-31T16:00:00Z"), round)).to.equal(at("2026-11-02T09:00:00Z"));
     });
   });
 
   describe("refuses a round that would end where the two markets part", () => {
     const hour = { durationSecs: 3_600, endTs: 0 };
 
-    /* Taken at 3:30:00, NVDA's start price is the bar closing at 3:31:00, so
-     * the program ends the hour at 4:31:00. */
-    it("refuses TSLA v NVDA for an hour from 3:30pm, and allows fifteen minutes", () => {
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 30), hour)).to.equal(
-        "This round would end around Monday 4:31 PM ET, when NVDA still trades but TSLA waits for Tuesday's 9:30 AM ET opening bell, " +
+    /* Taken at 7:30:00, NVDA's start price is the bar closing at 7:31:00, so
+     * the program ends the hour at 8:31:00, when NFLX's bars have stopped. */
+    it("refuses NFLX v NVDA for an hour from 7:30pm, and allows fifteen minutes", () => {
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 30), hour)).to.equal(
+        "This round would end around Monday 8:31 PM ET, when NVDA still trades but NFLX waits for Tuesday's 4:00 AM ET pre-market open, " +
           "so their end prices would be hours apart. Pick a round that ends while both trade, or two that trade the same hours.",
       );
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 30), { durationSecs: 900, endTs: 0 })).to.equal(null);
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 30), { durationSecs: 900, endTs: 0 })).to.equal(null);
+      // A Pyth stock prints after 8pm on a Monday, so TSLA v NVDA is fair for the hour.
+      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 19, 30), hour)).to.equal(null);
+      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 30), hour)).to.equal(null);
     });
 
     it("says days when the weekend is in the gap", () => {
-      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 15, 30), hour)).to.match(
-        /^This round would end around Friday 4:31 PM ET, when NVDA still trades but TSLA waits for Monday's 9:30 AM ET opening bell, so their end prices would be days apart\./,
+      expect(mixedHoursAt("NFLX", "NVDA", sep(11, 19, 30), hour)).to.match(
+        /^This round would end around Friday 8:31 PM ET, when NVDA still trades but NFLX waits for Monday's 4:00 AM ET pre-market open, so their end prices would be days apart\./,
       );
     });
 
     /* The program ends a timed round its length after the later start price,
      * and a bar's start price is the end of the bar the boundary falls in.
-     * Accepted at 3:53:58, the boundary is 3:54:00, NVDA's bar ends 3:55:00
-     * and the round at 4:00:00, after TSLA's last print. At 3:53:57 the
-     * boundary is 3:53:59 and the round ends 3:59:00, where NVDA's end bar
-     * closes at 4:00:00, a minute after TSLA's print. */
+     * Accepted at 7:53:58, the boundary is 7:54:00, the bars end 7:55:00 and
+     * the round at 8:00:00, after NFLX's last bar. At 7:53:57 the boundary is
+     * 7:53:59 and the round ends 7:59:00, whose bars close at 8:00:00. */
     it("ends a timed round where the program does, from the later side's start price", () => {
       const five = { durationSecs: 300, endTs: 0 };
-      expect(apartIfTakenAt("TSLA", "NVDA", sep(14, 15, 53, 57), five)).to.equal(null);
-      expect(apartIfTakenAt("TSLA", "NVDA", sep(14, 15, 53, 58), five)).to.deep.include({ at: "end", boundary: sep(14, 16, 0) });
-      expect(apartIfTakenAt("TSLA", "NVDA", sep(14, 15, 53, 59), five)).to.deep.include({ at: "end", boundary: sep(14, 16, 0) });
+      expect(apartIfTakenAt("NFLX", "NVDA", sep(14, 19, 53, 57), five)).to.equal(null);
+      expect(apartIfTakenAt("NFLX", "NVDA", sep(14, 19, 53, 58), five)).to.deep.include({ at: "end", boundary: sep(14, 20, 0) });
+      expect(apartIfTakenAt("NFLX", "NVDA", sep(14, 19, 53, 59), five)).to.deep.include({ at: "end", boundary: sep(14, 20, 0) });
       // And the take can land up to TAKE_SLACK_SECS after it was checked.
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 53, 58) - TAKE_SLACK_SECS - 1, five)).to.equal(null);
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 53, 58) - TAKE_SLACK_SECS, five)).to.match(
-        /^This round would end around Monday 4:00 PM ET, when NVDA still trades but TSLA waits for Tuesday's 9:30 AM ET opening bell/,
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 53, 58) - TAKE_SLACK_SECS - 1, five)).to.equal(null);
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 53, 58) - TAKE_SLACK_SECS, five)).to.match(
+        /^This round would end around Monday 8:00 PM ET, when NVDA still trades but NFLX waits for Tuesday's 4:00 AM ET pre-market open/,
       );
-      // An hour taken at 2:58:58 ends at 4:00:00 too; at 8pm, NFLX's close.
-      expect(apartIfTakenAt("TSLA", "NVDA", sep(21, 14, 58, 58), hour)).to.deep.include({ at: "end" });
+      // An hour taken at 6:58:58 ends at 8:00:00 too.
+      expect(apartIfTakenAt("NFLX", "NVDA", sep(21, 18, 58, 58), hour)).to.deep.include({ at: "end", late: "NFLX" });
       expect(apartIfTakenAt("NFLX", "NVDA", sep(18, 19, 53, 58), five)).to.deep.include({ at: "end", late: "NFLX" });
     });
 
@@ -323,29 +426,21 @@ describe("fights across trading hours", () => {
 
     it("allows two that stop together, and counts a round from a start that waited", () => {
       expect(mixedHoursAt("TSLA", "QQQ", sep(14, 15, 30), hour)).to.equal(null);
-      // Taken on Saturday, TSLA v QQQ starts at Monday's bell and ends at 10:30.
-      expect(mixedHoursAt("TSLA", "QQQ", SATURDAY, hour)).to.equal(null);
+      expect(mixedHoursAt("TSLA", "QQQ", sep(11, 18, 0), hour)).to.equal(null);
       // NFLX v JPM taken on Saturday: an hour from Monday's 4am, still in pre-market.
       expect(mixedHoursAt("NFLX", "JPM", SATURDAY, hour)).to.equal(null);
     });
 
-    it("refuses a stock with neither perp nor pool against a perp past 8pm", () => {
-      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 30), hour)).to.equal(
-        "This round would end around Monday 8:31 PM ET, when NVDA still trades but NFLX waits for Tuesday's 4:00 AM ET pre-market open, " +
-          "so their end prices would be hours apart. Pick a round that ends while both trade, or two that trade the same hours.",
-      );
-    });
-
-    it("refuses a round that would end with both waiting, for different openings", () => {
-      expect(mixedHoursAt("TSLA", "NFLX", sep(14, 15, 0), { durationSecs: 5 * 3_600, endTs: 0 })).to.equal(
-        "This round would end around Monday 8:01 PM ET, when neither trades, and NFLX would take its end price at " +
-          "Tuesday's 4:00 AM ET pre-market open but TSLA not until Tuesday's 9:30 AM ET opening bell, " +
+    it("refuses a stock with neither perp nor pool against a Pyth stock past 8pm", () => {
+      expect(mixedHoursAt("NFLX", "TSLA", sep(14, 19, 30), hour)).to.equal(
+        "This round would end around Monday 8:31 PM ET, when TSLA still trades but NFLX waits for Tuesday's 4:00 AM ET pre-market open, " +
           "so their end prices would be hours apart. Pick a round that ends while both trade, or two that trade the same hours.",
       );
     });
 
     it("checks the start before the end", () => {
-      expect(mixedHoursAt("TSLA", "NVDA", sep(11, 19, 0), hour)).to.match(/start prices would be days apart/);
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 21, 0), hour)).to.match(/start prices would be hours apart/);
+      expect(mixedHoursAt("TSLA", "NVDA", SATURDAY, hour)).to.match(/a fight whose start lands then/);
     });
   });
 
@@ -358,28 +453,27 @@ describe("fights across trading hours", () => {
   describe("refuses a take that could land after a close", () => {
     const bell = (day: number) => ({ durationSecs: 0, endTs: sep(day, 15, 59, 30), expiresTs: sep(day, 15, 54, 30) });
 
-    it("refuses a Friday-bell TSLA v NVDA taken at 3:59:58pm, and at 3:59:00pm", () => {
+    it("refuses a Friday-bell NFLX v NVDA taken at 7:59:58pm, and at 7:59:00pm", () => {
       expect(START_DELAY_SECS).to.equal(2);
       expect(TAKE_SLACK_SECS).to.equal(90);
-      // Taken at 3:59:58 the boundary is 4:00:00: TSLA's next print is Tuesday's.
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 59, 58), bell(18))).to.equal(
-        "TSLA stops pricing at 4:00 PM ET, and a take now could land after that. NVDA would then start at once but TSLA " +
-          "not until Tuesday's 9:30 AM ET opening bell, so their start prices would be hours apart. Pick two that trade the same hours.",
+      // Taken at 7:59:58 the boundary is 8:00:00: NFLX's next bar is Tuesday's.
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 59, 58), bell(18))).to.equal(
+        "NFLX stops pricing at 8:00 PM ET, and a take now could land after that. NVDA would then start at once but NFLX " +
+          "not until Tuesday's 4:00 AM ET pre-market open, so their start prices would be hours apart. Pick two that trade the same hours.",
       );
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 59, 0), bell(18))).to.match(/^TSLA stops pricing at 4:00 PM ET, and a take now could land after that\./);
-      // The last take that cannot start at 4:00:00 is sent 90 seconds before 3:59:58.
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 58, 27), bell(18))).to.equal(null);
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 58, 28), bell(18))).to.not.equal(null);
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 59, 0), bell(18))).to.match(/^NFLX stops pricing at 8:00 PM ET, and a take now could land after that\./);
+      // The last take that cannot start at 8:00:00 is sent 90 seconds before 7:59:58.
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 58, 27), bell(18))).to.equal(null);
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 58, 28), bell(18))).to.not.equal(null);
     });
 
-    it("refuses NFLX v NVDA at 7:59:58pm, on the Friday before Labor Day, and before an early close", () => {
-      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 59, 58), bell(18))).to.match(
-        /^NFLX stops pricing at 8:00 PM ET, and a take now could land after that\. NVDA would then start at once but NFLX not until Tuesday's 4:00 AM ET pre-market open/,
-      );
+    it("refuses NFLX v MSFT on the Friday before Labor Day, and NFLX or TSLA before an early close", () => {
       expect(mixedHoursAt("NFLX", "MSFT", sep(4, 19, 59, 59), bell(8))).to.match(/not until Tuesday's 4:00 AM ET pre-market open, so their start prices would be days apart/);
-      const nov = (day: number, hh: number, mm: number, ss = 0) => ny(2026, 11, day, hh, mm, ss);
+      expect(mixedHoursAt("NFLX", "NVDA", nov(27, 16, 59, 58), { durationSecs: 0, endTs: nov(30, 15, 59, 30) })).to.match(
+        /^NFLX stops pricing at 5:00 PM ET, .* not until Monday's 4:00 AM ET pre-market open, so their start prices would be days apart/,
+      );
       expect(mixedHoursAt("TSLA", "NVDA", nov(27, 12, 59, 58), { durationSecs: 0, endTs: nov(30, 15, 59, 30) })).to.match(
-        /^TSLA stops pricing at 1:00 PM ET, .* not until Monday's 9:30 AM ET opening bell, so their start prices would be days apart/,
+        /^Pyth does not publish TSLA from Friday 1:00 PM to Sunday 8:00 PM ET/,
       );
     });
 
@@ -387,35 +481,54 @@ describe("fights across trading hours", () => {
      * they are told when they can take it instead. */
     it("tells a taker when the challenge can be taken, or that it cannot", () => {
       const week = { durationSecs: 3_600, endTs: 0, expiresTs: sep(21, 15, 30) };
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 30), week, "taker")).to.equal(
-        "This round would end around Monday 4:31 PM ET, when NVDA still trades but TSLA waits for Tuesday's 9:30 AM ET opening bell, " +
-          "so their end prices would be hours apart. You can take it from Tuesday's 9:30 AM ET opening bell.",
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 30), week, "taker")).to.equal(
+        "This round would end around Monday 8:31 PM ET, when NVDA still trades but NFLX waits for Tuesday's 4:00 AM ET pre-market open, " +
+          "so their end prices would be hours apart. You can take it from Tuesday's 4:00 AM ET pre-market open.",
       );
       expect(mixedHoursAt("NFLX", "NVDA", SATURDAY, week, "taker")).to.match(/ You can take it from Monday's 4:00 AM ET pre-market open\.$/);
-      expect(mixedHoursAt("TSLA", "NVDA", sep(14, 15, 59, 58), bell(14), "taker")).to.match(/ It closes before the two line up again\.$/);
+      const shortly = { ...bell(18), expiresTs: sep(15, 3, 0) };
+      expect(mixedHoursAt("NFLX", "NVDA", sep(14, 19, 59, 58), shortly, "taker")).to.match(/ It closes before the two line up again\.$/);
+      // A Pyth side in the dark: the moment Pyth has printed for a minute.
+      expect(mixedHoursAt("TSLA", "NVDA", SATURDAY, week, "taker")).to.equal(
+        "Pyth does not publish TSLA from Friday 8:00 PM to Sunday 8:00 PM ET, and a fight whose start lands then, or within a minute of it, " +
+          "can never be priced. You can take it from Sunday's 8:01 PM ET.",
+      );
+      expect(mixedHoursAt("TSLA", "NVDA", SATURDAY, { ...week, expiresTs: sep(13, 12, 0) }, "taker")).to.match(/ It closes before it can be taken\.$/);
     });
 
-    /* A bell challenge set up in the pre-market, to be taken in the session. */
-    it("finds the first opening a challenge can be taken from, before it closes", () => {
-      expect(nextFairTake("TSLA", "NVDA", sep(14, 8, 0), bell(14))).to.equal(sep(14, 9, 30));
-      expect(nextFairTake("TSLA", "NVDA", sep(11, 19, 0), bell(18))).to.equal(sep(14, 9, 30));
+    it("finds the first moment a challenge can be taken from, before it closes", () => {
+      expect(nextFairTake("TSLA", "NVDA", sep(11, 19, 59), bell(18))).to.equal(sep(13, 20, 1));
       expect(nextFairTake("NFLX", "NVDA", SATURDAY, bell(18))).to.equal(sep(14, 4, 0));
-      expect(nextFairTake("TSLA", "NFLX", sep(4, 21, 0), bell(11))).to.equal(sep(8, 9, 30)); // past Labor Day
-      expect(nextFairTake("TSLA", "NVDA", sep(14, 15, 59), { ...bell(14), expiresTs: sep(15, 9, 0) })).to.equal(null);
+      // Past Labor Day: TSLA prices again from Monday 8:01 PM, but NFLX not until Tuesday's 4am.
+      expect(nextFairTake("TSLA", "NFLX", sep(4, 21, 0), bell(11))).to.equal(sep(8, 4, 0));
+      expect(nextFairTake("TSLA", "QQQ", sep(4, 21, 0), bell(11))).to.equal(sep(7, 20, 1));
+      expect(nextFairTake("TSLA", "QQQ", nov(27, 13, 30), { durationSecs: 0, endTs: ny(2026, 12, 4, 15, 59, 30) })).to.equal(nov(29, 20, 1));
+      expect(nextFairTake("NFLX", "NVDA", sep(14, 19, 59), { ...bell(14), expiresTs: sep(15, 3, 0) })).to.equal(null);
     });
 
-    /* A round of 6 hours 28 minutes taken at 9:30:00 ends at 3:59:00, but
-     * one landing a minute later ends at 4:00:00, after TSLA's last print. The
-     * opening is only offered when a take sent then is fair wherever it lands. */
+    /* A round that runs past a Friday night or an 8pm close can never be fair,
+     * wherever it starts before its challenge expires, and one that can is
+     * only offered at a moment a take sent then is fair wherever it lands. */
     it("never offers a moment at which the take would still be refused", () => {
-      for (const durationSecs of [300, 3_600, 23_280, 23_340]) {
-        for (const from of [SATURDAY, sep(14, 8, 0), sep(14, 15, 0), sep(14, 21, 0)]) {
-          const round = { durationSecs, endTs: 0, expiresTs: from + 3 * 86_400 };
-          const t = nextFairTake("TSLA", "NVDA", from, round);
-          if (t !== null) expect(mixedHoursAt("TSLA", "NVDA", t, round), `${durationSecs}s from ${from}`).to.equal(null);
+      const pairs = [
+        ["TSLA", "NVDA"],
+        ["NFLX", "NVDA"],
+        ["TSLA", "NFLX"],
+        ["VOO", "QQQ"],
+      ];
+      for (const [a, b] of pairs) {
+        for (const durationSecs of [300, 3_600, 23_280, 57_600]) {
+          for (const from of [SATURDAY, sep(11, 19, 0), sep(14, 8, 0), sep(14, 15, 0), sep(14, 21, 0), nov(27, 12, 0)]) {
+            const round = { durationSecs, endTs: 0, expiresTs: from + 3 * 86_400 };
+            const t = nextFairTake(a, b, from, round);
+            if (t !== null) expect(mixedHoursAt(a, b, t, round), `${a} v ${b}, ${durationSecs}s from ${from}`).to.equal(null);
+          }
         }
       }
-      expect(nextFairTake("TSLA", "NVDA", sep(14, 8, 0), { durationSecs: 23_280, endTs: 0, expiresTs: sep(16, 8, 0) })).to.equal(null);
+      expect(nextFairTake("NFLX", "NVDA", sep(14, 8, 0), { durationSecs: 57_600, endTs: 0, expiresTs: sep(16, 8, 0) })).to.equal(null);
+      // Five days from any take on Monday ends on Saturday; from Wednesday it would end on Monday, in Pyth's hours again.
+      expect(nextFairTake("TSLA", "QQQ", sep(14, 8, 0), { durationSecs: 5 * 86_400, endTs: 0, expiresTs: sep(14, 20, 0) })).to.equal(null);
+      expect(nextFairTake("TSLA", "QQQ", sep(14, 8, 0), { durationSecs: 5 * 86_400, endTs: 0, expiresTs: sep(16, 8, 0) })).to.equal(sep(16, 4, 0));
     });
   });
 
@@ -436,34 +549,40 @@ describe("fights across trading hours", () => {
 
   /* THE WHOLE TAKE WINDOW, SECOND BY SECOND, AGAINST THE PRICE CLOCK.
    *
-   * For accept times a second apart around every opening and close on three
-   * days of calendar, and for a bell, five minutes and an hour, this
-   * plays the program's sums with publish times taken from priceClock's
-   * readyAt (less its grace), not from priceTimeAt:
+   * For accept times a second apart around every opening and close on five
+   * days of calendar, Pyth's own edges among them, and for a bell, five
+   * minutes and an hour, this plays the program's sums with publish times
+   * taken from priceClock's readyAt (less its grace), not from priceTimeAt. A
+   * side the clock says can never be priced makes the fight unfair:
    *
    *   apartIfTakenAt must be null exactly when both the start and the settle
-   *   prices land within SAME_PRICE_SECS, and
+   *   prices land within SAME_PRICE_SECS, or some side can never be priced
+   *   (which is not a question of the two parting), and
    *
    *   whenever mixedHoursAt lets a take through, every accept time in the
-   *   TAKE_SLACK_SECS after it must be fair too. */
+   *   TAKE_SLACK_SECS after it must be fair: both sides priced, at the start
+   *   and at the end, within SAME_PRICE_SECS. */
   describe("agrees with the program's sums, for every accept time near a session edge", () => {
-    const published = new Map<string, number>();
+    const published = new Map<string, number | null>();
     const publishAt = (ticker: string, boundary: number) => {
       const key = `${ticker}:${boundary}`;
       if (!published.has(key)) {
         const s = byTicker(ticker)!;
-        const ready = readyAt(oneSided(ticker, boundary), "start", boundary + 20 * 86_400) as Ready;
-        published.set(key, ready.at - (s.source === "pyth" ? PYTH_GRACE_SECS : BAR_SETTLE_SECS));
+        const clock = readyAt(oneSided(ticker, boundary), "start", boundary + 20 * 86_400);
+        published.set(key, "at" in clock ? clock.at - (s.source === "pyth" ? PYTH_GRACE_SECS : BAR_SETTLE_SECS) : null);
       }
       return published.get(key)!;
     };
     type Round = { durationSecs: number; endTs: number };
-    const fairOnChain = (a: string, b: string, acceptedTs: number, round: Round) => {
+    const onChain = (a: string, b: string, acceptedTs: number, round: Round): "fair" | "apart" | "never" => {
       const start = acceptedTs + START_DELAY_SECS;
       const [pa, pb] = [publishAt(a, start), publishAt(b, start)];
-      if (Math.abs(pa - pb) > SAME_PRICE_SECS) return false;
+      if (pa === null || pb === null) return "never";
+      if (Math.abs(pa - pb) > SAME_PRICE_SECS) return "apart";
       const end = round.durationSecs ? Math.max(pa, pb) + round.durationSecs : round.endTs;
-      return Math.abs(publishAt(a, end) - publishAt(b, end)) <= SAME_PRICE_SECS;
+      const [ea, eb] = [publishAt(a, end), publishAt(b, end)];
+      if (ea === null || eb === null) return "never";
+      return Math.abs(ea - eb) <= SAME_PRICE_SECS ? "fair" : "apart";
     };
 
     const PAIRS = [
@@ -472,41 +591,46 @@ describe("fights across trading hours", () => {
       ["NFLX", "NVDA"],
       ["SPY", "NFLX"],
       ["TSLA", "QQQ"],
+      ["VOO", "NVDA"],
     ];
     /* Seconds before an edge (less the round, for its end) that a take is
      * sent at: where the window's far end crosses it, where a bar's end
      * crosses it, and where the boundary itself does. */
     const SENT = [...Array(111).keys()].map((i) => i - 100).filter((s) => s <= -80 || (s >= -70 && s <= -50) || s >= -10);
-    // A normal Monday, the Friday before Labor Day, and the early close.
-    const DAYS: { y: number; m: number; d: number; close: number; late: number; bell: number }[] = [
-      { y: 2026, m: 9, d: 14, close: 16, late: 20, bell: sep(18, 15, 59, 30) },
-      { y: 2026, m: 9, d: 4, close: 16, late: 20, bell: sep(11, 15, 59, 30) },
-      { y: 2026, m: 11, d: 27, close: 13, late: 17, bell: ny(2026, 12, 4, 15, 59, 30) },
+    /* A normal Monday, the Friday before Labor Day, Labor Day's own evening
+     * when Pyth comes back, the Sunday evening it comes back after a weekend,
+     * and the early close. Pyth's edges are where its margin ends: a minute
+     * before a span's end, and a minute after its start. */
+    const DAYS: { edges: number[]; bell: number }[] = [
+      { edges: [sep(14, 4, 0), sep(14, 9, 30), sep(14, 16, 0), sep(14, 20, 0)], bell: sep(18, 15, 59, 30) },
+      { edges: [sep(4, 4, 0), sep(4, 9, 30), sep(4, 16, 0), sep(4, 19, 59), sep(4, 20, 0)], bell: sep(11, 15, 59, 30) },
+      { edges: [sep(7, 20, 1)], bell: sep(11, 15, 59, 30) },
+      { edges: [sep(13, 20, 1)], bell: sep(18, 15, 59, 30) },
+      { edges: [nov(27, 4, 0), nov(27, 9, 30), nov(27, 12, 59), nov(27, 13, 0), nov(27, 17, 0)], bell: ny(2026, 12, 4, 15, 59, 30) },
     ];
 
     for (const [a, b] of PAIRS) {
       it(`${a} v ${b}`, function () {
-        this.timeout(120_000);
+        this.timeout(240_000);
         for (const day of DAYS) {
-          const edges = [ny(day.y, day.m, day.d, 4, 0), ny(day.y, day.m, day.d, 9, 30), ny(day.y, day.m, day.d, day.close, 0), ny(day.y, day.m, day.d, day.late, 0)];
           const rounds: Round[] = [
             { durationSecs: 0, endTs: day.bell },
             { durationSecs: 300, endTs: 0 },
             { durationSecs: 3_600, endTs: 0 },
           ];
           for (const round of rounds) {
-            const fair = new Map<number, boolean>();
-            const fairAt = (t: number) => {
-              if (!fair.has(t)) fair.set(t, fairOnChain(a, b, t, round));
-              return fair.get(t)!;
+            const verdicts = new Map<number, ReturnType<typeof onChain>>();
+            const verdictAt = (t: number) => {
+              if (!verdicts.has(t)) verdicts.set(t, onChain(a, b, t, round));
+              return verdicts.get(t)!;
             };
-            for (const edge of edges) {
+            for (const edge of day.edges) {
               for (const shift of round.durationSecs ? [0, round.durationSecs] : [0]) {
                 for (const sent of SENT.map((s) => edge - shift + s)) {
                   const where = `${a} v ${b}, ${round.durationSecs || "bell"}, sent ${new Date(sent * 1000).toISOString()}`;
-                  expect(apartIfTakenAt(a, b, sent, round) === null, where).to.equal(fairAt(sent));
+                  expect(apartIfTakenAt(a, b, sent, round) === null, where).to.equal(verdictAt(sent) !== "apart");
                   if (mixedHoursAt(a, b, sent, round) === null) {
-                    for (let t = sent; t <= sent + TAKE_SLACK_SECS; t++) expect(fairAt(t), `${where}, lands ${t - sent}s later`).to.equal(true);
+                    for (let t = sent; t <= sent + TAKE_SLACK_SECS; t++) expect(verdictAt(t), `${where}, lands ${t - sent}s later`).to.equal("fair");
                   }
                 }
               }
@@ -520,20 +644,45 @@ describe("fights across trading hours", () => {
   /* THE PAGES AND THE CRANK CANNOT DRIFT APART.
    *
    * For real roster stocks of every kind and every boundary on a grid through
-   * three stretches of calendar (Labor Day, the week of Thanksgiving with its
-   * early close, and the end of daylight saving), firstPriceAt must be exactly
-   * the moment the price clock prices that side from:
+   * five stretches of calendar (Labor Day, the weekend of 12 September, the
+   * week of Thanksgiving with its early close, and both daylight saving
+   * changes), firstPriceAt must be exactly the moment the price clock prices
+   * that side from:
    *
-   *   Pyth             ready at firstPriceAt + PYTH_GRACE_SECS
+   *   Pyth             ready at firstPriceAt + PYTH_GRACE_SECS, and "never",
+   *                    with the stall refund's moment, exactly where
+   *                    firstPriceAt is null; never shut
    *   a pool's window  ready at firstPriceAt + BAR_SETTLE_SECS
    *   a minute bar     ready at the end of the bar firstPriceAt falls in,
    *                    plus BAR_SETTLE_SECS
    *
-   * and the clock must call the side shut exactly while firstPriceAt is after
+   * and the clock must call a side shut exactly while firstPriceAt is after
    * both the boundary and now. pricedAt must call it a wait exactly when
-   * firstPriceAt is not the boundary, and priceTimeAt must be the moment the
-   * clock is ready at, less its grace. */
+   * firstPriceAt is a later moment, and never exactly when it is null, and
+   * priceTimeAt must be the moment the clock is ready at, less its grace. */
   describe("agrees with the price clock", () => {
+    /* Pyth's hours as the plan states them, written again from scratch so the
+     * grid checks market.ts's spans against the rule and not only against
+     * themselves. A moment from 8 PM belongs to the next calendar day. That day
+     * must be a trading day; on a half day Pyth is taken to stop at 1 PM; and
+     * the first minute after 8 PM is refused unless the day before printed
+     * right up to 8 PM, which a full trading day does. */
+    const HALF_DAYS = new Set(["2026-11-27", "2026-12-24", "2027-11-26"]);
+    const dayOf = (p: { y: number; m: number; d: number }) => {
+      const q = nyParts(nyToMs(p.y, p.m, p.d, 12, 0));
+      return { q, trading: isTradingDay(nyToMs(q.y, q.m, q.d, 12, 0)), half: HALF_DAYS.has(`${q.y}-${String(q.m).padStart(2, "0")}-${String(q.d).padStart(2, "0")}`) };
+    };
+    const pythPricesInWords = (t: number) => {
+      const p = nyParts(t * 1_000);
+      const late = p.hh >= 20;
+      const day = dayOf({ y: p.y, m: p.m, d: p.d + (late ? 1 : 0) });
+      if (!day.trading) return false;
+      if (!late && day.half && p.hh >= 13) return false;
+      const before = dayOf({ y: day.q.y, m: day.q.m, d: day.q.d - 1 });
+      const firstMinute = late && p.hh === 20 && p.mm === 0;
+      return !(firstMinute && !(before.trading && !before.half));
+    };
+
     const KINDS: Record<string, string[]> = {
       pyth: ["TSLA", "QQQ", "VOO"],
       perp: ["NVDA", "AAPL"],
@@ -543,14 +692,17 @@ describe("fights across trading hours", () => {
     };
 
     const EDGES = [
-      [3, 59, 59], [4, 0, 0], [9, 29, 59], [9, 30, 0], [12, 59, 59], [13, 0, 0],
-      [15, 59, 59], [16, 0, 0], [16, 59, 59], [17, 0, 0], [19, 59, 59], [20, 0, 0],
+      [3, 59, 59], [4, 0, 0], [9, 29, 59], [9, 30, 0], [12, 58, 59], [12, 59, 0], [12, 59, 1], [12, 59, 59], [13, 0, 0],
+      [15, 59, 59], [16, 0, 0], [16, 59, 59], [17, 0, 0], [19, 58, 59], [19, 59, 0], [19, 59, 1], [19, 59, 59], [20, 0, 0],
+      [20, 0, 1], [20, 0, 59], [20, 1, 0],
     ];
     const grid: number[] = [];
     for (const [y, m, d0, days] of [
       [2026, 9, 4, 5],
+      [2026, 9, 11, 4],
       [2026, 11, 23, 8],
       [2026, 10, 30, 4],
+      [2027, 3, 12, 4],
     ]) {
       for (let i = 0; i < days; i++) {
         const midnight = ny(y, m, d0 + i, 0, 0);
@@ -561,30 +713,37 @@ describe("fights across trading hours", () => {
 
     for (const [kind, tickers] of Object.entries(KINDS)) {
       it(`${kind}: ${tickers.join(", ")}`, function () {
-        this.timeout(60_000);
+        this.timeout(120_000);
         for (const ticker of tickers) {
           for (const b of grid) {
             const where = `${ticker} at ${new Date(b * 1000).toISOString()}`;
             const first = firstPriceAt(ticker, b);
+            const d = oneSided(ticker, b);
+            const clock = readyAt(d, "start", b + 20 * 86_400);
+
+            if (kind === "pyth") {
+              expect(first === null || first === b, where).to.equal(true);
+              expect(first !== null, `${where}, against the rule in words`).to.equal(pythPricesInWords(b));
+              expect(pricedAt(ticker, b), where).to.equal(first === null ? "never" : "pyth");
+              expect(priceTimeAt(ticker, b), `${where}, price time`).to.equal(first);
+              expect(clock, where).to.deep.equal(
+                first === null ? { never: [ticker], refundAt: d.acceptedTs + STALL_REFUND_SECS } : { at: b + PYTH_GRACE_SECS, why: "pyth" },
+              );
+              expect("shut" in readyAt(d, "start", b), `${where}, now`).to.equal(false);
+              continue;
+            }
+
             expect(first, where).to.be.a("number");
             const f = first as number;
             expect(f, where).to.be.at.least(b);
             expect(pricedAt(ticker, b) === "waits", where).to.equal(f !== b);
 
-            const d = oneSided(ticker, b);
-            const ready = readyAt(d, "start", b + 20 * 86_400) as Ready;
+            const ready = clock as Ready;
             expect(ready, where).to.have.property("at");
-            const expected =
-              kind === "pyth"
-                ? f + PYTH_GRACE_SECS
-                : pricedAt(ticker, b) === "pool"
-                  ? f + BAR_SETTLE_SECS
-                  : firstBarEnd(f) + BAR_SETTLE_SECS;
+            const expected = pricedAt(ticker, b) === "pool" ? f + BAR_SETTLE_SECS : firstBarEnd(f) + BAR_SETTLE_SECS;
             expect(ready.at, where).to.equal(expected);
             // And the time the price will carry is the clock's, less its grace.
-            expect(priceTimeAt(ticker, b), `${where}, price time`).to.equal(
-              ready.at - (kind === "pyth" ? PYTH_GRACE_SECS : BAR_SETTLE_SECS),
-            );
+            expect(priceTimeAt(ticker, b), `${where}, price time`).to.equal(ready.at - BAR_SETTLE_SECS);
 
             expect("shut" in readyAt(d, "start", b), `${where}, now`).to.equal(f > b);
             if (f > b) {

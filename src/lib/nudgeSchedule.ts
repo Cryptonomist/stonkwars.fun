@@ -25,6 +25,9 @@ export type NudgeState =
   | "nothing-due"
   /** A side's market is shut; no price source was asked. */
   | "waiting-for-market"
+  /** A side can never be priced (a Pyth boundary in Pyth's dark hours); only
+   *  the stall refund, at `refundAt`, ends the fight. */
+  | "never-priced"
   /** Due, but its price cannot exist yet (or the oracle said not yet). */
   | "not-yet"
   /** This call sent the crank; `signature` is the fight transaction. */
@@ -49,13 +52,17 @@ export type NudgeAnswer = {
   /** The earliest worth asking again. */
   retryAt?: number;
   signature?: string;
-  /** For waiting-for-market: the tickers whose market is shut. */
+  /** For waiting-for-market: the tickers whose market is shut. For
+   *  never-priced: the tickers nothing will price. */
   tickers?: string[];
+  /** For never-priced: when the program lets the stakes go home. */
+  refundAt?: number;
   detail?: string;
 };
 
-/** Answers after which a page stops asking for good. */
-const FINAL: ReadonlySet<NudgeState> = new Set(["not-found", "disabled", "refused"]);
+/** Answers after which a page stops asking for good. A fight that can never
+ *  be priced stays that way whatever the clock does. */
+const FINAL: ReadonlySet<NudgeState> = new Set(["not-found", "disabled", "refused", "never-priced"]);
 
 export type NudgeJob =
   | {
@@ -65,7 +72,8 @@ export type NudgeJob =
       /** When this page began watching; see GIVE_UP_SECS. */
       since?: number;
     }
-  | { kind: "start" | "settle"; shut: string[] };
+  | { kind: "start" | "settle"; shut: string[] }
+  | { kind: "start" | "settle"; never: string[]; refundAt: number };
 
 /** The first ask, this long before the price can exist: the server holds the
  *  request until readyAt, so the crank goes out on the second. */
@@ -112,6 +120,7 @@ export function nudgeJobFor(
   const which = d.status === STATUS_ACCEPTED ? "start" : d.status === STATUS_LIVE ? "settle" : null;
   if (!which) return null;
   const clock = readySince(d, which, now, opts.lookup);
+  if ("never" in clock) return { kind: which, never: clock.never, refundAt: clock.refundAt };
   if ("shut" in clock) return { kind: which, shut: clock.shut };
   return { kind: which, readyAt: clock.at, since };
 }
@@ -125,7 +134,7 @@ export function nextNudgeAt(
   failures: number,
   now: number,
 ): number | null {
-  if (!job || "shut" in job) return null;
+  if (!job || !("readyAt" in job)) return null;
   if (last && FINAL.has(last.state)) return null;
   const stopAt = Math.max(job.readyAt, job.since ?? job.readyAt) + GIVE_UP_SECS;
   if (now >= stopAt) return null;

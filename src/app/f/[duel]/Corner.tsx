@@ -54,6 +54,7 @@ export function Corner({
   ticker,
   quote,
   shut,
+  never = false,
   leading,
   hits,
   hurt,
@@ -67,6 +68,8 @@ export function Corner({
   ticker: string;
   quote?: Quote;
   shut: boolean;
+  /** Some side of the fight can never be priced at its boundary. */
+  never?: boolean;
   /** Ahead in a live round, by the live moves. */
   leading: boolean;
   hits: Hit[];
@@ -153,7 +156,7 @@ export function Corner({
           {shares(amount, decimals)} <span className="normal-case">{tokenSymbol(ticker)}</span>
           {worth !== null ? <span className="text-dim"> · {usd(worth)}</span> : null}
         </p>
-        <PriceToBeat d={d} side={side} quote={quote} shut={shut} late={late} other={other} />
+        <PriceToBeat d={d} side={side} quote={quote} shut={shut} never={never} late={late} other={other} />
       </div>
 
       {/* The loser's stamp lands where the winner's plate sits, right under the

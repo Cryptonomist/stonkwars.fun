@@ -7,6 +7,7 @@ import { expect } from "chai";
 import {
   SOURCE_PYTH,
   SOURCE_SIGNED,
+  STALL_REFUND_SECS,
   START_DELAY_SECS,
   STATUS_ACCEPTED,
   STATUS_LIVE,
@@ -25,7 +26,7 @@ import {
   type ClockDuel,
   type MarketLookup,
 } from "../src/lib/priceClock";
-import { byTicker } from "../src/lib/stocks";
+import { byTicker, quoteSymbolFor } from "../src/lib/stocks";
 import history from "./fixtures/settler-ops.json";
 
 const utc = (iso: string) => Math.floor(Date.parse(iso) / 1000);
@@ -154,33 +155,40 @@ describe("price clock", () => {
     });
   });
 
+  /* Pyth prints US equities 24/5 (market.ts, pythSpanAt): a Pyth side is
+   * priced a moment after any boundary inside that, and never at all outside
+   * it. It never waits for an opening, so it is never "shut". */
   describe("Pyth sides", () => {
+    const tsla = () => real("TSLA", SOURCE_PYTH);
+    /* Against a feed off the roster, which prices a few seconds after any
+     * boundary, so the clock's answer is TSLA's own: a signed side's bar would
+     * be the later of the two and hide it. */
+    const alone = (b: number) => starting(tsla(), pythFeed(FEED.crypto), b);
+    const inGrace = (b: number) => ({ at: b + PYTH_GRACE_SECS, why: "pyth" });
+    const never = (d: ClockDuel, which: "start" | "settle", tickers = ["TSLA"]) => ({
+      never: tickers,
+      refundAt: (which === "start" ? d.acceptedTs : d.endTs) + STALL_REFUND_SECS,
+    });
+
     it("gives Pyth a few seconds past a boundary in session", () => {
       const b = ny(15, 11, 0, 10);
       const d = starting(real("TSLA", SOURCE_PYTH), real("QQQ", SOURCE_PYTH), b);
       expect(readyAt(d, "start", b)).to.deep.equal({ at: b + PYTH_GRACE_SECS, why: "pyth" });
     });
 
-    it("parks a Pyth stock at a weekend, naming it, and wakes it when the market does", () => {
-      const b = ny(12, 11, 0, 10);
-      const d = starting(real("TSLA", SOURCE_PYTH), real("NVDA"), b);
-      expect(readyAt(d, "start", ny(13, 23, 0))).to.deep.equal({ shut: ["TSLA"] });
-      const monday = ny(14, 9, 30, 1);
-      expect(readyAt(d, "start", monday)).to.deep.equal({ at: ny(14, 9, 30) + PYTH_GRACE_SECS, why: "pyth" });
-    });
-
-    /* TSLA by Pyth, boundary 8am Monday (pre-market, no regular print). Hermes
-     * has held the 9:30 print, the first after the boundary, all day. At 5pm
-     * the regular session is over, and the old clock called the side shut
-     * again: no manual button, parked by the cron, until Tuesday's open. */
-    it("keeps a Pyth side due after the session that printed its price has closed", () => {
-      const d = starting(real("TSLA", SOURCE_PYTH), real("TSLA", SOURCE_PYTH), ny(14, 8, 0));
-      const due = { at: ny(14, 9, 30) + PYTH_GRACE_SECS, why: "pyth" };
-      expect(readyAt(d, "start", ny(14, 17, 0))).to.deep.equal(due);
-      expect(readyAt(d, "start", ny(15, 3, 0))).to.deep.equal(due);
-      // A Saturday boundary, looked at on Monday afternoon after the close.
-      const sat = starting(real("TSLA", SOURCE_PYTH), real("NVDA"), ny(12, 12, 0));
-      expect(readyAt(sat, "start", ny(14, 16, 30))).to.deep.equal(due);
+    /* The old clock parked these until the opening bell, and a fight taken at
+     * 8am on a Monday sat there while Pyth was printing every second. */
+    it("prices a Pyth side at once in pre-market, after-hours and on a weekday night", () => {
+      // Thu 10 Sep 3:59:59 AM New York is 07:59:59 UTC, one of the moments Hermes was asked about.
+      for (const b of [ny(14, 8, 0), ny(11, 19, 11, 35), ny(15, 22, 0), ny(10, 3, 59, 59), utc("2026-09-10T07:59:59Z")]) {
+        expect(readyAt(alone(b), "start", b), new Date(b * 1000).toISOString()).to.deep.equal(inGrace(b));
+      }
+      // Against NVDA's perp the fight waits on NVDA's bar, as ever, and TSLA never makes it shut.
+      const b = ny(15, 22, 0, 10);
+      expect(readyAt(starting(tsla(), real("NVDA"), b), "start", b)).to.deep.equal({
+        at: firstBarEnd(b) + BAR_SETTLE_SECS,
+        why: "minute-close",
+      });
     });
 
     it("never calls a side shut whose boundary is in session, even before the boundary", () => {
@@ -189,35 +197,89 @@ describe("price clock", () => {
       expect(readyAt(d, "settle", b - 30)).to.deep.equal({ at: b + PYTH_GRACE_SECS, why: "pyth" });
     });
 
-    /* Pyth's regular US equity feeds print from 9:30 to 4 only; extended
-     * hours are separate feeds the roster does not use. A boundary in
-     * after-hours or pre-market waits for the open, not for 4am. */
-    it("parks a Pyth stock in after-hours and pre-market until the opening bell", () => {
-      const b = ny(11, 19, 11, 35);
-      const d = starting(real("TSLA", SOURCE_PYTH), real("TSLA", SOURCE_PYTH), b);
-      expect(readyAt(d, "start", b)).to.deep.equal({ shut: ["TSLA"] });
-      expect(readyAt(d, "start", ny(14, 4, 0, 5))).to.deep.equal({ shut: ["TSLA"] });
-      expect(readyAt(d, "start", ny(14, 9, 29, 59))).to.deep.equal({ shut: ["TSLA"] });
-      const open = ny(14, 9, 30, 0);
-      expect(readyAt(d, "start", open)).to.deep.equal({ at: open + PYTH_GRACE_SECS, why: "pyth" });
-    });
-
-    /* 4yf7, TSLA (Pyth) v NVDA, accepted on a Saturday: parked through the
-     * weekend with no call anywhere, and due at Monday's open. */
-    it("parks a 4yf7-like fight all weekend", () => {
-      const b = ny(12, 22, 14, 0);
-      const d = starting(real("TSLA", SOURCE_PYTH), real("NVDA"), b);
-      for (const now of [b, ny(13, 12, 0), ny(14, 3, 59), ny(14, 8, 0)]) {
-        expect(readyAt(d, "start", now)).to.deep.equal({ shut: ["TSLA"] });
+    /* Friday's last print is 7:59:59 PM. A boundary before it is priced by the
+     * print after it, so a fight already there is cranked; the pages refuse
+     * the last minute (stocks.test.ts), which is a margin, not a gap. */
+    it("prices a Friday boundary to the last second, and calls the weekend never", () => {
+      // TSLA's boundary at Fri 7:58:59 PM, the last minute, and the last second.
+      for (const b of [ny(11, 19, 58, 59), ny(11, 19, 59, 30), ny(11, 19, 59, 59)]) {
+        expect(readyAt(alone(b), "start", b), new Date(b * 1000).toISOString()).to.deep.equal(inGrace(b));
       }
-      const open = ny(14, 9, 30, 2);
-      expect(readyAt(d, "start", open)).to.deep.equal({ at: ny(14, 9, 30) + PYTH_GRACE_SECS, why: "pyth" });
+      // Friday 8 PM, Saturday, and the last second before Sunday's reopening.
+      for (const b of [ny(11, 20, 0), ny(12, 12, 0), ny(13, 19, 59, 59)]) {
+        const d = alone(b);
+        expect(readyAt(d, "start", b), new Date(b * 1000).toISOString()).to.deep.equal(never(d, "start"));
+      }
     });
 
-    it("lists every shut side once", () => {
+    /* The first print after the gap claims a previous print one second before
+     * it, and VOO's first was 8:00:01: a boundary in the first minute is never
+     * priced. */
+    it("calls a boundary in Sunday's first minute never, and prices one from 8:01", () => {
+      for (const b of [ny(13, 20, 0), ny(13, 20, 0, 1), ny(13, 20, 0, 30), ny(13, 20, 0, 59)]) {
+        const d = alone(b);
+        expect(readyAt(d, "start", b), new Date(b * 1000).toISOString()).to.deep.equal(never(d, "start"));
+      }
+      const b = ny(13, 20, 1, 0);
+      expect(readyAt(alone(b), "start", b)).to.deep.equal(inGrace(b));
+    });
+
+    it("knows Labor Day had no Sunday night: never on Sunday 6 Sep, priced from Monday 7 Sep 8:01 PM", () => {
+      for (const b of [ny(6, 21, 0), ny(7, 12, 0), ny(7, 20, 0, 30)]) {
+        const d = alone(b);
+        expect(readyAt(d, "start", ny(8, 12, 0)), new Date(b * 1000).toISOString()).to.deep.equal(never(d, "start"));
+      }
+      const b = ny(7, 20, 1);
+      expect(readyAt(alone(b), "start", b)).to.deep.equal(inGrace(b));
+    });
+
+    /* The decision is the boundary's alone: a Pyth side is never "shut", so
+     * nothing a clock does later turns never into due or due into never. */
+    it("gives the same answer for a Pyth boundary whenever it is asked", () => {
+      const dark = alone(ny(12, 12, 0));
+      const lit = alone(ny(14, 22, 0));
+      for (const now of [ny(12, 12, 0), ny(13, 20, 5), ny(14, 9, 30), ny(15, 2, 0), ny(30, 12, 0)]) {
+        expect(readyAt(dark, "start", now)).to.deep.equal(never(dark, "start"));
+        expect(readyAt(lit, "start", now)).to.deep.equal(inGrace(ny(14, 22, 0)));
+      }
+    });
+
+    /* 4yf7Hpjh33t8qJ4TqwnQSM5s2Pr6SCH3712MbT4yono5, as devnet holds it on 14
+     * Sep: TSLA by Pyth v NVDA signed, accepted_ts 1789179709 (Friday 11 Sep
+     * 10:21:49 PM New York), never started. Its start fell two hours into the
+     * weekend gap. Nothing will ever price it, whenever anyone looks, and the
+     * stall refund opens a week after the accept: Friday 18 Sep, 10:21:49 PM. */
+    it("reads the live stuck fight 4yf7 as never priced, refundable a week after its accept", () => {
+      const d: ClockDuel = {
+        creatorFeed: byTicker("TSLA")!.feed,
+        creatorSource: SOURCE_PYTH,
+        opponentFeed: byTicker("NVDA")!.feed,
+        opponentSource: SOURCE_SIGNED,
+        acceptedTs: 1_789_179_709,
+        endTs: 0,
+      };
+      expect(STALL_REFUND_SECS).to.equal(7 * 86_400);
+      const refundAt = utc("2026-09-19T02:21:49Z");
+      expect(refundAt).to.equal(ny(18, 22, 21, 49));
+      for (const now of [d.acceptedTs + 2, ny(13, 12, 0), ny(14, 9, 30, 5), ny(15, 12, 0), refundAt + 1]) {
+        expect(readyAt(d, "start", now)).to.deep.equal({ never: ["TSLA"], refundAt });
+      }
+    });
+
+    it("counts a live fight's refund from its bell, when the bell fell where Pyth is dark", () => {
+      const d = settling(tsla(), real("NVDA"), ny(12, 9, 0));
+      expect(readyAt(d, "settle", ny(12, 9, 5))).to.deep.equal({ never: ["TSLA"], refundAt: d.endTs + STALL_REFUND_SECS });
+    });
+
+    it("says never over shut, and lists every side nothing will price once", () => {
       const b = ny(12, 11, 0);
-      const d = starting(real("TSLA", SOURCE_PYTH), real("TSLA", SOURCE_PYTH), b);
-      expect(readyAt(d, "start", b)).to.deep.equal({ shut: ["TSLA"] });
+      expect(readyAt(starting(tsla(), signed(FEED.exchange), b), "start", b, (feed) => markets(feed) ?? quoteSymbolFor(feed))).to.deep.equal(
+        never(starting(tsla(), signed(FEED.exchange), b), "start"),
+      );
+      const d = starting(tsla(), tsla(), b);
+      expect(readyAt(d, "start", b)).to.deep.equal(never(d, "start"));
+      const both = starting(tsla(), real("QQQ", SOURCE_PYTH), b);
+      expect(readyAt(both, "start", b)).to.deep.equal(never(both, "start", ["TSLA", "QQQ"]));
     });
 
     it("never parks a Pyth feed off the roster, which is crypto and prints all weekend", () => {

@@ -36,6 +36,7 @@ const EPSILON = 1e-9;
 export const REUSE_MS: Record<NudgeState, number> = {
   "nothing-due": 3_000,
   "waiting-for-market": 3_000,
+  "never-priced": 3_000,
   "not-yet": 3_000,
   done: 3_000,
   failed: 10_000,

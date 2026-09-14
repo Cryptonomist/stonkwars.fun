@@ -47,7 +47,7 @@ import {
 import { isDecided, loserTake, margin, moves, winnerSide, type Side } from "@/lib/derive";
 import { ago, clock, points, shares, shortAddress, span, until, usd } from "@/lib/format";
 import { movePct, stakeValue, type Quotes } from "@/lib/prices";
-import { roundClock, shutSides } from "@/lib/roundClock";
+import { neverSides, roundClock, shutSides } from "@/lib/roundClock";
 import { decimalsForMint, tickerForMint, tokenSymbol } from "@/lib/stocks";
 
 /** The default key: an empty opponent or invitee slot. */
@@ -297,6 +297,7 @@ function rowStatus(d: DuelView, now: number): { badge: ReactNode; age: ReactNode
       if (!now || d.endTs > now) {
         return { badge: <Badge variant="live" />, age: <Countdown to={d.endTs} now={now} className="text-ink" /> };
       }
+      if (neverPriced(d, now)) return { badge: <Badge>Bell</Badge>, age: text("can never settle") };
       if (waitingForMarket(d, now)) return { badge: <Badge>Bell</Badge>, age: text("waiting for the open") };
       if (isLate(d, now)) return { badge: <Badge>Late</Badge>, age: text(`settle late · bell ${ago(d.endTs, now)}`) };
       return { badge: <Badge>Bell</Badge>, age: text("settling") };
@@ -307,6 +308,7 @@ function rowStatus(d: DuelView, now: number): { badge: ReactNode; age: ReactNode
         age: text(now ? `closes ${until(d.expiresTs, now)}` : null),
       };
     case STATUS_ACCEPTED:
+      if (neverPriced(d, now)) return { badge: <Badge>Taken</Badge>, age: text("can never start") };
       if (waitingForMarket(d, now)) return { badge: <Badge>Taken</Badge>, age: text("waiting for the open") };
       if (isLate(d, now)) return { badge: <Badge>Late</Badge>, age: text(`start late · taken ${ago(d.acceptedTs, now)}`) };
       return { badge: <Badge>Taken</Badge>, age: text("locking prices") };
@@ -337,11 +339,14 @@ function statusLine(d: DuelView, now: number): string {
     case STATUS_ACCEPTED:
       /* "Locking prices" reads as broken when it lasts all weekend. If the
        * market that prices either side is shut, say that instead: the fight is
-       * fine, it is the exchange that is closed. */
+       * fine, it is the exchange that is closed. A fight nothing will ever
+       * price says that instead. */
+      if (neverPriced(d, now)) return "Can never start";
       if (waitingForMarket(d, now)) return "Waiting for the open";
       return isLate(d, now) ? "Start late" : "Locking prices";
     case STATUS_LIVE:
       if (!now || d.endTs > now) return now ? `Live · ${clock(d.endTs - now)}` : "Live";
+      if (neverPriced(d, now)) return "Bell · can never settle";
       if (waitingForMarket(d, now)) return "Bell · waiting for the open";
       return isLate(d, now) ? "Bell · settle late" : "Bell · settling";
     case STATUS_SETTLED:
@@ -359,6 +364,12 @@ function statusLine(d: DuelView, now: number): string {
  *  price clock sees it for the boundary the fight is at (roundClock.ts). */
 export function waitingForMarket(d: DuelView, now: number): boolean {
   return shutSides(d, now).length > 0;
+}
+
+/** True when a side can never be priced at the boundary the fight is at, as
+ *  the price clock sees it (roundClock.ts, neverSides). */
+export function neverPriced(d: DuelView, now: number): boolean {
+  return neverSides(d, now) !== null;
 }
 
 /* A FIGHT THE SETTLER HAS LEFT BEHIND.

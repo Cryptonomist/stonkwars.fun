@@ -95,9 +95,9 @@ export function session(ms = Date.now()): Session {
  * The first instant at or after `ms` inside a session, or `ms` itself when one
  * is already running. "extended" is any session but closed, 4am to 8pm on a
  * trading day (5pm on a half day): the hours the exchange's own minute bars
- * cover. "regular" is 9:30 to the close only: the hours Pyth's US equity feeds
- * print. It walks calendar days in New York, so a weekend, a holiday or a
- * daylight saving change is simply a day with nothing in it.
+ * cover. "regular" is 9:30 to the close only. It walks calendar days in New
+ * York, so a weekend, a holiday or a daylight saving change is simply a day
+ * with nothing in it. Pyth's hours are not either of these: see pythSpanAt.
  *
  * Asked about a boundary, this is the moment a side's first price after it
  * can begin to exist, which is a fixed time: it does not move with the clock,
@@ -152,6 +152,147 @@ export function openingsBetween(from: number, until: number): number[] {
       const t = Math.floor(ms / 1_000);
       if (t > from && t < until) out.push(t);
     }
+  }
+  return out;
+}
+
+/* PYTH'S US EQUITY FEEDS PRINT FIVE DAYS A WEEK, NOT SIX AND A HALF HOURS.
+ *
+ * This used to model them as 9:30 to the close, which refused fights at hours
+ * Pyth does print and, worse, called a weekend boundary a wait when it is a
+ * boundary nothing will ever price. What was measured from Hermes on 14 Sep
+ * 2026 (docs/247-pricing.md, section 4):
+ *
+ *   hours     For each trading day D, the feed prints from 8 PM New York on
+ *             the calendar day before D until 8 PM on D, every second. So a
+ *             week's weekday nights run into each other: one span from Sunday
+ *             8 PM to Friday 8 PM.
+ *   the gap   The last print before a weekend is Friday 7:59:59 PM. Hermes
+ *             answers 404 inside the gap, and the first print after it is
+ *             Sunday 8:00:00 PM.
+ *   holidays  A holiday is a day with no span. Labor Day (Monday 7 Sep) had no
+ *             Sunday night session: the feed was dark from Friday 8 PM until
+ *             Tuesday's day began, Monday 8 PM, 72 hours.
+ *   half day  An early close is taken to end at 1 PM. Unmeasured; ending early
+ *             is the side that refuses a fight rather than strands one.
+ *
+ * The program takes a Pyth side's price only from an update whose
+ * prev_publish_time is before the boundary and whose publish_time is at or
+ * after it. The first print after a gap carries a made-up prev_publish_time,
+ * one second before its own, and VOO's first print on Sunday was 8:00:01, so a
+ * boundary at 8:00:00 fails for VOO and passes for TSLA. No boundary inside a
+ * gap can ever pass, and one just after it passes only for a feed whose first
+ * print came before it, which nothing here can know in advance. So a boundary
+ * outside every span, or less than PYTH_EDGE_SECS into one, is taken to be one
+ * nothing will ever price (pythPricesAt): the crank never tries it and the
+ * pages send its stakes to the stall refund. And the pages refuse a fight
+ * whose Pyth side could land within PYTH_EDGE_SECS of either end of a gap
+ * (pythGapNear), since a thin feed's last print before a gap can come early
+ * too. */
+export const PYTH_EDGE_SECS = 60;
+
+/** A stretch Pyth prints through without a break, unix seconds, end exclusive. */
+export type PythSpan = { start: number; end: number };
+
+const daySpans = new Map<string, PythSpan | null>();
+
+/** The span of the trading day on (y, m, d), which may roll over a month's
+ *  end, or null when that day is not a trading day. */
+function pythDay(y: number, m: number, d: number): PythSpan | null {
+  const key = `${y}-${m}-${d}`;
+  if (daySpans.has(key)) return daySpans.get(key)!;
+  const noon = nyToMs(y, m, d, 12, 0);
+  let span: PythSpan | null = null;
+  if (isTradingDay(noon)) {
+    const q = nyParts(noon);
+    span = {
+      start: Math.floor(nyToMs(q.y, q.m, q.d - 1, 20, 0) / 1_000),
+      end: Math.floor(nyToMs(q.y, q.m, q.d, EARLY_CLOSE.has(ymd(q)) ? 13 : 20, 0) / 1_000),
+    };
+  }
+  daySpans.set(key, span);
+  return span;
+}
+
+/** The whole span Pyth prints through that contains `t` (unix seconds),
+ *  joined across weekday nights, or null when Pyth is dark at `t`. */
+export function pythSpanAt(t: number): PythSpan | null {
+  const p = nyParts(t * 1_000);
+  // From 8 PM a moment belongs to the next day's span.
+  const d = p.d + (p.hh >= 20 ? 1 : 0);
+  const own = pythDay(p.y, p.m, d);
+  if (!own || t < own.start || t >= own.end) return null;
+  let { start, end } = own;
+  for (let i = 1; i <= 10; i++) {
+    const before = pythDay(p.y, p.m, d - i);
+    if (!before || before.end !== start) break;
+    start = before.start;
+  }
+  for (let i = 1; i <= 10; i++) {
+    const after = pythDay(p.y, p.m, d + i);
+    if (!after || after.start !== end) break;
+    end = after.end;
+  }
+  return { start, end };
+}
+
+/** Whether a Pyth US equity price can ever exist for `boundary`: inside a
+ *  span, and at least PYTH_EDGE_SECS past its start. */
+export function pythPricesAt(boundary: number): boolean {
+  const span = pythSpanAt(boundary);
+  return span !== null && boundary >= span.start + PYTH_EDGE_SECS;
+}
+
+/* THE GAP A PYTH BOUNDARY IS IN, OR TOO CLOSE TO.
+ *
+ * From the end of the span before it to the start of the span after it, in
+ * unix seconds: the stretch a refusal names. Null when `boundary` is at least
+ * PYTH_EDGE_SECS inside a span at both ends, which is where the pages let a
+ * Pyth side's start or end land. Walked by calendar day, like sessionFrom, for
+ * at most ten days either way. */
+export function pythGapNear(boundary: number): { from: number; until: number } | null {
+  const span = pythSpanAt(boundary);
+  if (span && boundary >= span.start + PYTH_EDGE_SECS && boundary <= span.end - PYTH_EDGE_SECS) return null;
+  if (span) {
+    return boundary < span.start + PYTH_EDGE_SECS
+      ? { from: pythEndBefore(span.start), until: span.start }
+      : { from: span.end, until: pythStartAfter(span.end) };
+  }
+  return { from: pythEndBefore(boundary), until: pythStartAfter(boundary) };
+}
+
+/** The end of the last span to end at or before `t`. */
+function pythEndBefore(t: number): number {
+  const p = nyParts(t * 1_000);
+  for (let i = 0; i <= 10; i++) {
+    const day = pythDay(p.y, p.m, p.d + 1 - i);
+    if (day && day.end <= t && pythSpanAt(day.end - 1)!.end === day.end) return day.end;
+  }
+  throw new Error("Pyth printed on no day in the ten before this");
+}
+
+/** The start of the first span to start at or after `t`. */
+function pythStartAfter(t: number): number {
+  const p = nyParts(t * 1_000);
+  for (let i = 0; i <= 11; i++) {
+    const day = pythDay(p.y, p.m, p.d + i);
+    if (day && day.start >= t && pythSpanAt(day.start)!.start === day.start) return day.start;
+  }
+  throw new Error("Pyth prints on no day in the ten after this");
+}
+
+/** Every moment in (from, until) that is PYTH_EDGE_SECS past the start of a
+ *  span, in order: the moments a fight refused because Pyth was dark can
+ *  first be taken again. */
+export function pythReopeningsBetween(from: number, until: number): number[] {
+  const out: number[] = [];
+  const p = nyParts(from * 1_000);
+  for (let i = 0; i < 41; i++) {
+    const day = pythDay(p.y, p.m, p.d + i);
+    if (!day) continue;
+    if (day.start - 86_400 > until) break;
+    const t = day.start + PYTH_EDGE_SECS;
+    if (t > from && t < until && pythSpanAt(day.start)!.start === day.start) out.push(t);
   }
   return out;
 }

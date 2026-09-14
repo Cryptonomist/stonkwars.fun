@@ -169,23 +169,13 @@ export function CreateFight() {
   const gate = p1 && p2 && now ? blockedAt(now, p1, p2) : { mixed: null, takeable: null };
   const mixedHours = gate.mixed;
   const takeableFrom = gate.takeable;
-  /* Why a side waits, from who prices it. A Pyth feed prints only in the
-   * regular session, so a Pyth stock can wait while its exchange is busy with
-   * after-hours trading; only a signed stock waits because its exchange is
-   * shut. */
-  const waitingPyth = waiting.filter((t) => byTicker(t)?.source === "pyth");
-  const waitingShut = waiting.filter((t) => byTicker(t)?.source !== "pyth");
+  /* Why a side waits. Only a signed stock waits, because its exchange is
+   * shut: a Pyth stock prices at once or never, and mixedHoursAt refuses the
+   * never. */
   const reopens = endsAt ? Math.max(0, ...waiting.map((t) => firstPriceAt(t, endsAt) ?? 0)) : 0;
-  const waitingWhy = [
-    waitingPyth.length
-      ? `${andList(waitingPyth)} ${waitingPyth.length === 1 ? "is" : "are"} priced by Pyth, which only prints from the opening bell to the close`
-      : "",
-    waitingShut.length
-      ? `${andList(waitingShut)} ${waitingShut.length === 1 ? "is priced by its exchange" : "are priced by their exchanges"}, which will be shut when this round ends`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(", and ");
+  const waitingWhy = waiting.length
+    ? `${andList(waiting)} ${waiting.length === 1 ? "is priced by its exchange" : "are priced by their exchanges"}, which will be shut when this round ends`
+    : "";
 
   const testCluster = CLUSTER !== "mainnet-beta";
   const balanceKnown = balance.data !== undefined;

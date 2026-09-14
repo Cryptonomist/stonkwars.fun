@@ -4,7 +4,8 @@
  * somebody to sign before it exists asks them for nothing. This says, for a
  * duel and one of its boundaries, the earliest moment every side's price can
  * be final, or that some side's market is shut and nothing will price it
- * until it opens.
+ * until it opens, or that some side's price can never exist at all and the
+ * fight can only be refunded.
  *
  * IT ADVISES, IT NEVER DECIDES. Every number here is an earliest time: the
  * oracle may still answer later (a minute with no trade pushes the price to
@@ -17,8 +18,8 @@
  * server runs it to decide when to crank. */
 
 import { boundaryOf } from "./crankTx";
-import { SOURCE_PYTH, STATUS_ACCEPTED, STATUS_LIVE, STATUS_VOID, type DuelView } from "./duel";
-import { openingAfter, session } from "./market";
+import { SOURCE_PYTH, STALL_REFUND_SECS, STATUS_ACCEPTED, STATUS_LIVE, STATUS_VOID, type DuelView } from "./duel";
+import { openingAfter, pythPricesAt, session } from "./market";
 import { BAR_SETTLE_SECS, exchangeBarFinal, firstBarEnd, sourceAt } from "./oracle";
 import { byFeed, quoteSymbolFor } from "./stocks";
 
@@ -38,6 +39,17 @@ export const MANUAL_FALLBACK_SECS = 180;
 export type ReadyWhy = "minute-close" | "pool-window" | "pyth";
 export type Ready = { at: number; why: ReadyWhy };
 export type Shut = { shut: string[] };
+/* A FIGHT NOTHING WILL EVER PRICE.
+ *
+ * A Pyth side whose boundary fell where Pyth is dark (market.ts, pythSpanAt)
+ * has no price now and never will: no update can satisfy the program's check
+ * for it. Waiting would park the fight forever, and a manual button would ask
+ * somebody to sign for a price that does not exist. The only way out is the
+ * program's stall refund, which opens STALL_REFUND_SECS after accepted_ts for
+ * an accepted fight and after end_ts for a live one (programs/duel/src/lib.rs,
+ * refund_duel), and `refundAt` is that moment. It outranks a shut side: a
+ * market opening changes nothing for a fight that cannot be priced. */
+export type Never = { never: string[]; refundAt: number };
 
 /** Where a feed's stock trades, as the roster knows it. quoteSymbolFor fits,
  *  and so does crank.ts's QuoteSymbol; tests pass their own. */
@@ -67,7 +79,7 @@ function sideReady(
   boundary: number,
   now: number,
   lookup: MarketLookup,
-): Ready | { shut: string } {
+): Ready | { shut: string } | { never: string } {
   const market = lookup(feed);
   const name = byFeed(feed)?.ticker ?? market?.symbol ?? feed.replace(/^0x/, "").slice(0, 8);
   const us = (market?.market ?? "US") === "US";
@@ -79,22 +91,17 @@ function sideReady(
      * whose sessions market.ts does not model. */
     if (!market || !us) return { at: boundary + PYTH_GRACE_SECS, why: "pyth" };
 
-    /* A US equity feed prints in the regular session only, 9:30 to 4 New York.
-     * The roster's Pyth stocks are the Equity.US.<TICKER>/USD feeds, and Pyth's
-     * market hours page lists pre-market, after-hours and overnight as separate
-     * feeds of their own (docs.pyth.network/price-feeds/market-hours). So a
-     * boundary at 7pm on a Friday has no print after it until Monday's open,
-     * and calling that side due all weekend and all of Monday's pre-market
-     * would spend a Hermes call and a crank slot on it every pass, which is
-     * what 4yf7 did. A crypto feed off the roster is handled above and never
-     * waits. */
-    const opening = openingAfter(boundary, "regular");
-    // In session at the boundary: the print a moment after it, never shut.
-    if (opening === boundary) return { at: boundary + PYTH_GRACE_SECS, why: "pyth" };
-    // Shut at the boundary: the first print after the next opening bell, from
-    // the moment that bell has rung, whether or not the session is still going.
-    if (opening !== null && opening <= now) return { at: opening + PYTH_GRACE_SECS, why: "pyth" };
-    return { shut: name };
+    /* A US equity feed prints five days a week, Sunday 8 PM to Friday 8 PM New
+     * York (market.ts, pythSpanAt). Inside that, the print a moment after the
+     * boundary is its price, whatever the exchange is doing. Outside it no
+     * print will ever pass the program's check, and less than PYTH_EDGE_SECS
+     * after its start one may not (market.ts), so both are taken as never:
+     * the fight waits for no opening, and only its refund ends it. This used to
+     * model the regular session only, so 4yf7 (TSLA by Pyth, taken on a Friday
+     * night) was parked until Monday's bell and then refused by Hermes on
+     * every pass. The decision depends on the boundary alone, never on `now`. */
+    if (pythPricesAt(boundary)) return { at: boundary + PYTH_GRACE_SECS, why: "pyth" };
+    return { never: name };
   }
 
   /* A signed side with no roster entry cannot be quoted at all, and the crank
@@ -118,19 +125,26 @@ function sideReady(
   return { at: firstBarEnd(boundary) + BAR_SETTLE_SECS, why: "minute-close" };
 }
 
+/** When a fight that can never be priced at `which` can be refunded. */
+export const refundOpensAt = (d: Pick<DuelView, "acceptedTs" | "endTs">, which: "start" | "settle") =>
+  (which === "start" ? d.acceptedTs : d.endTs) + STALL_REFUND_SECS;
+
 /** The earliest unix second both sides' prices for a duel's start or settle
- *  can be final, and what that waits on; or the tickers whose market is shut. */
+ *  can be final, and what that waits on; or the tickers whose market is shut;
+ *  or the tickers nothing will ever price, and when the refund opens. */
 export function readyAt(
   d: ClockDuel,
   which: "start" | "settle",
   now: number,
   lookup: MarketLookup = quoteSymbolFor,
-): Ready | Shut {
+): Ready | Shut | Never {
   const boundary = boundaryOf(d, which);
   const sides = [
     sideReady(d.creatorFeed, d.creatorSource, boundary, now, lookup),
     sideReady(d.opponentFeed, d.opponentSource, boundary, now, lookup),
   ];
+  const never = [...new Set(sides.flatMap((s) => ("never" in s ? [s.never] : [])))];
+  if (never.length) return { never, refundAt: refundOpensAt(d, which) };
   const shut = [...new Set(sides.flatMap((s) => ("shut" in s ? [s.shut] : [])))];
   if (shut.length) return { shut };
   // The later side is the one the fight waits on; a tie keeps the creator's.
@@ -151,9 +165,9 @@ export function readySince(
   which: "start" | "settle",
   now: number,
   lookup: MarketLookup = quoteSymbolFor,
-): Ready | Shut {
+): Ready | Shut | Never {
   const clock = readyAt(d, which, now, lookup);
-  if ("shut" in clock) return clock;
+  if (!("at" in clock)) return clock;
   return { at: Math.max(clock.at, boundaryOf(d, which)), why: clock.why };
 }
 

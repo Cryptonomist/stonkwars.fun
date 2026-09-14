@@ -46,7 +46,7 @@ export function pricesFrom(d: RoundClockDuel, now: number, lookup?: MarketLookup
   const which = d.status === STATUS_ACCEPTED ? "start" : d.status === STATUS_LIVE && now >= d.endTs ? "settle" : null;
   if (!which || shutSides(d, now, lookup).length === 0) return null;
   const later = readySince(d, which, Math.max(now, boundaryOf(d, which)) + HORIZON_SECS, lookup);
-  return "shut" in later ? null : { which, at: later.at + LANDING_SECS };
+  return "at" in later ? { which, at: later.at + LANDING_SECS } : null;
 }
 
 /** What the open challenge's round is: "6 min round", or a fixed end. */

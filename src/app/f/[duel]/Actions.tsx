@@ -17,10 +17,13 @@
  *              the render's clock can be seconds old.
  *   Manual     "Lock the start prices yourself" and "Settle it yourself" only
  *              when roundClock(...).manual says the settler is late: 180
- *              seconds after the price could exist, never at the boundary, and
- *              never while the market that prices a side is shut.
- *   Shut       the hints name who prices each waiting side, Pyth or the
- *              exchange, and when it reopens (firstPriceAt).
+ *              seconds after the price could exist, never at the boundary,
+ *              never while the market that prices a side is shut, and never
+ *              for a fight that can never be priced.
+ *   Shut       the hints name each waiting side's exchange, and when it
+ *              reopens (firstPriceAt).
+ *   Never      a fight whose Pyth side landed where Pyth prints nothing says
+ *              so, and when both stakes can go home (neverSides).
  *
  * On a phone, an open challenge this viewer can take also gets a bar fixed
  * above the bottom nav with the pair, the stake and the primary action, so the
@@ -60,8 +63,8 @@ import {
 } from "@/lib/duel";
 import { shares, shortAddress, usd } from "@/lib/format";
 import { useProfiles, useSend, useTokenBalance } from "@/lib/hooks";
-import { roundClock, shutSides } from "@/lib/roundClock";
-import { byTicker, CLUSTER, decimalsForMint, firstPriceAt, mixedHoursAt, openingWords, tokenSymbol } from "@/lib/stocks";
+import { neverSides, neverWords, refundWords, roundClock, shutSides } from "@/lib/roundClock";
+import { CLUSTER, decimalsForMint, firstPriceAt, mixedHoursAt, openingWords, tokenSymbol } from "@/lib/stocks";
 import { useNudgeStatus } from "@/lib/useSettlerNudge";
 
 /** Whether `me` may take this challenge now: open, unexpired, not their own,
@@ -154,12 +157,15 @@ export function Actions({
    * for the fight's own boundary (shutSides in roundClock.ts). */
   const shut = shutSides(d, now);
   const waiting = shut.length > 0;
+  /* Nor for a fight nothing will ever price: roundClock gives it no manual
+   * button, and the hints say why and when the stakes can go home. */
+  const never = neverSides(d, now);
   /* The manual buttons wait for the price clock's readyAt plus
    * MANUAL_FALLBACK_SECS (roundClock.ts), by when the page nudge and the cron
    * have both had several goes, so something really is late. */
   const manual = roundClock(d, now, nudge).manual;
-  const startDue = d.status === STATUS_ACCEPTED && !waiting && manual?.which === "start";
-  const settleDue = d.status === STATUS_LIVE && !waiting && manual?.which === "settle";
+  const startDue = d.status === STATUS_ACCEPTED && !waiting && !never && manual?.which === "start";
+  const settleDue = d.status === STATUS_LIVE && !waiting && !never && manual?.which === "settle";
   const stalled =
     (d.status === STATUS_ACCEPTED && now >= d.acceptedTs + STALL_REFUND_SECS) ||
     (d.status === STATUS_LIVE && now >= d.endTs + STALL_REFUND_SECS);
@@ -372,30 +378,26 @@ export function Actions({
     hints.push({ title: "This challenge expired.", body: "Nobody can take it now. The challenger can send the stake home." });
   }
   const waitingFor = d.status === STATUS_ACCEPTED ? "starts" : d.status === STATUS_LIVE && now >= d.endTs ? "ends" : null;
-  /* Why each waiting side waits, from who prices it. A Pyth feed prints only
-   * in the regular session, so a Pyth stock waits through after-hours trading
-   * on a busy exchange. A signed stock waits only while its exchange is shut,
-   * which the price clock guarantees is so now. */
+  /* Why each waiting side waits. Only a signed stock ever waits, and only
+   * while its exchange is shut, which the price clock guarantees is so now: a
+   * Pyth side prices at once or never. */
   if (waitingFor && shut.length) {
     const boundary = waitingFor === "starts" ? d.acceptedTs + START_DELAY_SECS : d.endTs;
-    const pyth = shut.filter((t) => byTicker(t)?.source === "pyth");
-    for (const group of [pyth, shut.filter((t) => !pyth.includes(t))]) {
-      if (!group.length) continue;
-      const one = group.length === 1;
-      const who =
-        group === pyth
-          ? "Pyth, which only prints from the opening bell to the close"
-          : one
-            ? "its exchange, which is shut"
-            : "their exchanges, which are shut";
-      const opens = Math.max(0, ...group.map((t) => firstPriceAt(t, boundary) ?? 0));
-      hints.push({
-        title: `${group.join(" and ")} ${one ? "is" : "are"} priced by ${who}.`,
-        body: `The round ${waitingFor} at ${one ? "its first price" : "their first prices"} ${opens ? `at ${openingWords(opens)}` : "when trading resumes"}.`,
-      });
-    }
+    const one = shut.length === 1;
+    const opens = Math.max(0, ...shut.map((t) => firstPriceAt(t, boundary) ?? 0));
+    hints.push({
+      title: `${shut.join(" and ")} ${one ? "is priced by its exchange, which is shut" : "are priced by their exchanges, which are shut"}.`,
+      body: `The round ${waitingFor} at ${one ? "its first price" : "their first prices"} ${opens ? `at ${openingWords(opens)}` : "when trading resumes"}.`,
+    });
   }
-  if (d.status === STATUS_ACCEPTED && !startDue && !waiting) {
+  if (never) {
+    const which = d.status === STATUS_ACCEPTED ? "start" : "settle";
+    hints.push({
+      title: `This fight can never ${which}.`,
+      body: `${neverWords(never, which)} Nobody can post a price that does not exist. ${refundWords(never, now)}`,
+    });
+  }
+  if (d.status === STATUS_ACCEPTED && !startDue && !waiting && !never) {
     hints.push({
       title: "Both stakes are in.",
       body: "The start is each stock's first price at least two seconds after the take. Nobody needs to do anything.",

@@ -6,7 +6,9 @@
 import { expect } from "chai";
 
 import {
+  SOURCE_PYTH,
   SOURCE_SIGNED,
+  STALL_REFUND_SECS,
   START_DELAY_SECS,
   STATUS_ACCEPTED,
   STATUS_LIVE,
@@ -98,7 +100,8 @@ describe("nudge schedule", () => {
     it("stops when there is no job, the market is shut, or the server says never", () => {
       expect(nextNudgeAt(null, null, 0, READY)).to.equal(null);
       expect(nextNudgeAt({ kind: "start", shut: ["TSLA"] }, null, 0, READY)).to.equal(null);
-      for (const state of ["not-found", "disabled", "refused"] as const) {
+      expect(nextNudgeAt({ kind: "start", never: ["TSLA"], refundAt: READY + 604_800 }, null, 0, READY)).to.equal(null);
+      for (const state of ["not-found", "disabled", "refused", "never-priced"] as const) {
         expect(nextNudgeAt(job, answer(state, READY), 0, READY), state).to.equal(null);
       }
     });
@@ -165,6 +168,20 @@ describe("nudge schedule", () => {
       const j = nudgeJobFor(d, monday, { lookup: markets, since: monday });
       // Due from 4:01:20 on Monday, when the exchange's first bar is final, not from "now".
       expect(j).to.deep.equal({ kind: "start", readyAt: ny(14, 4, 1, 20), since: monday });
+    });
+
+    /* A Pyth side whose boundary fell in Pyth's weekend gap has no price and
+     * never will: the page asks the server nothing, on Sunday or on Monday. */
+    it("gives a fight nothing will ever price no time to ask at, only when its refund opens", () => {
+      const PYTH = "04".repeat(32);
+      const lookup: MarketLookup = (feed) => (feed === PYTH ? { symbol: "TSLA", market: "US" } : markets(feed));
+      const b = ny(12, 14, 0);
+      const d = { ...duel(STATUS_ACCEPTED, b), creatorFeed: PYTH, creatorSource: SOURCE_PYTH };
+      for (const now of [ny(13, 12, 0), ny(14, 9, 30)]) {
+        const j = nudgeJobFor(d, now, { lookup });
+        expect(j).to.deep.equal({ kind: "start", never: ["TSLA"], refundAt: d.acceptedTs + STALL_REFUND_SECS });
+        expect(nextNudgeAt(j, null, 0, now)).to.equal(null);
+      }
     });
   });
 });

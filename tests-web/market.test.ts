@@ -1,9 +1,24 @@
 import { expect } from "chai";
 
-import { isTradingDay, nextBell, nyToMs, session, sessionFrom, weekBell } from "../src/lib/market";
+import {
+  isTradingDay,
+  nextBell,
+  nyToMs,
+  PYTH_EDGE_SECS,
+  pythGapNear,
+  pythPricesAt,
+  pythReopeningsBetween,
+  pythSpanAt,
+  session,
+  sessionFrom,
+  weekBell,
+} from "../src/lib/market";
 
 const at = (iso: string) => Date.parse(iso);
 const iso = (unix: number) => new Date(unix * 1000).toISOString();
+/** A New York wall-clock time, in unix seconds. */
+const ny = (y: number, m: number, d: number, hh: number, mm: number, ss = 0) => Math.floor(nyToMs(y, m, d, hh, mm, ss) / 1000);
+const sep = (d: number, hh: number, mm: number, ss = 0) => ny(2026, 9, d, hh, mm, ss);
 
 describe("market clock", () => {
   it("converts New York wall time to UTC across daylight saving", () => {
@@ -62,6 +77,98 @@ describe("market clock", () => {
     expect(from("2026-11-27T22:30:00Z", "extended")).to.equal("2026-11-30T09:00:00.000Z");
     // Across the clocks going back (Sunday 1 November): Monday's open is EST.
     expect(from("2026-10-31T16:00:00Z", "regular")).to.equal("2026-11-02T14:30:00.000Z");
+  });
+
+  /* PYTH'S HOURS, AS MEASURED FROM HERMES ON 14 SEP 2026.
+   *
+   * Every second from 8 PM the evening before a trading day to 8 PM on it,
+   * joined across weekday nights; dark from Friday 8 PM to Sunday 8 PM, and
+   * on Labor Day weekend from Friday 8 PM to Monday 8 PM. The first print
+   * after a gap carries a made-up prev_publish_time, so a boundary under a
+   * minute into a span is never priced either. */
+  describe("Pyth's 24/5 hours", () => {
+    const span = (t: number) => {
+      const s = pythSpanAt(t);
+      return s && [iso(s.start), iso(s.end)];
+    };
+
+    it("prints from Sunday 8 PM to Friday 8 PM, as one span", () => {
+      const week = [iso(sep(13, 20, 0)), iso(sep(18, 20, 0))];
+      for (const t of [sep(13, 20, 0), sep(14, 3, 0), sep(15, 20, 0), sep(16, 19, 59, 59), sep(17, 4, 0), sep(18, 19, 59, 59)]) {
+        expect(span(t), iso(t)).to.deep.equal(week);
+      }
+      expect(span(sep(18, 20, 0))).to.equal(null);
+      expect(span(sep(19, 12, 0))).to.equal(null);
+      expect(span(sep(13, 19, 59, 59))).to.equal(null);
+    });
+
+    it("prices a Friday boundary up to the last second, and refuses the margin before the gap", () => {
+      expect(PYTH_EDGE_SECS).to.equal(60);
+      // TSLA boundary Fri 19:58:59 ET: allowed. Fri 19:59:30: refused. Saturday: refused.
+      expect(pythPricesAt(sep(11, 19, 58, 59))).to.equal(true);
+      expect(pythGapNear(sep(11, 19, 58, 59))).to.equal(null);
+      expect(pythGapNear(sep(11, 19, 59, 0))).to.equal(null);
+      expect(pythPricesAt(sep(11, 19, 59, 30))).to.equal(true); // Pyth still prints; only the pages refuse it
+      expect(pythGapNear(sep(11, 19, 59, 30))).to.deep.equal({ from: sep(11, 20, 0), until: sep(13, 20, 0) });
+      expect(pythPricesAt(sep(11, 20, 0))).to.equal(false);
+      expect(pythPricesAt(sep(12, 12, 0))).to.equal(false);
+      expect(pythGapNear(sep(12, 12, 0))).to.deep.equal({ from: sep(11, 20, 0), until: sep(13, 20, 0) });
+    });
+
+    it("never prices a boundary less than a minute after Sunday's reopening", () => {
+      // Sun 20:00:30 ET: refused. Sun 20:01:00: allowed.
+      for (const t of [sep(13, 20, 0), sep(13, 20, 0, 1), sep(13, 20, 0, 30), sep(13, 20, 0, 59)]) {
+        expect(pythPricesAt(t), iso(t)).to.equal(false);
+        expect(pythGapNear(t), iso(t)).to.deep.equal({ from: sep(11, 20, 0), until: sep(13, 20, 0) });
+      }
+      expect(pythPricesAt(sep(13, 20, 1))).to.equal(true);
+      expect(pythGapNear(sep(13, 20, 1))).to.equal(null);
+    });
+
+    it("prints straight through a weekday night", () => {
+      // Thu 03:59:59 ET, and the seams at 8 PM that join one day's span to the next.
+      expect(pythPricesAt(sep(10, 3, 59, 59))).to.equal(true);
+      for (const t of [sep(9, 19, 59, 59), sep(9, 20, 0), sep(9, 20, 0, 1), sep(9, 20, 0, 30), sep(10, 4, 0)]) {
+        expect(pythPricesAt(t), iso(t)).to.equal(true);
+        expect(pythGapNear(t), iso(t)).to.equal(null);
+      }
+    });
+
+    it("had no Sunday night before Labor Day: dark from Friday 8 PM to Monday 8 PM", () => {
+      // Sun 6 Sep 21:00 ET: refused. Mon 7 Sep 20:01: allowed.
+      expect(pythPricesAt(sep(6, 21, 0))).to.equal(false);
+      expect(pythPricesAt(sep(7, 12, 0))).to.equal(false);
+      expect(pythGapNear(sep(6, 21, 0))).to.deep.equal({ from: sep(4, 20, 0), until: sep(7, 20, 0) });
+      expect(pythPricesAt(sep(7, 20, 0, 30))).to.equal(false);
+      expect(pythPricesAt(sep(7, 20, 1))).to.equal(true);
+      expect(span(sep(7, 20, 1))).to.deep.equal([iso(sep(7, 20, 0)), iso(sep(11, 20, 0))]);
+      const gap = pythGapNear(sep(6, 21, 0))!;
+      expect(gap.until - gap.from).to.equal(72 * 3_600);
+    });
+
+    it("ends an early close at 1 PM, and has nothing on Thanksgiving", () => {
+      const nov = (d: number, hh: number, mm: number) => ny(2026, 11, d, hh, mm);
+      expect(span(nov(25, 12, 0))).to.deep.equal([iso(nov(22, 20, 0)), iso(nov(25, 20, 0))]);
+      expect(pythPricesAt(nov(25, 21, 0))).to.equal(false);
+      expect(pythPricesAt(nov(26, 12, 0))).to.equal(false);
+      expect(span(nov(27, 12, 0))).to.deep.equal([iso(nov(26, 20, 0)), iso(nov(27, 13, 0))]);
+      // So the half day's own bell, 12:59:30, is too close to that end to be offered for a Pyth side.
+      expect(pythGapNear(nov(27, 12, 59))).to.equal(null);
+      expect(pythGapNear(ny(2026, 11, 27, 12, 59, 30))).to.deep.equal({ from: nov(27, 13, 0), until: nov(29, 20, 0) });
+      expect(pythPricesAt(nov(27, 14, 0))).to.equal(false);
+      expect(pythGapNear(nov(26, 12, 0))).to.deep.equal({ from: nov(25, 20, 0), until: nov(26, 20, 0) });
+    });
+
+    it("keeps 8 PM on New York's clock when the clocks go back", () => {
+      // Sunday 1 November 2026: EDT ends at 2 AM, so 8 PM that night is 01:00 UTC.
+      expect(span(ny(2026, 11, 1, 20, 30))).to.deep.equal(["2026-11-02T01:00:00.000Z", "2026-11-07T01:00:00.000Z"]);
+      expect(span(ny(2026, 10, 30, 19, 0))).to.deep.equal(["2026-10-26T00:00:00.000Z", "2026-10-31T00:00:00.000Z"]);
+    });
+
+    it("lists the moments a minute after each reopening", () => {
+      expect(pythReopeningsBetween(sep(4, 12, 0), sep(16, 0, 0)).map(iso)).to.deep.equal([iso(sep(7, 20, 1)), iso(sep(13, 20, 1))]);
+      expect(pythReopeningsBetween(sep(14, 12, 0), sep(18, 12, 0))).to.deep.equal([]);
+    });
   });
 
   it("puts the week bell on Friday, or the last trading day before the weekend", () => {

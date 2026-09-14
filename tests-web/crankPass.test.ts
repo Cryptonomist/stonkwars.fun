@@ -390,16 +390,20 @@ describe("settler pass", () => {
     expect(ahead.due.map((j) => j.readyAt)).to.deep.equal([at]);
   });
 
-  /* 4yf7: TSLA priced by Pyth, accepted on a Saturday. Pyth's regular US feed
-   * does not print until Monday's open, so the fight is parked: no Hermes
-   * call, no quote, no slot, all weekend. */
-  it("parks a 4yf7-like fight with no call to Hermes or the oracle", async () => {
+  /* 4yf7: TSLA priced by Pyth v NVDA, accepted_ts 1789179709, Friday 11 Sep
+   * 10:21:49 PM New York. Its start fell where Pyth prints nothing, from
+   * Friday 8 PM to Sunday 8 PM, so no update will ever pass the program's
+   * check for it. The old clock parked it until Monday's opening bell and then
+   * asked Hermes on every pass; now it is set aside for good, with the moment
+   * its stall refund opens: no Hermes call, no quote, no slot, on Sunday or on
+   * Monday morning. */
+  it("sets aside 4yf7, which nothing will ever price, with no call to Hermes or the oracle", async () => {
     const chain = new StubChain();
     const d = duel({
       creatorFeed: byTicker("TSLA")!.feed,
       creatorSource: SOURCE_PYTH,
       opponentFeed: byTicker("NVDA")!.feed,
-      acceptedTs: ny(12, 22, 14, 0) - START_DELAY_SECS,
+      acceptedTs: 1_789_179_709,
     });
     await chain.put(d);
     const hermes = {
@@ -410,20 +414,44 @@ describe("settler pass", () => {
     const quote: typeof quoteAt = () => {
       throw new Error("the oracle must not be asked about a parked fight");
     };
-    const sunday = ny(13, 12, 0);
 
-    const listing = await listJobs(chain.conn(), sunday, { lookup: quoteSymbolFor, lookaheadSecs: 40 });
-    expect(listing.due).to.have.length(0);
-    expect(listing.parked).to.deep.equal([{ duel: d.address.toBase58(), kind: "start", shut: ["TSLA"] }]);
+    for (const now of [ny(13, 12, 0), ny(14, 9, 30, 5)]) {
+      const listing = await listJobs(chain.conn(), now, { lookup: quoteSymbolFor, lookaheadSecs: 40 });
+      expect(listing.due).to.have.length(0);
+      expect(listing.parked).to.deep.equal([
+        { duel: d.address.toBase58(), kind: "start", never: ["TSLA"], refundAt: ny(18, 22, 21, 49) },
+      ]);
 
-    const results = await crankOnce({
-      ...ctx(chain, { hermes, quoteAt: quote, quoteSymbol: quoteSymbolFor }),
-      now: sunday,
-      lookaheadSecs: 40,
-    });
-    expect(results).to.deep.equal([]);
+      const results = await crankOnce({
+        ...ctx(chain, { hermes, quoteAt: quote, quoteSymbol: quoteSymbolFor }),
+        now,
+        lookaheadSecs: 40,
+      });
+      expect(results).to.deep.equal([]);
+    }
     expect(chain.infoCalls).to.equal(0);
     expect(chain.sendCalls).to.have.length(0);
+  });
+
+  /* The other half of the same model: Pyth prints on weekday nights, so a
+   * TSLA fight taken at 10pm on a Tuesday is due within seconds, not parked
+   * until Wednesday's bell. */
+  it("calls a Pyth fight taken on a weekday night due at once", async () => {
+    const chain = new StubChain();
+    const boundary = ny(15, 22, 0, 10);
+    const d = duel({
+      creatorFeed: byTicker("TSLA")!.feed,
+      creatorSource: SOURCE_PYTH,
+      opponentFeed: byTicker("QQQ")!.feed,
+      opponentSource: SOURCE_PYTH,
+      acceptedTs: boundary - START_DELAY_SECS,
+    });
+    await chain.put(d);
+    const listing = await listJobs(chain.conn(), boundary + 5, { lookup: quoteSymbolFor, lookaheadSecs: 40 });
+    expect(listing.parked).to.deep.equal([]);
+    expect(listing.due.map((j) => [j.duel.address.toBase58(), j.kind, j.readyAt, j.why])).to.deep.equal([
+      [d.address.toBase58(), "start", boundary + 3, "pyth"],
+    ]);
   });
 
   /* A nudge or a person settled it a moment ago, and this RPC node has not

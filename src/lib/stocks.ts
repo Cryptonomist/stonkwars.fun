@@ -22,7 +22,16 @@ import perpsJson from "@/data/perps.json";
 import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
 import { START_DELAY_SECS, type DuelView, type StakeAsset } from "@/lib/duel";
-import { nyParts, openingAfter, openingsBetween, session } from "@/lib/market";
+import {
+  nyParts,
+  openingAfter,
+  openingsBetween,
+  PYTH_EDGE_SECS,
+  pythGapNear,
+  pythPricesAt,
+  pythReopeningsBetween,
+  session,
+} from "@/lib/market";
 import { firstBarEnd, sourceAt } from "@/lib/oracle";
 
 export type Stock = {
@@ -123,9 +132,10 @@ export function quoteSymbolFor(feed: string) {
   };
 }
 
-/** Whether a stock can settle a fight outside its exchange's hours. Pyth's
- *  equity feeds print in the regular session only, so a Pyth-priced stock
- *  keeps those hours however busy its off-hours markets are. */
+/** Whether a stock can settle a fight whenever it is taken. Pyth's equity
+ *  feeds go dark from Friday 8 PM to Sunday 8 PM New York and on holidays
+ *  (market.ts, pythSpanAt), so a Pyth-priced stock is not one of them however
+ *  busy its weekend markets are. */
 export const tradesAroundTheClock = (ticker: string) => {
   const s = byTicker(ticker);
   return !!s && s.source !== "pyth" && (!!PERPS[ticker] || !!POOLS[ticker]);
@@ -137,14 +147,15 @@ export const tradesAroundTheClock = (ticker: string) => {
  * boundary, and this is the moment that price can first appear: the boundary
  * itself when something prices the stock then, or else the opening it waits
  * for. It is the one answer the pages build on, and it is the price clock's
- * answer (priceClock.ts), from the same openingAfter, so a page cannot let a
- * fight be taken on hours the crank does not price it on. A test holds the
- * two together, second for second, across a holiday, an early close and a
+ * answer (priceClock.ts), from the same market.ts functions, so a page cannot
+ * let a fight be taken on hours the crank does not price it on. A test holds
+ * the two together, second for second, across a holiday, an early close and a
  * daylight saving change (tests-web/stocks.test.ts).
  *
- *   Pyth, US          the regular session only, 9:30 to the close. Pyth's US
- *                     equity feeds do not print in pre-market or after-hours,
- *                     so a boundary at 7pm on a Friday waits for Monday 9:30.
+ *   Pyth, US          the boundary while Pyth prints, Sunday 8 PM to Friday
+ *                     8 PM New York (pythPricesAt); otherwise null, because a
+ *                     Pyth side never waits for an opening: a boundary in its
+ *                     dark hours can never be priced at all.
  *   signed, perp/pool the boundary: the exchange's bars from 4am to 8pm, and
  *                     the perp or pool whenever the exchange is shut.
  *   signed, neither   the exchange's bars, 4am to 8pm; shut, it waits for the
@@ -160,12 +171,13 @@ export const tradesAroundTheClock = (ticker: string) => {
  * price clock models it: both call a pool-only stock priced at the boundary.
  *
  * Unix seconds, never before the boundary. Null for a ticker off the roster,
- * or if nothing opens within ten days. */
+ * for a Pyth boundary that can never be priced, or if nothing opens within
+ * ten days. */
 export function firstPriceAt(ticker: string, boundary: number): number | null {
   const s = byTicker(ticker);
   if (!s) return null;
   if (s.market !== "US") return boundary;
-  if (s.source === "pyth") return openingAfter(boundary, "regular");
+  if (s.source === "pyth") return pythPricesAt(boundary) ? boundary : null;
   if (PERPS[ticker] || POOLS[ticker]) return boundary;
   return openingAfter(boundary, "extended");
 }
@@ -174,15 +186,16 @@ export function firstPriceAt(ticker: string, boundary: number): number | null {
  *
  * "waits" is the one worth saying out loud: the stock is real, the fight is
  * legal, and nothing will settle it until its market opens again. Somebody
- * picking TSLA at midnight should be told that before they stake, not after.
+ * picking NFLX at midnight should be told that before they stake, not after.
  *
- * It is firstPriceAt's answer in words. A Pyth stock waits outside the regular
- * session, pre-market and after-hours included: it used to be called priced
- * by its exchange whenever the exchange's bars ran, from 4am to 8pm, which is
- * not when Pyth prints. A listing outside the US keeps its own exchange's
- * hours, which we do not model, so it is never called a wait. */
-export function pricedAt(ticker: string, boundary: number): "exchange" | "perp" | "pool" | "waits" {
+ * It is firstPriceAt's answer in words. A Pyth stock is "pyth" while Pyth
+ * prints, pre-market, after-hours and weekday nights included, and "never" in
+ * Pyth's dark hours: it does not wait for anything. A listing outside the US
+ * keeps its own exchange's hours, which we do not model, so it is never called
+ * a wait. */
+export function pricedAt(ticker: string, boundary: number): "exchange" | "pyth" | "perp" | "pool" | "waits" | "never" {
   const s = byTicker(ticker);
+  if (s && s.market === "US" && s.source === "pyth") return pythPricesAt(boundary) ? "pyth" : "never";
   if (!s || firstPriceAt(ticker, boundary) !== boundary) return "waits";
   if (s.market !== "US" || session(boundary * 1_000) !== "closed") return "exchange";
   return PERPS[ticker] ? "perp" : "pool";
@@ -198,7 +211,7 @@ export function pricedAt(ticker: string, boundary: number): "exchange" | "perp" 
  * trimmed mean carries the boundary, and a bar's close carries the end of the
  * bar, up to a minute after the boundary or the opening it waited for.
  *
- *   Pyth, US          firstPriceAt: the boundary in session, else the bell
+ *   Pyth, US          firstPriceAt: the boundary while Pyth prints, else null
  *   signed, US        oracle.ts's sourceAt for the boundary: a pool at the
  *                     boundary; otherwise the end of the first bar after
  *                     firstPriceAt, the exchange's, or the perp's when shut
@@ -212,7 +225,7 @@ export function priceTimeAt(ticker: string, boundary: number): number | null {
   const s = byTicker(ticker);
   if (!s) return null;
   if (s.market !== "US") return s.source === "pyth" ? boundary : firstBarEnd(boundary);
-  if (s.source === "pyth") return openingAfter(boundary, "regular");
+  if (s.source === "pyth") return firstPriceAt(ticker, boundary);
   if (sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin }) === "pool") {
     return boundary;
   }
@@ -222,15 +235,14 @@ export function priceTimeAt(ticker: string, boundary: number): number | null {
 
 /* HOW FAR APART TWO SIDES' PRICES MAY BE.
  *
- * In session, a Pyth side's price carries the boundary and a bar-priced side's
- * the end of the minute the boundary falls in, up to a minute later. Fights
- * have always started and ended that far apart, and nobody's round is decided
- * by it. So two sides whose price times (priceTimeAt) are within a minute of
- * each other count as together. It compares the times the program records,
- * not the boundaries: taken at 9:28:59, TSLA's 9:30:00 print and NVDA's
- * pre-market bar closing at 9:30:00 are the same moment, while a pool's price
- * at 3:59:02am and a 4:01:00 bar are two minutes apart. Beyond a minute the
- * gap is the fight. */
+ * A Pyth side's price carries the boundary and a bar-priced side's the end of
+ * the minute the boundary falls in, up to a minute later. Fights have always
+ * started and ended that far apart, and nobody's round is decided by it. So
+ * two sides whose price times (priceTimeAt) are within a minute of each other
+ * count as together. It compares the times the program records, not the
+ * boundaries: a pool's price at 3:59:02am and a 4:01:00 bar are two minutes
+ * apart, though their boundaries are under one. Beyond a minute the gap is the
+ * fight. */
 export const SAME_PRICE_SECS = 60;
 
 /* HOW LATE A TAKE CAN LAND AFTER IT WAS CHECKED.
@@ -251,10 +263,11 @@ const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "
 const clockWords = (p: { hh: number; mm: number }) =>
   `${p.hh % 12 || 12}:${String(p.mm).padStart(2, "0")} ${p.hh < 12 ? "AM" : "PM"} ET`;
 
-/** "Monday 4:30 PM ET". */
-function nyWords(unix: number): string {
+/** "Monday 4:30 PM ET", or "Monday 4:30 PM" without the zone. */
+function nyWords(unix: number, zone = true): string {
   const p = nyParts(unix * 1_000);
-  return `${WEEKDAY_NAMES[p.wd]} ${clockWords(p)}`;
+  const words = `${WEEKDAY_NAMES[p.wd]} ${clockWords(p)}`;
+  return zone ? words : words.slice(0, -" ET".length);
 }
 
 /** "Monday's 9:30 AM ET opening bell", "Monday's 4:00 AM ET pre-market open". */
@@ -341,12 +354,9 @@ function closeAhead(p: Apart, now: number): number | null {
 
 /* WHY TWO SIDES WOULD PART, IN WORDS.
  *
- * From the side of whoever is reading, and true for each kind of stock:
- *
- *   A Pyth stock outside the regular session is not waiting for its exchange,
- *   which may be busy with after-hours trading. It is waiting for Pyth, which
- *   does not print until the bell, and it says so. Shut, the old sentence
- *   stands: TSLA waits for its exchange to open.
+ * From the side of whoever is reading, and true for each kind of stock. A Pyth
+ * side is never the one that waits: its price carries its boundary whenever it
+ * can exist at all, and where it cannot, darkWords says so instead.
  *
  *   A listing abroad is priced on its own exchange's hours, which nothing here
  *   tracks, so it is never said to trade now, and no gap is put on it.
@@ -385,48 +395,102 @@ function apartWords(p: Apart, stops: number | null, round?: EndRule): string {
   }
   if (!earlyPrices) return `${p.early} would start at ${openingWords(p.earlyFrom)} but ${p.late} not until ${lateFrom}, ${tail}`;
   const early = abroad ? `${p.early} is priced on its own exchange's hours` : `${p.early} trades now`;
-  if (byTicker(p.late)?.source === "pyth" && session(p.boundary * 1_000) !== "closed") {
-    return `${p.late} is priced by Pyth, which does not print until ${lateFrom}, but ${early}, ${tail}`;
-  }
   return `${p.late} waits for its exchange to open but ${early}, ${tail}`;
+}
+
+/* WHERE A PYTH SIDE WOULD LAND IN THE DARK.
+ *
+ * A Pyth stock's price at a boundary exists only while Pyth prints, Sunday
+ * 8 PM to Friday 8 PM New York with holidays out (market.ts, pythSpanAt). A
+ * start or an end that lands in one of its gaps, or within PYTH_EDGE_SECS of
+ * either end of one, may never be priced, and the fight would sit a week for
+ * the stall refund. Unlike two sides that part, this is not about the pair:
+ * two Pyth stocks in the same gap are no better off than one, which is how
+ * TSLA v QQQ used to be allowed on a Saturday.
+ *
+ * Checked where apartIfTakenAt checks: the start boundary, and the end the
+ * program would compute from the later side's start price. */
+type Dark = { at: "start" | "end"; boundary: number; tickers: string[]; from: number; until: number };
+
+const byPyth = (ticker: string) => {
+  const s = byTicker(ticker);
+  return !!s && s.market === "US" && s.source === "pyth";
+};
+
+function darkAtBoundary(a: string, b: string, boundary: number, at: Dark["at"]): Dark | null {
+  const tickers = [...new Set([a, b])].filter(byPyth);
+  const gap = tickers.length ? pythGapNear(boundary) : null;
+  return gap ? { at, boundary, tickers, ...gap } : null;
+}
+
+function darkIfTakenAt(a: string, b: string, acceptedTs: number, round?: EndRule): Dark | null {
+  const start = acceptedTs + START_DELAY_SECS;
+  const began = darkAtBoundary(a, b, start, "start");
+  if (began || !round) return began;
+  const pa = priceTimeAt(a, start);
+  const pb = priceTimeAt(b, start);
+  if (pa === null || pb === null) return null;
+  const end = round.durationSecs > 0 ? Math.max(pa, pb) + round.durationSecs : round.endTs;
+  return end > 0 ? darkAtBoundary(a, b, end, "end") : null;
+}
+
+/** The same, wherever in the next TAKE_SLACK_SECS a take sent at `now` lands.
+ *  Both ends are enough, as for apartWithin: a gap with its margins is hours
+ *  long, and a later accept only moves both boundaries later. */
+function darkWithin(a: string, b: string, now: number, round?: EndRule): Dark | null {
+  return darkIfTakenAt(a, b, now, round) ?? darkIfTakenAt(a, b, now + TAKE_SLACK_SECS, round);
+}
+
+/** "Pyth does not publish TSLA from Friday 8:00 PM to Sunday 8:00 PM ET, ...". */
+function darkWords(d: Dark, round?: EndRule): string {
+  const names = d.tickers.join(" or ");
+  const hours = `Pyth does not publish ${names} from ${nyWords(d.from, false)} to ${nyWords(d.until)}`;
+  if (d.at === "start") return `${hours}, and a fight whose start lands then, or within a minute of it, can never be priced.`;
+  const when = `${round && round.durationSecs > 0 ? "around" : "at"} ${nyWords(d.boundary)}`;
+  return `This round would end ${when}, but ${hours}, and an end that lands then, or within a minute of it, can never be priced.`;
 }
 
 /* THE FIRST MOMENT A FIGHT COULD BE TAKEN FAIRLY, AFTER `from`.
  *
- * Two sides that part now can only line up again when some market opens, so
- * this asks at each opening before the challenge expires (round.expiresTs, or
- * ten days on when there is none) and returns the first whose whole take
- * window is fair. Null when none is. */
+ * Two sides that part now can only line up again when some market opens, and
+ * a Pyth side in the dark can only be taken again once Pyth has printed for
+ * PYTH_EDGE_SECS, so this asks at each of those moments before the challenge
+ * expires (round.expiresTs, or ten days on when there is none) and returns the
+ * first whose whole take window is fair. Null when none is. */
 export function nextFairTake(a: string, b: string, from: number, round?: EndRule): number | null {
   const until = round?.expiresTs || from + 10 * 86_400;
-  for (const t of openingsBetween(from, until)) {
-    if (!apartWithin(a, b, t, round)) return t;
+  const moments = openingsBetween(from, until);
+  if (byPyth(a) || byPyth(b)) moments.push(...pythReopeningsBetween(from, until));
+  for (const t of [...new Set(moments)].sort((x, y) => x - y)) {
+    if (!darkWithin(a, b, t, round) && !apartWithin(a, b, t, round)) return t;
   }
   return null;
 }
 
 /* WHETHER TWO STOCKS CAN FIGHT FAIRLY, TAKEN AT `now`.
  *
- * Each side's start is its own first price after the boundary, and so is each
- * side's end. When the program would stamp the two more than SAME_PRICE_SECS
- * apart, the fight is decided by the gap between them rather than by the
- * round. That happens three ways:
+ * First, whether either side can be priced at all: a Pyth side whose start or
+ * end would land where Pyth is dark can never be (darkWithin), whatever the
+ * other side does. VOO taken at 7:59:30pm on a Friday, or any time on a
+ * Saturday, is refused for that alone.
  *
- *   One side waits and the other trades now: TSLA (Pyth) at 7pm on a Friday
- *   against NVDA, which has after-hours bars. NVDA would start then and TSLA
- *   at Monday's opening bell, so the weekend would decide it.
+ * Then, each side's start is its own first price after the boundary, and so
+ * is each side's end. When the program would stamp the two more than
+ * SAME_PRICE_SECS apart, the fight is decided by the gap between them rather
+ * than by the round. On today's roster that happens two ways, since the only
+ * stocks that wait at all wait for the same 4am bar:
  *
- *   Both wait, for different openings: TSLA on a Saturday against a stock
- *   with neither perp nor pool. One starts at Monday's 9:30 bell and the other
- *   at Monday's 4am pre-market.
+ *   One side waits and the other trades now: NFLX, with neither perp nor
+ *   pool, at 9pm on a Monday against NVDA, which has its perp. NVDA would
+ *   start then and NFLX at Tuesday's 4am bar, so the night would decide it.
  *
- *   The pair starts together but the round ends where they part: TSLA against
- *   NVDA, an hour from 3:30pm on a Monday. TSLA's session closes at 4, so the
- *   round would end on NVDA's 4:30 bar and on TSLA's Tuesday 9:30 print.
+ *   The pair starts together but the round ends where they part: NFLX
+ *   against NVDA, an hour from 7:30pm on a Monday. NFLX's bars stop at 8, so
+ *   the round would end on NVDA's 8:31 perp bar and on NFLX's Tuesday 4:01.
  *
  * `now` is when the take is sent, and it lands up to TAKE_SLACK_SECS later,
  * so the pair must be fair for an accept anywhere in that window: a fixed-end
- * challenge taken at 3:59:58pm starts at 4:00:00, after Pyth's last print.
+ * challenge taken at 7:59:58pm starts at 8:00:00, after NFLX's last bar.
  * `round` is the fight's end rule; without it only the start is checked.
  *
  * Returns the sentence that explains the unfair case, for the page to show
@@ -442,14 +506,26 @@ export function mixedHoursAt(
   round?: EndRule,
   reader: "creator" | "taker" = "creator",
 ): string | null {
+  const taker = (reason: string, never = "It closes before the two line up again.") => {
+    const from = nextFairTake(a, b, now, round);
+    return `${reason} ${from === null ? never : `You can take it from ${openingWords(from)}.`}`;
+  };
+
+  const dark = darkWithin(a, b, now, round);
+  if (dark) {
+    const reason = darkWords(dark, round);
+    if (reader === "taker") return taker(reason, "It closes before it can be taken.");
+    const stocks = dark.tickers.length === 1 ? "a stock" : "stocks";
+    return dark.at === "start"
+      ? `${reason} Pick ${stocks} Pyth does not price, or come back from ${openingWords(dark.until + PYTH_EDGE_SECS)}.`
+      : `${reason} Pick a round that ends while Pyth publishes, or ${stocks} Pyth does not price.`;
+  }
+
   const p = apartWithin(a, b, now, round);
   if (!p) return null;
   const stops = closeAhead(p, now);
   const reason = apartWords(p, stops, round);
-  if (reader === "taker") {
-    const from = nextFairTake(a, b, now, round);
-    return `${reason} ${from === null ? "It closes before the two line up again." : `You can take it from ${openingWords(from)}.`}`;
-  }
+  if (reader === "taker") return taker(reason);
   const advice =
     p.at === "end"
       ? "Pick a round that ends while both trade, or two that trade the same hours."
