@@ -26,7 +26,7 @@
  * turns it into the server's. */
 
 import { STATUS_ACCEPTED, STATUS_LIVE, type DuelView } from "./duel";
-import { MANUAL_FALLBACK_SECS, readySince, type ClockDuel, type MarketLookup, type ReadyWhy } from "./priceClock";
+import { MANUAL_FALLBACK_SECS, readyAt, readySince, type ClockDuel, type MarketLookup, type ReadyWhy } from "./priceClock";
 
 export type RoundClockDuel = ClockDuel & Pick<DuelView, "status">;
 
@@ -72,6 +72,25 @@ function waitingOn(why: ReadyWhy, n: number, which: "start" | "settle"): string 
   if (why === "pyth") return which === "start" ? "in a few seconds, at Pyth's first price" : "in a few seconds, at Pyth's first price after the bell";
   if (why === "pool-window") return `in ${inSecs(n)}, when the pool's last minutes are in`;
   return which === "start" ? `in ${inSecs(n)}, when this minute's price closes` : `in ${inSecs(n)}, when the minute after the bell is final`;
+}
+
+/* THE STOCKS A FIGHT IS WAITING ON A SHUT MARKET FOR.
+ *
+ * The boards and the fight page say "waiting for the open", and hold back the
+ * manual buttons, while a side's market is shut. That is the price clock's
+ * "shut", for the boundary the fight is at: its start once it is accepted,
+ * its bell once that has rung. It used to ask whether each stock priced NOW,
+ * so a fight whose end price printed at the bell and was not yet settled read
+ * "waiting for the open" as soon as its market closed, and lost its button
+ * for a price that already existed. With Pyth stocks rightly shut in
+ * after-hours, that would have been every late Pyth settle from 4pm. Empty
+ * when nothing waits, or the fight is at no boundary. */
+export function shutSides(d: RoundClockDuel, now: number, lookup?: MarketLookup): string[] {
+  if (!now) return [];
+  const which = d.status === STATUS_ACCEPTED ? "start" : d.status === STATUS_LIVE && now >= d.endTs ? "settle" : null;
+  if (!which) return [];
+  const clock = readyAt(d, which, now, lookup);
+  return "shut" in clock ? clock.shut : [];
 }
 
 export function roundClock(

@@ -52,9 +52,9 @@ import { clock, etTime, pct, points, pythToNumber, shares, shortAddress, span, u
 import { explorerAddress, useDuel, useSend, useTokenBalance } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
 import { sourceAt, type PriceSource } from "@/lib/oracle";
-import { byTicker, CLUSTER, mixedHoursAt, pricedAt, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import { byTicker, CLUSTER, mixedHoursAt, quoteSymbolFor, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
-import { roundClock } from "@/lib/roundClock";
+import { roundClock, shutSides } from "@/lib/roundClock";
 import { useNudgeStatus } from "@/lib/useSettlerNudge";
 import { BRAND } from "@/lib/brand";
 
@@ -359,17 +359,20 @@ function Actions({
   const expired = now > 0 && d.expiresTs <= now;
   const canTake = d.status === STATUS_OPEN && !expired && !isCreator && (!isInviteOnly(d) || d.invitee.toBase58() === me);
   const short = balance.data !== undefined && (balance.data === null || balance.data < d.opponentAmount);
-  /* Taking starts the round, so the hours that matter are this moment's. A
-   * challenge picked while both sides traded can be opened again after one
-   * exchange shuts, and taking it then would start the two sides days apart.
-   * It stays takeable once the hours line up again. */
-  const mixedHours = canTake && now ? mixedHoursAt(t1, t2, now) : null;
+  /* Taking starts the round, so the hours that matter are this moment's, and
+   * the end's that follow from it. A challenge picked while both sides traded
+   * can be opened again after one exchange shuts, and taking it then would
+   * start the two sides days apart. It stays takeable once the hours line up
+   * again. */
+  const mixedHours = canTake && now ? mixedHoursAt(t1, t2, now, d) : null;
 
   /* While the market that prices a side is shut, its next price does not exist
    * yet, so neither the settler nor anyone else can lock a start or an end. A
    * button then only leads to a wallet popup and a failed request, right under
-   * the status line that says the fight is waiting. */
-  const waiting = waitingForMarket(d, now);
+   * the status line that says the fight is waiting. The price clock decides it,
+   * for the fight's own boundary (shutSides in roundClock.ts). */
+  const shut = shutSides(d, now);
+  const waiting = shut.length > 0;
   /* INTERIM, until the page redesign moves the round clock into the status
    * line. The manual buttons used to appear twenty seconds after the boundary,
    * which for a minute-bar price is before the price can exist. Now they wait
@@ -378,7 +381,6 @@ function Actions({
   const manual = roundClock(d, now, nudge).manual;
   const startDue = d.status === STATUS_ACCEPTED && !waiting && manual?.which === "start";
   const settleDue = d.status === STATUS_LIVE && !waiting && manual?.which === "settle";
-  const shut = waiting ? [...new Set([t1, t2])].filter((t) => t !== "?" && pricedAt(t, now) === "waits") : [];
   const stalled =
     (d.status === STATUS_ACCEPTED && now >= d.acceptedTs + STALL_REFUND_SECS) ||
     (d.status === STATUS_LIVE && now >= d.endTs + STALL_REFUND_SECS);

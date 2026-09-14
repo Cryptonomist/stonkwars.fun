@@ -17,7 +17,8 @@ import {
 import { nyToMs } from "../src/lib/market";
 import { BAR_SETTLE_SECS } from "../src/lib/oracle";
 import { firstBarEnd, MANUAL_FALLBACK_SECS, PYTH_GRACE_SECS, type MarketLookup } from "../src/lib/priceClock";
-import { MANUAL_SETTLE, MANUAL_START, roundClock, type RoundClockDuel } from "../src/lib/roundClock";
+import { MANUAL_SETTLE, MANUAL_START, roundClock, shutSides, type RoundClockDuel } from "../src/lib/roundClock";
+import { byTicker } from "../src/lib/stocks";
 
 const utc = (iso: string) => Math.floor(Date.parse(iso) / 1000);
 const ny = (day: number, hh: number, mm: number, ss = 0) => Math.floor(nyToMs(2026, 9, day, hh, mm, ss) / 1000);
@@ -187,6 +188,53 @@ describe("round clock", () => {
       const fri = ny(11, 19, 0) - 300; // a bell at 7pm on a Friday
       const p = { ...fight(STATUS_LIVE, fri, FEED.exchange), endTs: ny(11, 20, 30) };
       expect(roundClock(p, ny(12, 9, 0), null, markets).line).to.equal("Bell rung · waiting for the market that prices it to open");
+    });
+  });
+
+  /* What the boards and the fight page call "waiting for the open". It is the
+   * price clock's shut, for the fight's own boundary, never a question about
+   * whether the market is open now. */
+  describe("shutSides", () => {
+    const real = (ticker: string) => byTicker(ticker)!.feed;
+    type Side = { feed: string; source: number };
+    const tsla: Side = { feed: real("TSLA"), source: SOURCE_PYTH };
+    const qqq: Side = { feed: real("QQQ"), source: SOURCE_PYTH };
+    const nvda: Side = { feed: real("NVDA"), source: SOURCE_SIGNED };
+    const between = (status: number, a: Side, b: Side, acceptedTs: number, endTs: number): RoundClockDuel => ({
+      status,
+      creatorFeed: a.feed,
+      creatorSource: a.source,
+      opponentFeed: b.feed,
+      opponentSource: b.source,
+      acceptedTs,
+      endTs,
+    });
+
+    /* A bell fight, TSLA by Pyth v NVDA, whose end prices exist by 4:00:20
+     * and which nobody has settled by 4:05, after the manual button comes.
+     * TSLA's feed has stopped for the day, but its price is there: nothing is
+     * waiting, so the button stays. Asking whether TSLA prices now would have
+     * hidden it. */
+    it("keeps a bell fight due after the session that priced it has closed", () => {
+      const bell = ny(14, 15, 59, 30);
+      const d = between(STATUS_LIVE, tsla, nvda, ny(14, 10, 0), bell);
+      expect(shutSides(d, ny(14, 16, 5))).to.deep.equal([]);
+      expect(shutSides(d, ny(14, 21, 0))).to.deep.equal([]);
+      expect(roundClock(d, ny(14, 16, 5)).manual).to.equal(MANUAL_SETTLE);
+    });
+
+    it("names each Pyth side of a fight taken after the close, until the opening bell", () => {
+      const d = between(STATUS_ACCEPTED, tsla, qqq, ny(11, 19, 0), 0);
+      expect(shutSides(d, ny(11, 19, 0))).to.deep.equal(["TSLA", "QQQ"]);
+      expect(shutSides(d, ny(14, 9, 29, 59))).to.deep.equal(["TSLA", "QQQ"]);
+      expect(shutSides(d, ny(14, 9, 30))).to.deep.equal([]);
+    });
+
+    it("waits on nothing before the bell, or for an open fight", () => {
+      const d = between(STATUS_LIVE, tsla, nvda, ny(11, 10, 0), ny(14, 15, 59, 30));
+      expect(shutSides(d, ny(12, 12, 0))).to.deep.equal([]);
+      expect(shutSides({ ...d, status: STATUS_OPEN }, ny(12, 12, 0))).to.deep.equal([]);
+      expect(shutSides(d, 0)).to.deep.equal([]);
     });
   });
 

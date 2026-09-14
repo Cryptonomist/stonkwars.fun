@@ -146,10 +146,14 @@ async function perpMids(dex: string): Promise<Record<string, string>> {
  *
  * By ticker: a price in dollars, or null where the stock is priced off-hours
  * but that market could not be read just now. A stock missing from the map is
- * on its exchange (or Pyth) as before. Null means leave it out, so the caller
- * keeps its last good price rather than snapping back to a close that is not
- * what settles, which is also why a perp that has not answered never falls
- * through to anything else: the oracle does not either. */
+ * on its exchange (or Pyth) as before. That includes every stock pricedAt
+ * calls a wait, and so every Pyth stock outside the regular session: it keeps
+ * its last regular-session price (Pyth's last print, where this server holds
+ * a Pyth key), which is what its feed will move from at the opening bell,
+ * rather than a perp or pool that will never settle it. Null means leave it
+ * out, so the caller keeps its last good price rather than snapping back to a
+ * close that is not what settles, which is also why a perp that has not
+ * answered never falls through to anything else: the oracle does not either. */
 async function offHoursPrices(
   stocks: Stock[],
   now: number,

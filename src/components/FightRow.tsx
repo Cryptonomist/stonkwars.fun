@@ -19,7 +19,8 @@ import {
 } from "@/lib/duel";
 import { clock, shares, shortAddress, span } from "@/lib/format";
 import { movePct, stakeValue, type Quotes } from "@/lib/prices";
-import { pricedAt, STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
+import { shutSides } from "@/lib/roundClock";
+import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
 
 export function FightRow({ d, now, quotes }: { d: DuelView; now: number; quotes?: Quotes }) {
   const t1 = tickerForMint(d.creatorMint) ?? "?";
@@ -103,11 +104,10 @@ function statusLine(d: DuelView, now: number): string {
   }
 }
 
-/** True when neither side can be priced yet because its market is shut. */
+/** True when a side cannot be priced yet because its market is shut, as the
+ *  price clock sees it for the boundary the fight is at (roundClock.ts). */
 export function waitingForMarket(d: DuelView, now: number): boolean {
-  if (!now) return false;
-  const tickers = [tickerForMint(d.creatorMint), tickerForMint(d.opponentMint)].filter((t): t is string => !!t);
-  return tickers.length > 0 && tickers.some((t) => pricedAt(t, now) === "waits");
+  return shutSides(d, now).length > 0;
 }
 
 export { statusLine };

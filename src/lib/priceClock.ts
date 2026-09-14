@@ -18,7 +18,7 @@
 
 import { boundaryOf } from "./crankTx";
 import { SOURCE_PYTH, STATUS_ACCEPTED, STATUS_LIVE, STATUS_VOID, type DuelView } from "./duel";
-import { session, sessionFrom } from "./market";
+import { openingAfter, session } from "./market";
 import { BAR_SETTLE_SECS, exchangeBarFinal, firstBarEnd, sourceAt } from "./oracle";
 import { byFeed, quoteSymbolFor } from "./stocks";
 
@@ -58,13 +58,9 @@ export type ClockDuel = Pick<
  * to ask whether the market was open NOW, so a fight whose price appeared on
  * Monday and was never cranked went back to "shut" at Monday's close: its
  * manual button vanished, the cron parked it, and the page said it was waiting
- * for a market that had already priced it. Unix seconds, or null if nothing
- * opens within ten days. */
-function openingAfter(boundary: number, hours: "extended" | "regular"): number | null {
-  const ms = sessionFrom(boundary * 1_000, hours);
-  return ms === null ? null : Math.floor(ms / 1_000);
-}
-
+ * for a market that had already priced it. openingAfter (market.ts) finds
+ * that moment in unix seconds, or null if nothing opens within ten days; the
+ * roster's firstPriceAt asks it the same question for the pages. */
 function sideReady(
   feed: string,
   source: number,

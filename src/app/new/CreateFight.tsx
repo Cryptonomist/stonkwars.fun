@@ -100,10 +100,16 @@ export function CreateFight() {
   const onPoolOnly = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "pool") : [];
   const roundTheClock = [...onPerp, ...onPoolOnly];
   /* The round starts when somebody takes the challenge, and the nearest that
-   * can be is now. A pair with one side waiting for its exchange and the other
-   * trading would start days apart and be decided by that gap, so it cannot be
-   * picked. The fight page makes the same check again when it is taken. */
-  const mixedHours = p1 && p2 && now ? mixedHoursAt(p1, p2, now) : null;
+   * can be is now. A pair whose start prices would land hours apart, or whose
+   * round would end where one side still trades and the other waits, would be
+   * decided by that gap, so it cannot be picked. A timed round's end counts
+   * from a start nobody knows until it is taken, and a bell always rings in
+   * session, but both are checked the same way. The fight page makes the same
+   * check again when it is taken. */
+  const mixedHours =
+    p1 && p2 && now
+      ? mixedHoursAt(p1, p2, now, { durationSecs: roundDef.secs ?? 0, endTs: roundDef.secs ? 0 : endTs })
+      : null;
   const short = balance.data !== undefined && balance.data !== null && balance.data < amount1;
   const noAccount = balance.data === null;
 

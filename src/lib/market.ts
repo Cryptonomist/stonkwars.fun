@@ -121,6 +121,18 @@ export function sessionFrom(ms: number, hours: "extended" | "regular"): number |
   return null;
 }
 
+/* THE SAME, FOR A BOUNDARY IN UNIX SECONDS.
+ *
+ * The price clock asks it for every side that waits, and the roster asks it to
+ * decide whether two sides of a fight start together. They share this one
+ * function so that the page that lets a fight be taken and the crank that
+ * prices it cannot disagree about when a market opens. Null only as for
+ * sessionFrom. */
+export function openingAfter(boundary: number, hours: "extended" | "regular"): number | null {
+  const ms = sessionFrom(boundary * 1_000, hours);
+  return ms === null ? null : Math.floor(ms / 1_000);
+}
+
 /** The bell on the trading day containing `ms`, as unix seconds. */
 function bellOn(ms: number): number {
   const p = nyParts(ms);
