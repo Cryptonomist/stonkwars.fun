@@ -68,6 +68,7 @@ import { play } from "@/lib/sfx";
 import { decimalsForMint, tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 import { useNudgeStatus } from "@/lib/useSettlerNudge";
+import { useSparNudge } from "@/lib/useSparNudge";
 
 import { Actions } from "./Actions";
 import { Corner } from "./Corner";
@@ -156,6 +157,8 @@ export function FightView({ address }: { address: string }) {
 function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Quotes; fresh: boolean }) {
   const address = d.address.toBase58();
   const nudge = useNudgeStatus(address);
+  // A challenge addressed to the sparring wallet asks to be taken while it is on screen.
+  useSparNudge(d, now);
 
   const t1 = tickerForMint(d.creatorMint) ?? "?";
   const t2 = tickerForMint(d.opponentMint) ?? "?";

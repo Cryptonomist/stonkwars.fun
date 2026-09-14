@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { shortAddress } from "@/lib/format";
 import { useProfiles } from "@/lib/hooks";
+import { isSparWallet } from "@/lib/spar";
 
 import { Badge } from "./Badge";
 import { cx } from "./cx";
@@ -47,8 +48,12 @@ export function FighterName({
   const s = SIZE[size];
   const to = href === undefined ? `/u/${wallet}` : href;
 
+  /* The sparring wallet (lib/spar.ts) is the site's own disclosed opponent, so
+   * it is named as that everywhere rather than passing as a stranger. */
   const name = handle ? (
     <span className={cx("min-w-0 truncate font-sans font-semibold text-ink", s.text)}>@{handle}</span>
+  ) : isSparWallet(wallet) ? (
+    <span className={cx("min-w-0 truncate font-sans font-semibold text-ink", s.text)}>Sparring wallet</span>
   ) : (
     <span className={cx("num min-w-0 truncate text-dim", s.text)}>{shortAddress(wallet)}</span>
   );

@@ -45,6 +45,7 @@ import { ataFor, buildCreateDuel, randomSeed } from "@/lib/duel";
 import { FAUCET_TARGET_USD, faucetWouldTopUp } from "@/lib/faucet";
 import { etTime, shares, span, usd } from "@/lib/format";
 import { OFFHOURS_WINDOW } from "@/lib/oracle";
+import { isSparWallet, SPAR_MAX_ROUND_SECS, SPAR_WALLET } from "@/lib/spar";
 import { stakeForDollars, stakeValue, usePrices } from "@/lib/prices";
 import {
   byTicker,
@@ -218,11 +219,23 @@ export function CreateFight() {
     }
   }
 
+  /* A challenge for the sparring wallet (lib/spar.ts) must be a round it
+   * takes, or it would sit untaken; the other round chips are switched off
+   * while it is the invitee, and a round from the link is caught here. */
+  const sparring = isSparWallet(inviteKey?.toBase58());
+  const sparRound = !sparring || (!!secs && secs <= SPAR_MAX_ROUND_SECS);
+  const spar = SPAR_WALLET
+    ? () => {
+        setInvite(SPAR_WALLET!);
+        if (!(secs && secs <= SPAR_MAX_ROUND_SECS)) setRound("15m");
+      }
+    : undefined;
+
   const pricesError = !!prices.data?.error;
   const priced = amount1 > BigInt(0) && amount2 > BigInt(0);
   const ready =
     !!publicKey && !!p1 && !!p2 && !!asset1 && !!asset2 && priced && balanceKnown &&
-    !short && !noAccount && !inviteError && !mixedHours;
+    !short && !noAccount && !inviteError && !mixedHours && sparRound;
   const step = ctaStep({ connected: !!publicKey, hasAccount: !noAccount, short, ready });
 
   /* Why the button waits, in the order somebody would fix it. */
@@ -236,7 +249,9 @@ export function CreateFight() {
           ? "Reading prices..."
           : inviteError
             ? "Check the wallet address"
-            : mixedHours
+            : !sparRound
+              ? "Pick a 5 or 15 min round"
+              : mixedHours
               ? "Pick two that line up"
               : !balanceKnown
                 ? "Checking your shares..."
@@ -539,6 +554,8 @@ export function CreateFight() {
             inviteValid={!!inviteKey}
             pricesError={pricesError}
             held={held}
+            onSpar={spar}
+            sparring={sparring}
             action={action(false)}
             actionRef={actionRef}
           />

@@ -31,6 +31,7 @@ import { MAX_TAUNT_LEN } from "@/lib/duel";
 import { shares, shortAddress, usd } from "@/lib/format";
 import { quoteValue, stakeValue, type Quote } from "@/lib/prices";
 import { sourceWords } from "@/lib/pricemath";
+import { SPAR_MAX_ROUND_SECS } from "@/lib/spar";
 import { byTicker, sourceLabel, STAKE_DECIMALS, tokenSymbol } from "@/lib/stocks";
 import { MAX_STAKE_USD, STAKE_CHIPS, winPreview, type RoundChoice, type RoundId } from "@/lib/ticket";
 
@@ -62,6 +63,10 @@ export type FightTicketProps = {
   /** What the connected wallet holds of its own stock, and its worth now; null
    *  with no wallet or before the balance is read. */
   held?: { raw: bigint; usd: number | null } | null;
+  /** Address the challenge to the sparring wallet; absent when none is offered. */
+  onSpar?: () => void;
+  /** The challenge is addressed to the sparring wallet, which takes 5 and 15 minute rounds only. */
+  sparring?: boolean;
   /** The primary action and anything said right under it. */
   action: ReactNode;
   actionRef?: Ref<HTMLDivElement>;
@@ -144,11 +149,15 @@ export function FightTicket(t: FightTicketProps) {
         <div className="mt-2 grid grid-cols-6 gap-2">
           {t.rounds.map((r) => {
             const on = t.round === r.id;
+            // The sparring wallet takes only rounds a visitor can watch to the end.
+            const off = !!t.sparring && !(r.secs && r.secs <= SPAR_MAX_ROUND_SECS);
             return (
               <button
                 key={r.id}
                 type="button"
                 aria-pressed={on}
+                disabled={off}
+                title={off ? "The sparring wallet takes 5 and 15 minute rounds" : undefined}
                 onClick={() => t.onRound(r.id)}
                 className={cx(
                   "btn btn-sm min-w-0 flex-col gap-0.5 px-2",
@@ -203,7 +212,7 @@ export function FightTicket(t: FightTicketProps) {
           </span>
           Call someone out
           {!t.inviteOpen && t.inviteValid ? (
-            <span className="num min-w-0 truncate text-meta text-dim">{shortAddress(t.invite.trim())}</span>
+            <span className="num min-w-0 truncate text-meta text-dim">{t.sparring ? "Sparring wallet" : shortAddress(t.invite.trim())}</span>
           ) : null}
         </summary>
         <div className="mt-2">
@@ -227,12 +236,24 @@ export function FightTicket(t: FightTicketProps) {
                 </span>
                 {t.inviteError}
               </span>
+            ) : t.sparring ? (
+              "The sparring wallet takes 5 and 15 minute challenges addressed to it, from its own wallet. The fight is real and settles like any other; it is left off the ranks."
             ) : (
               "Only that wallet can take it. Leave it empty and anyone with the link can."
             )}
           </p>
         </div>
       </details>
+      {/* NOBODY HERE TO FIGHT? A lone visitor cannot take their own challenge,
+        * so on devnet the site offers its own disclosed opponent (lib/spar.ts),
+        * and only when the owner has set one up. Outside the fold above, so a
+        * visitor on their own sees it without opening "Call someone out". */}
+      {t.onSpar && !t.sparring ? (
+        <button type="button" onClick={t.onSpar} className="btn btn-sm btn-ghost -mt-2 self-start">
+          Spar with the Stonk Wars test wallet
+          <span className="micro text-dim">devnet</span>
+        </button>
+      ) : null}
 
       <div className="flex min-w-0 flex-col gap-3 border-t border-line pt-4">
         {t.pricesError ? (

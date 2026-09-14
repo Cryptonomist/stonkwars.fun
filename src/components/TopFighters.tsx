@@ -22,6 +22,7 @@ import { allDuels } from "@/lib/duel";
 import { usd } from "@/lib/format";
 import { useDuels } from "@/lib/hooks";
 import { rankFighters } from "@/lib/leaderboard";
+import { isSparWallet } from "@/lib/spar";
 import { STAKE_DECIMALS } from "@/lib/stocks";
 
 /** Below half a cent a figure prints as $0.00, and $0.00 is not money taken. */
@@ -29,7 +30,8 @@ const tookSomething = (n: number) => n >= 0.005;
 
 export function TopFighters({ rows = 8 }: { rows?: number }) {
   const duels = useDuels("all", allDuels(), 20_000);
-  const ranked = rankFighters(duels.data ?? [], STAKE_DECIMALS);
+  // The sparring wallet is the site's own opponent, left off the ranks as on the leaderboard.
+  const ranked = rankFighters(duels.data ?? [], STAKE_DECIMALS).filter((r) => !isSparWallet(r.wallet));
   const top = ranked.slice(0, rows);
 
   if (duels.isLoading) return <SkeletonRows kind="fighter" rows={Math.min(rows, 5)} />;

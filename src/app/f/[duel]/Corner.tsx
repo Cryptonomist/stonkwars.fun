@@ -42,6 +42,7 @@ import {
 import type { Hit } from "@/lib/fightFeel";
 import { pythToNumber, shares, usd } from "@/lib/format";
 import { useDuels } from "@/lib/hooks";
+import { isSparWallet } from "@/lib/spar";
 import { stakeValue, type Quote } from "@/lib/prices";
 import { byTicker, decimalsForMint, tokenSymbol } from "@/lib/stocks";
 
@@ -140,7 +141,9 @@ export function Corner({
             </span>
           </>
         ) : (
-          <span className="text-meta text-dim md:text-sm">Waiting for a taker</span>
+          <span className="text-meta text-dim md:text-sm">
+            {isSparWallet(d.invitee.toBase58()) ? "Waiting for the sparring wallet" : "Waiting for a taker"}
+          </span>
         )}
       </div>
 

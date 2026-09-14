@@ -35,6 +35,7 @@ import { highlightsByWallet, inWindow, records, winnerSide, type BestWin, type H
 import { ago, pct, points, shortAddress, usd } from "@/lib/format";
 import { useDuels, useProfiles } from "@/lib/hooks";
 import { rankFighters, type Record_ } from "@/lib/leaderboard";
+import { isSparWallet } from "@/lib/spar";
 import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 
@@ -93,13 +94,18 @@ export function Leaderboard() {
     () => (!all ? [] : range.id === "all" ? all : inWindow(all, range.secs, now)),
     [all, range, now],
   );
-  const ranked = useMemo(() => rankFighters(scoped, STAKE_DECIMALS), [scoped]);
+  /* The sparring wallet (lib/spar.ts) is the site's own opponent, so it is
+   * kept off the ranks, with a line saying so. Its fights still count in the
+   * totals above, because they really were fought and settled. */
+  const allRanked = useMemo(() => rankFighters(scoped, STAKE_DECIMALS), [scoped]);
+  const ranked = useMemo(() => allRanked.filter((r) => !isSparWallet(r.wallet)), [allRanked]);
+  const sparHidden = ranked.length < allRanked.length;
   const highlights = useMemo(() => highlightsByWallet(scoped, STAKE_DECIMALS), [scoped]);
   const best = useMemo(() => records(scoped), [scoped]);
   const byAddress = useMemo(() => new Map((all ?? []).map((d) => [d.address.toBase58(), d])), [all]);
 
   const settled = scoped.filter((d) => d.status === STATUS_SETTLED).length;
-  const takenTotal = ranked.reduce((s, r) => s + r.taken, 0);
+  const takenTotal = allRanked.reduce((s, r) => s + r.taken, 0);
 
   const winners = ranked.filter((r) => r.wins > 0);
   const winless = ranked.filter((r) => r.wins === 0);
@@ -123,7 +129,7 @@ export function Leaderboard() {
         { label: "Settled fights", value: loading ? <Skeleton className="h-4 w-8" /> : settled.toLocaleString("en-US") },
         {
           label: "Wallets with a result",
-          value: loading ? <Skeleton className="h-4 w-8" /> : ranked.length.toLocaleString("en-US"),
+          value: loading ? <Skeleton className="h-4 w-8" /> : allRanked.length.toLocaleString("en-US"),
         },
         { label: "Total taken", value: loading ? <Skeleton className="h-4 w-16" /> : usd(takenTotal) },
       ]}
@@ -199,8 +205,8 @@ export function Leaderboard() {
       {header}
       <p className="-mt-3 mb-4 text-meta text-dim sm:hidden">
         <span className="num text-ink">{settled.toLocaleString("en-US")}</span> settled ·{" "}
-        <span className="num text-ink">{ranked.length.toLocaleString("en-US")}</span>{" "}
-        {ranked.length === 1 ? "wallet" : "wallets"} · <span className="num text-ink">{usd(takenTotal)}</span> taken
+        <span className="num text-ink">{allRanked.length.toLocaleString("en-US")}</span>{" "}
+        {allRanked.length === 1 ? "wallet" : "wallets"} · <span className="num text-ink">{usd(takenTotal)}</span> taken
       </p>
 
       {available.length > 1 ? (
@@ -328,6 +334,10 @@ export function Leaderboard() {
                 </ol>
               ) : null}
             </section>
+
+            {sparHidden ? (
+              <p className="text-meta text-dim">The sparring wallet is the site&apos;s own opponent, so it is left off the ranks. Its fights count in the totals.</p>
+            ) : null}
 
             {recordStrip ? <div className="sm:hidden">{recordStrip}</div> : null}
           </>
