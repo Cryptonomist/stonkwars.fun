@@ -15,8 +15,10 @@
  * went up. A count is not a move and money in a tally is not a win, so every
  * value is ink. Loading shows the shape of a number, never a zero. */
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { cx } from "@/components/ui/cx";
 import { LiveDot } from "@/components/ui/LiveDot";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatStrip, type StatCell } from "@/components/ui/StatStrip";
@@ -62,20 +64,67 @@ export function SiteTally() {
     { label: "Open challenges", value: chain(open), href: "/fights?tab=open" },
     { label: "Fights settled", value: chain(settled), href: "/fights?tab=final" },
     { label: "Taken off losers", value: chain(<span className="num text-num-lg">{usd(taken)}</span>) },
-    { label: "Wallets with a result", value: chain(fighters), href: "/leaderboard" },
+    {
+      label: "Wallets",
+      tip: "Wallets with a settled result on chain",
+      value: chain(fighters),
+      href: "/leaderboard",
+    },
   ];
 
-  /* Seven cells across a 1280px column leave about 18 characters of label
-   * each, and "Wallets with a result" is 21. A truncated label hides what the
-   * number counts, so labels here wrap onto a second line instead. That also
-   * lets a phone take three cells a row, which keeps the strip to three rows
-   * and leaves the first screen room for the ring. */
+  /* A PHONE GETS FOUR CELLS IN ONE ROW. Seven cells in three rows took a
+   * third of the first screen, which left room for a row and a half of fights
+   * under them. The four that move (live or the last bell, open, settled,
+   * taken) stay here in a tighter cell; the three that are about the roster
+   * and the wallets move down to the proof strip on a phone (ProofStrip). */
+  const phone: { label: string; value: ReactNode; href?: string }[] = [
+    live > 0
+      ? {
+          label: "Live",
+          value: chain(
+            <span className="inline-flex items-center gap-1.5">
+              <LiveDot />
+              {live}
+            </span>,
+          ),
+          href: "/fights?tab=live",
+        }
+      : { label: "Last bell", value: chain(<span className="num text-sm">{bell ? ago(bell, now) : "--"}</span>) },
+    { label: "Open", value: chain(open), href: "/fights?tab=open" },
+    { label: "Settled", value: chain(settled), href: "/fights?tab=final" },
+    { label: "Taken", value: chain(<span className="num text-sm">{usd(taken)}</span>) },
+  ];
+
   return (
-    <StatStrip
-      label="Across the chain"
-      cells={cells}
-      cols={{ base: 3, sm: 4, lg: 7 }}
-      className="[&_dt]:whitespace-normal"
-    />
+    <>
+      <dl aria-label="Across the chain" className="grid grid-cols-4 gap-px bg-line ring-1 ring-line sm:hidden">
+        {phone.map((c) => (
+          <div
+            key={c.label}
+            className={cx(
+              "relative flex min-w-0 flex-col gap-1 bg-panel px-2 py-2",
+              c.href && "transition-colors hover:bg-panel-3 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:-outline-offset-2 has-[a:focus-visible]:outline-ink",
+            )}
+          >
+            <dt className="micro truncate text-dim">{c.label}</dt>
+            <dd className="display flex h-5 min-w-0 items-center truncate text-hud-xs text-ink">
+              {c.href ? (
+                <Link href={c.href} className="after:absolute after:inset-0 focus-visible:outline-none">
+                  {c.value}
+                </Link>
+              ) : (
+                c.value
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {/* Seven cells across a 1280px column leave about 18 characters of label
+        * each. A truncated label hides what the number counts, so labels here
+        * may wrap onto a second line instead. */}
+      <div className="hidden sm:block">
+        <StatStrip label="Across the chain" cells={cells} cols={{ base: 3, sm: 4, lg: 7 }} className="[&_dt]:whitespace-normal" />
+      </div>
+    </>
   );
 }

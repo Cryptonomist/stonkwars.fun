@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { cx } from "./cx";
+import { Tip } from "./Tip";
 
 /* A row of stat cells with hairline gaps between them.
  *
@@ -14,7 +15,14 @@ import { cx } from "./cx";
  * source, so the column and span classes are spelled out in tables below
  * rather than built from strings. Up to 8 columns are supported. */
 
-export type StatCell = { label: string; value: ReactNode; sub?: ReactNode; href?: string };
+export type StatCell = {
+  label: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  href?: string;
+  /** What a short label counts, in full, for a label cut down to fit its cell. */
+  tip?: ReactNode;
+};
 export type StatCols = { base?: number; sm?: number; lg?: number };
 
 const COLS = {
@@ -72,7 +80,16 @@ export function StatStrip({
             i === n - 1 && lastClass,
           )}
         >
-          <dt className="label truncate">{c.label}</dt>
+          <dt className="label truncate">
+            {/* Above the cell's link overlay, so the tip opens under a finger. */}
+            {c.tip ? (
+              <Tip label={c.tip} className="relative z-10 uppercase">
+                {c.label}
+              </Tip>
+            ) : (
+              c.label
+            )}
+          </dt>
           <dd className="display mt-1.5 truncate text-hud-sm text-ink">
             {c.href ? (
               /* The link covers the whole cell, so the cell is the target,
