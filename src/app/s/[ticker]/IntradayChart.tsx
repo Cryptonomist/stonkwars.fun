@@ -332,11 +332,20 @@ function Chart({ ticker, bars, prevClose, width }: { ticker: string; bars: Bars;
           </text>
         ))}
 
-        {/* Hours, in New York time, under the plot. */}
+        {/* Hours, in New York time, under the plot. A label centred on a tick
+          * at the plot's edge was cut by the SVG's own edge ("8 AM" read as
+          * "3 AM" on a phone), so labels are held 16px inside, as RaceChart's are;
+          * the tick mark itself stays where the hour is. */}
         {ticks.map((k) => (
           <g key={k.sec}>
             <line x1={x(k.sec)} x2={x(k.sec)} y1={PAD.top + plotH} y2={PAD.top + plotH + 4} stroke="var(--color-faint)" />
-            <text x={x(k.sec)} y={height - 6} textAnchor="middle" className="num fill-dim" fontSize={10}>
+            <text
+              x={Math.min(Math.max(x(k.sec), PAD.left + 16), PAD.left + plotW - 16)}
+              y={height - 6}
+              textAnchor="middle"
+              className="num fill-dim"
+              fontSize={10}
+            >
               {k.label}
             </text>
           </g>

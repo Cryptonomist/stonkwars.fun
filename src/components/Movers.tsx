@@ -30,26 +30,32 @@ import { Notice } from "@/components/ui/Notice";
 import { SkeletonRows } from "@/components/ui/Skeleton";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { pct, usd } from "@/lib/format";
-import { dayChangePct, quoteValue, usePrices } from "@/lib/prices";
-import { STAKEABLE, tradesAroundTheClock } from "@/lib/stocks";
+import { dayChangePct, quoteValue, usePrices, type Quotes } from "@/lib/prices";
+import { STAKEABLE, tradesAroundTheClock, type Stock } from "@/lib/stocks";
 import { useCloses } from "@/lib/useCloses";
 
 const WATCHED = 24;
 
+/** The stocks the movers rail watches: the first of the stakeable roster. */
+export const MOVER_STOCKS: readonly Stock[] = STAKEABLE.slice(0, WATCHED);
+
+/** The watched stocks with a price, biggest move on the day first; a stock the
+ *  source gave no previous close for goes last. Shared with the command
+ *  palette's "Moving today", so both say the same thing. */
+export function topMovers(quotes: Quotes["quotes"], rows: number) {
+  return MOVER_STOCKS.map((s) => ({ s, change: dayChangePct(quotes[s.ticker]), price: quoteValue(quotes[s.ticker]) }))
+    .filter((m) => m.price !== null)
+    .sort((a, b) => (b.change === null ? -1 : Math.abs(b.change)) - (a.change === null ? -1 : Math.abs(a.change)))
+    .slice(0, rows);
+}
+
 export function Movers({ rows = 8 }: { rows?: number }) {
-  const stocks = STAKEABLE.slice(0, WATCHED);
-  const tickers = stocks.map((s) => s.ticker);
+  const tickers = MOVER_STOCKS.map((s) => s.ticker);
   const prices = usePrices(tickers, 15_000);
   // All the watched stocks, not the rows on show, so re-ordering asks for nothing new.
   const { closes } = useCloses(tickers);
 
-  const quotes = prices.data?.quotes ?? {};
-  const moved = stocks
-    .map((s) => ({ s, change: dayChangePct(quotes[s.ticker]), price: quoteValue(quotes[s.ticker]) }))
-    .filter((m) => m.price !== null)
-    // Biggest move first; a stock the source gave no previous close for goes last.
-    .sort((a, b) => (b.change === null ? -1 : Math.abs(b.change)) - (a.change === null ? -1 : Math.abs(a.change)))
-    .slice(0, rows);
+  const moved = topMovers(prices.data?.quotes ?? {}, rows);
 
   if (!prices.data && prices.isPending) {
     return <SkeletonRows kind="quote" rows={rows} className="py-2" />;

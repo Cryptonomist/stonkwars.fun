@@ -28,11 +28,11 @@
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 
+import { Card } from "@/components/ClosingSoon";
 import { FightRow } from "@/components/FightRow";
 import { Move } from "@/components/Ticker";
 import { Badge } from "@/components/ui/Badge";
 import { cx } from "@/components/ui/cx";
-import { Empty } from "@/components/ui/Empty";
 import { FlashNum } from "@/components/ui/FlashNum";
 import { Notice } from "@/components/ui/Notice";
 import { Plate } from "@/components/ui/Plate";
@@ -131,6 +131,50 @@ export function StockView({ ticker }: { ticker: string }) {
   const quote = prices.data?.quotes[ticker];
   const prev = quote?.prev ? Number(quote.prev) * 10 ** quote.expo : null;
 
+  /* OPEN CHALLENGES, IN TWO PLACES. Below 1024px they follow the chart as full
+   * rows. From 1024px they move into the rail under Fighter stats, as the
+   * two-line cards the fight page's rail uses (a full row is unreadable at
+   * that width), so the wide column leads with the chart, the ring and the
+   * results, and the rail stops ending in 600px of nothing. With none open it
+   * is one bar with the way to open one, not a 120px empty panel. */
+  const openSection = (where: "main" | "rail") => {
+    const headId = where === "main" ? "stock-open" : "stock-open-rail";
+    return (
+      <section className="flex min-w-0 flex-col gap-3" aria-labelledby={headId}>
+        <SectionHead
+          id={headId}
+          title="Open challenges"
+          count={duels.data ? open.length : null}
+          action={open.length > OPEN_SHOWN ? { href: `/fights?t=${ticker}&tab=open`, label: `All ${open.length}` } : undefined}
+        />
+        {duels.isError && !duels.data ? (
+          <SolanaDown retry={() => void duels.refetch()} />
+        ) : !duels.data || !now ? (
+          <SkeletonRows kind="fight" rows={2} />
+        ) : open.length ? (
+          <div className="flex flex-col gap-2">
+            {open.slice(0, OPEN_SHOWN).map((d) =>
+              where === "main" ? (
+                <FightRow key={d.address.toBase58()} d={d} now={now} quotes={rowPrices.data} />
+              ) : (
+                <Card key={d.address.toBase58()} d={d} now={now} quotes={rowPrices.data?.quotes} />
+              ),
+            )}
+          </div>
+        ) : (
+          <div className="card flex min-h-10 min-w-0 items-center justify-between gap-3 px-3 py-2">
+            <span className="min-w-0 truncate text-sm text-dim">No open {ticker} challenges</span>
+            {stakeable ? (
+              <Link href={`/new?p1=${ticker}`} className="btn btn-sm btn-p1 shrink-0">
+                Fight with it
+              </Link>
+            ) : null}
+          </div>
+        )}
+      </section>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-6 py-6">
       <Header
@@ -145,34 +189,7 @@ export function StockView({ ticker }: { ticker: string }) {
         <div className="flex min-w-0 flex-col gap-6">
           <IntradayChart ticker={ticker} prevClose={prev} charted={stock.market === "US"} />
 
-          <section className="flex min-w-0 flex-col gap-3" aria-labelledby="stock-open">
-            <SectionHead
-              id="stock-open"
-              title="Open challenges"
-              count={duels.data ? open.length : null}
-              action={
-                open.length > OPEN_SHOWN ? { href: `/fights?t=${ticker}&tab=open`, label: `All ${open.length}` } : undefined
-              }
-            />
-            {duels.isError && !duels.data ? (
-              <SolanaDown retry={() => void duels.refetch()} />
-            ) : !duels.data || !now ? (
-              <SkeletonRows kind="fight" rows={2} />
-            ) : open.length ? (
-              <div className="flex flex-col gap-2">
-                {open.slice(0, OPEN_SHOWN).map((d) => (
-                  <FightRow key={d.address.toBase58()} d={d} now={now} quotes={rowPrices.data} />
-                ))}
-              </div>
-            ) : (
-              <Empty
-                title={`No open challenges on ${ticker}.`}
-                body={stakeable ? "Open one and it waits here for somebody to take the other side." : undefined}
-                action={stakeable ? { href: `/new?p1=${ticker}`, label: "Fight with it", tone: "p1" } : undefined}
-                className="py-6"
-              />
-            )}
-          </section>
+          <div className="min-w-0 lg:hidden">{openSection("main")}</div>
 
           {ring.length ? (
             <section className="flex min-w-0 flex-col gap-3" aria-labelledby="stock-ring">
@@ -213,6 +230,16 @@ export function StockView({ ticker }: { ticker: string }) {
               <SolanaDown retry={() => void duels.refetch()} />
             ) : !duels.data ? (
               <Skeleton className="h-36 sm:h-18 lg:h-36" />
+            ) : record.fights === 0 ? (
+              /* A grid of 0, 0, 0 and "--" said nothing four times. */
+              <div className="card flex min-h-10 min-w-0 items-center justify-between gap-3 px-3 py-2">
+                <span className="min-w-0 truncate text-sm text-dim">No settled {ticker} fights yet</span>
+                {stakeable ? (
+                  <Link href={`/new?p1=${ticker}`} className="btn btn-sm btn-p1 shrink-0">
+                    Fight with it
+                  </Link>
+                ) : null}
+              </div>
             ) : (
               <StatStrip
                 label={`${ticker} record`}
@@ -292,6 +319,8 @@ export function StockView({ ticker }: { ticker: string }) {
             )}
             <p className="text-meta text-dim">The stock&apos;s own recent past. Decides nothing.</p>
           </Plate>
+
+          <div className="hidden min-w-0 lg:block">{openSection("rail")}</div>
         </aside>
       </div>
     </div>

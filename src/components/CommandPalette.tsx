@@ -25,10 +25,23 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/Badge";
 import { cx } from "@/components/ui/cx";
 import { FighterName } from "@/components/ui/FighterName";
-import { PALETTE_EVENT } from "@/components/ui/intents";
+import { PALETTE_EVENT, watchedFights } from "@/components/ui/intents";
 import { Kbd } from "@/components/ui/Kbd";
 import { Sheet } from "@/components/ui/Sheet";
-import { allDuels, decodeDuel, PROGRAM_ID, STATUS_LIVE, STATUS_OPEN, type DuelView } from "@/lib/duel";
+import {
+  allDuels,
+  decodeDuel,
+  OUTCOME_TIE,
+  PROGRAM_ID,
+  STATUS_ACCEPTED,
+  STATUS_LIVE,
+  STATUS_OPEN,
+  STATUS_REFUNDED,
+  STATUS_SETTLED,
+  STATUS_VOID,
+  type DuelView,
+} from "@/lib/duel";
+import { MOVER_STOCKS, topMovers } from "@/components/Movers";
 import { Move } from "@/components/Ticker";
 import { shares, shortAddress, usd } from "@/lib/format";
 import { useDuels, useProfiles } from "@/lib/hooks";
@@ -76,11 +89,15 @@ export function CommandPalette() {
 
 /* ─── Results ─────────────────────────────────────────────────────────────── */
 
-type Result =
+/* `section` names the group a result is listed under when the kind alone would
+ * not say it: with an empty query the palette shows fights in play, stocks
+ * moving today, and fights this viewer recently looked at, in one listbox. */
+type Result = { section?: string } & (
   | { kind: "paste"; id: string; href: string; address: string; isFight: boolean; checking: boolean }
   | { kind: "stock"; id: string; href: string; against: string; stock: Stock }
   | { kind: "fighter"; id: string; href: string; wallet: string }
-  | { kind: "fight"; id: string; href: string; duel: DuelView; t1: string; t2: string; live: boolean };
+  | { kind: "fight"; id: string; href: string; duel: DuelView; t1: string; t2: string; live: boolean; status?: string }
+);
 
 const SECTION: Record<Result["kind"], string> = {
   paste: "Address",
@@ -88,6 +105,26 @@ const SECTION: Record<Result["kind"], string> = {
   fighter: "Fighters",
   fight: "Fights",
 };
+
+/** A fight's state in one badge word, for a fight that is not live. */
+function statusWord(d: DuelView, now: number): string {
+  switch (d.status) {
+    case STATUS_OPEN:
+      return now > 0 && d.expiresTs <= now ? "Expired" : "Open";
+    case STATUS_ACCEPTED:
+      return "Taken";
+    case STATUS_LIVE:
+      return "Bell";
+    case STATUS_SETTLED:
+      return "Final";
+    case STATUS_REFUNDED:
+      return d.outcome === OUTCOME_TIE ? "Dead heat" : "Refunded";
+    case STATUS_VOID:
+      return "Void";
+    default:
+      return "Fight";
+  }
+}
 
 /** Letters of `q` in order inside `s`, not necessarily together: "stnk" finds "stonkwars". */
 function subsequence(s: string, q: string): boolean {
@@ -145,6 +182,13 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
     },
   });
   const pastedIsFight = listed || probe.data === true;
+
+  /* For the empty query only: the movers' quotes (the same request the home
+   * rail makes, so usually already cached) and the fights this browser opened,
+   * read once when the palette mounts. */
+  const movers = usePrices(q ? [] : MOVER_STOCKS.map((s) => s.ticker), 15_000);
+  const moverQuotes = movers.data?.quotes;
+  const [recent] = useState<string[]>(() => watchedFights());
   /* Still asking, and no answer either way yet: Enter waits for it. */
   const checking = !!pasted && !listed && probe.isPending && probe.fetchStatus !== "idle";
   const [waitingFor, setWaitingFor] = useState<string | null>(null);
@@ -155,7 +199,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
 
     const inPlay = (d: DuelView) =>
       d.status === STATUS_LIVE || (d.status === STATUS_OPEN && (now <= 0 || d.expiresTs > now));
-    const fightResult = (d: DuelView): Result => {
+    const fightResult = (d: DuelView): Extract<Result, { kind: "fight" }> => {
       const address = d.address.toBase58();
       return {
         kind: "fight",
@@ -177,8 +221,36 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
           ? -1
           : 1;
 
+    /* AN EMPTY QUERY IS NOT AN EMPTY SHEET. Two rows of In play sat over a
+     * mostly blank panel, so it goes on to what is moving today (the movers
+     * rail's own ranking, from the same quotes) and the fights this browser
+     * opened lately (intents.ts), each with its state. All real, all one
+     * listbox, so the arrow keys run straight through. */
     if (!q) {
-      return list.filter(inPlay).sort(byUrgency).slice(0, 5).map(fightResult);
+      const playing = list.filter(inPlay).sort(byUrgency).slice(0, 5);
+      out.push(...playing.map((d) => ({ ...fightResult(d), section: "In play" })));
+      for (const { s } of topMovers(moverQuotes ?? {}, 5)) {
+        out.push({
+          kind: "stock",
+          section: "Moving today",
+          id: `mover:${s.ticker}`,
+          href: `/new?p1=${encodeURIComponent(s.ticker)}`,
+          against: `/new?p2=${encodeURIComponent(s.ticker)}`,
+          stock: s,
+        });
+      }
+      const shown = new Set(playing.map((d) => d.address.toBase58()));
+      const byKey = new Map(list.map((d) => [d.address.toBase58(), d]));
+      const seen = recent
+        .filter((a) => !shown.has(a))
+        .map((a) => byKey.get(a))
+        .filter((d): d is DuelView => !!d)
+        .slice(0, 3);
+      for (const d of seen) {
+        const live = d.status === STATUS_LIVE && d.endTs > now;
+        out.push({ ...fightResult(d), section: "Recently viewed", id: `seen:${d.address.toBase58()}`, live, status: statusWord(d, now) });
+      }
+      return out;
     }
 
     const key = pasted;
@@ -270,7 +342,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
     for (const d of fights) out.push(fightResult(d));
 
     return out;
-  }, [q, lower, duels, handles, now, pasted, pastedIsFight, checking]);
+  }, [q, lower, duels, handles, now, pasted, pastedIsFight, checking, moverQuotes, recent]);
 
   /* What each stock shown is doing, for just those (at most eight) tickers. */
   const prices = usePrices(results.map((r) => (r.kind === "stock" ? r.stock.ticker : null)));
@@ -333,7 +405,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
     }
   };
 
-  const heading = !q ? "In play" : null;
+  const sectionOf = (r: Result) => r.section ?? SECTION[r.kind];
   const empty =
     results.length === 0
       ? !q
@@ -371,17 +443,15 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        {heading ? <p className="label px-1 pb-1">{heading}</p> : null}
-
         <ul id={listId} role="listbox" aria-label="Results" className="flex flex-col">
           {results.map((r, i) => {
-            const first = i === 0 || results[i - 1].kind !== r.kind;
+            const first = i === 0 || sectionOf(results[i - 1]) !== sectionOf(r);
             const selected = i === clamped;
             return (
               <li key={r.id} role="presentation" className="min-w-0">
-                {first && q ? (
+                {first ? (
                   <p className={cx("label px-1 pb-1", i > 0 && "pt-3")} aria-hidden="true">
-                    {SECTION[r.kind]}
+                    {sectionOf(r)}
                   </p>
                 ) : null}
                 <div
@@ -478,7 +548,7 @@ function ResultLine({ r, quotes }: { r: Result; quotes?: Quotes }) {
             <span className="text-meta text-dim">vs</span>
             <span className="truncate text-p2">{r.t2}</span>
           </span>
-          {r.live ? <Badge variant="live" /> : <Badge variant="neutral">Open</Badge>}
+          {r.live ? <Badge variant="live" /> : <Badge variant="neutral">{r.status ?? "Open"}</Badge>}
           <span className="num ml-auto hidden shrink-0 truncate text-meta text-dim sm:inline">
             {shares(d.creatorAmount, decimalsForMint(d.creatorMint))}{" "}
             <span className="normal-case">{tokenSymbol(r.t1)}</span>
