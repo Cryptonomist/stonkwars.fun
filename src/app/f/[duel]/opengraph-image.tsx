@@ -146,7 +146,7 @@ async function render(d: DuelView | null): Promise<ImageResponse> {
    * happens to carry it, and an empty taunt draws the B of a label in the
    * fallback face. */
   const labels =
-    "Stonk Wars VS COOKED x staked TOOK Won by pts Fight Open challenge · take the other side " +
+    "Stonk Wars VS COOKED x staked to take it TOOK Won by pts Fight Open challenge · take the other side " +
     "Fight on · starts at the next price Round live Final · settled on Solana Dead heat · both stakes home Void Cooked";
   // The card uppercases most of its text, so the subset needs both cases.
   const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}${labels}${RETIRED}${status}${taunt}${stakes}${tookLine}${margin}0123456789.+-%$ ·`;
@@ -206,8 +206,12 @@ async function render(d: DuelView | null): Promise<ImageResponse> {
             ) : null}
           </div>
         ) : (
+          /* Nobody has staked the open seat yet: its line is what taking it
+           * costs, so the card never shows a stake that is not in escrow. */
           <div style={{ fontSize: 40, color: C.dim, textTransform: "none" }}>
-            {d && mint ? `${shares(amount, decimalsForMint(mint))} ${tokenSymbol(ticker)} staked` : ""}
+            {d && mint
+              ? `${shares(amount, decimalsForMint(mint))} ${tokenSymbol(ticker)} ${!left && d.status === STATUS_OPEN ? "to take it" : "staked"}`
+              : ""}
           </div>
         )}
       </div>
