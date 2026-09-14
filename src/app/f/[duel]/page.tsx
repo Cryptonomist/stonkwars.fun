@@ -29,7 +29,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const description = d.taunt
       ? `"${d.taunt}" ${shares(d.creatorAmount, STAKE_DECIMALS)} ${t1}x vs ${shares(d.opponentAmount, STAKE_DECIMALS)} ${t2}x on ${BRAND.name}.`
       : `${shares(d.creatorAmount, STAKE_DECIMALS)} ${t1}x vs ${shares(d.opponentAmount, STAKE_DECIMALS)} ${t2}x. Bigger move at the bell takes both.`;
-    return { title, description, openGraph: { title: `${title} · ${BRAND.name}`, description }, twitter: { title, description } };
+    /* Next replaces the layout's twitter object rather than merging it, so the
+     * card type and site handle are restated here or X falls back to the small
+     * summary card instead of the large VS image. */
+    return {
+      title,
+      description,
+      openGraph: { title: `${title} · ${BRAND.name}`, description },
+      twitter: { card: "summary_large_image", site: BRAND.x, title, description },
+    };
   } catch {
     return { title: "Fight" };
   }
