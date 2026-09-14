@@ -1,56 +1,34 @@
 import Link from "next/link";
 
+import { ClosingSoon } from "@/components/ClosingSoon";
 import { LiveBoard } from "@/components/LiveBoard";
 import { Movers } from "@/components/Movers";
+import { ProofStrip } from "@/components/ProofStrip";
 import { SiteTally } from "@/components/SiteTally";
 import { TickerTape } from "@/components/TickerTape";
 import { TopFighters } from "@/components/TopFighters";
-import { AROUND_THE_CLOCK, CLUSTER, ROSTER } from "@/lib/stocks";
+import { Plate } from "@/components/ui/Plate";
+import { SectionHead } from "@/components/ui/SectionHead";
+import { Wire } from "@/components/Wire";
+import { CLUSTER } from "@/lib/stocks";
 
 /* THE FRONT PAGE IS A BOARD, NOT A PITCH.
  *
  * Everyone this is for has seen a hundred landing pages and reads none of
  * them. What they read is numbers: what is moving, who is fighting, who is
- * winning, what it paid. So the page opens on the tape and the board, says
- * what the game is in one line rather than one billboard, and keeps the
- * explaining for the people who scroll far enough to want it. */
-
-const STEPS = [
-  {
-    n: "01",
-    title: "Call it",
-    body: `Pick your stock from all ${ROSTER.length.toLocaleString("en-US")} tokenized on Solana, and the one it beats. Stake shares of yours, set the round: five minutes, an hour, or to Friday's bell.`,
-  },
-  {
-    n: "02",
-    title: "They answer",
-    body: "Send the link. Whoever takes it stakes the same dollar value of the other stock. No odds, no house, no order book.",
-  },
-  {
-    n: "03",
-    title: "The bell decides",
-    body: "Signed prices at the start and at the bell. The bigger percentage move takes both stakes: your shares back, plus theirs. The other side is cooked.",
-  },
-];
-
-const TRUST = [
-  {
-    title: "Signed prices",
-    body: "Pyth-priced stocks settle on Pyth updates, checked against Wormhole guardian signatures on Solana. Every other stock settles on the oracle's signed quote, checked by Solana's Ed25519 program in the same transaction.",
-  },
-  {
-    title: "One price counts",
-    body: "Each boundary has exactly one price: Pyth's first update at or after it, or the close of the stock's first one-minute bar at or after it. Once the exchange shuts, the same rule reads whichever market is still open, which for most of them is the stock's perpetual future. For the few with only a Solana pool it is the token's last fifteen minutes there, extremes discarded and the rest averaged. The program takes that one and refuses the rest.",
-  },
-  {
-    title: "Anyone can settle",
-    body: "No admin, no judge. Any wallet can post the prices and settle, and the result is identical whoever does it. Every quote is public in the transaction that used it.",
-  },
-  {
-    title: "Stakes go to players",
-    body: "Shares sit in escrow owned by the fight itself. They can leave three ways: back to the challenger, to the winner, or home to both. Nowhere else.",
-  },
-];
+ * winning, what it paid. So the page opens on the tape and the tally, says
+ * what the game is in one line, and gives the rest of the first screen to the
+ * ring, the wire and the rails. The billboards that used to fill the bottom
+ * half (three steps, four trust cards) are gone: the proof is a strip of links
+ * to the things themselves, and the explaining lives on /how.
+ *
+ * THE GRID, BY WIDTH. From 1280px three columns: the ring, the wire, and a
+ * rail with the movers and the top fighters. From 1024px the ring and the wire
+ * stack on the left beside the rail. Below that, one column in reading order.
+ * The ring-and-wire wrapper dissolves (display: contents) at 1280px, so the
+ * same two sections are grid children there and a stacked column below it,
+ * without rendering either twice. Every grid child is min-w-0, so a long
+ * handle truncates instead of widening the page on a phone. */
 
 export default function Home() {
   return (
@@ -60,87 +38,75 @@ export default function Home() {
         <TickerTape />
       </div>
 
-      <section className="flex flex-wrap items-baseline gap-x-6 gap-y-3 py-6">
-        <h1 className="display text-3xl sm:text-4xl">
-          Your stock vs theirs. <span className="text-cooked">Winner takes both.</span>
-        </h1>
-        <p className="max-w-xl text-sm text-dim">
-          Stake tokenized shares against somebody else&apos;s. The bigger percentage move by the bell takes every share on
-          the table, paid in stock. {AROUND_THE_CLOCK > 0 ? `${AROUND_THE_CLOCK} of them fight around the clock.` : ""}
-        </p>
-        <Link href="/new" className="btn btn-p1 ml-auto px-7 text-lg">
+      <section className="flex flex-wrap items-center gap-x-6 gap-y-3 py-6">
+        <div className="min-w-0 flex-1 basis-80">
+          <h1 className="h-page">
+            Your stock vs theirs. <span className="text-up">Winner takes both.</span>
+          </h1>
+          <p className="mt-2 text-meta text-dim">
+            Stake tokenized shares against someone else&apos;s. Bigger percentage move by the bell takes both stakes,
+            paid in shares.
+            {/* Said where the stake is first mentioned, so nobody reads the
+              * line as asking for their money. */}
+            {CLUSTER !== "mainnet-beta" ? " On Solana devnet: real market prices, free test shares, nothing real at stake." : ""}
+          </p>
+        </div>
+        {/* A phone already has this button in the bar under its thumb, and the
+          * second copy up here cost the first screen a fight row. */}
+        <Link href="/new" className="btn btn-p1 hidden shrink-0 sm:inline-flex">
           Pick a fight
         </Link>
-        {/* Said where the stake is first mentioned, so nobody reads the hero as
-          * asking for their money. */}
-        {CLUSTER !== "mainnet-beta" ? (
-          <p className="w-full text-sm text-dim">
-            Live on Solana devnet: real market prices, free test shares, nothing real at stake.
-          </p>
-        ) : null}
       </section>
 
       <SiteTally />
 
-      <section className="mt-6 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <div>
-          <div className="flex items-end justify-between">
-            <h2 className="display text-3xl">In the ring</h2>
-            <Link href="/fights" className="label hover:text-ink">
-              All fights
-            </Link>
+      {/* CLOSING SOON, ABOVE THE BOARD FROM 640PX AND UNDER THE RING BELOW IT.
+        * On a phone the ring already opens with the same live and open fights,
+        * so the strip up here would push the first row off the screen to repeat
+        * it. Both copies read the same cached queries; the one not shown is
+        * display: none. A wrapper around nothing takes no space (empty:hidden). */}
+      <div className="mt-6 hidden empty:hidden sm:block">
+        <ClosingSoon />
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] xl:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,3fr)]">
+        <div className="flex min-w-0 flex-col gap-6 xl:contents">
+          <section className="flex min-w-0 flex-col gap-3" aria-labelledby="ring-head">
+            <SectionHead id="ring-head" title="In the ring" action={{ href: "/fights", label: "All fights" }} />
+            <LiveBoard limit={8} />
+          </section>
+
+          <div className="min-w-0 empty:hidden sm:hidden">
+            <ClosingSoon />
           </div>
-          <div className="mt-3">
-            <LiveBoard limit={8} columns={1} />
+
+          <div className="min-w-0">
+            <Wire />
           </div>
         </div>
 
-        <div className="flex flex-col gap-6">
-          <div>
-            <div className="flex items-end justify-between">
-              <h2 className="display text-3xl">Moving today</h2>
-              <Link href="/new" className="label hover:text-ink">
-                Pick one
-              </Link>
-            </div>
-            <div className="card mt-3 px-4 py-2">
+        <aside className="flex min-w-0 flex-col gap-6" aria-label="Rails">
+          <section className="flex min-w-0 flex-col gap-3" aria-labelledby="movers-head">
+            <SectionHead id="movers-head" title="Moving today" />
+            <Plate pad="std" className="py-2">
               <Movers rows={8} />
-            </div>
-          </div>
+            </Plate>
+          </section>
 
-          <div>
-            <h2 className="display text-3xl">Who cooks</h2>
-            <div className="card mt-3 px-4 py-2">
+          <section className="flex min-w-0 flex-col gap-3" aria-labelledby="cooks-head">
+            <SectionHead id="cooks-head" title="Who cooks" />
+            <Plate pad="std" className="py-2">
               <TopFighters rows={7} />
-            </div>
-          </div>
-        </div>
-      </section>
+            </Plate>
+          </section>
+        </aside>
+      </div>
 
-      <section className="mt-16 grid gap-4 md:grid-cols-3">
-        {STEPS.map((s) => (
-          <div key={s.n} className="card p-6">
-            <span className="display text-5xl text-p2">{s.n}</span>
-            <h2 className="display mt-3 text-4xl">{s.title}</h2>
-            <p className="mt-2 text-dim">{s.body}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="mt-16">
-        <p className="label">Why nobody can rig it</p>
-        <h2 className="display mt-2 text-5xl sm:text-6xl">No ref. Just the bell.</h2>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {TRUST.map((t) => (
-            <div key={t.title} className="card p-6">
-              <h3 className="display text-3xl text-p1">{t.title}</h3>
-              <p className="mt-2 text-dim">{t.body}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-6 text-sm text-dim">
-          The details, and the edge cases, are on{" "}
-          <Link href="/how" className="text-ink underline decoration-line underline-offset-4">
+      <section className="mt-10 flex flex-col gap-3" aria-label="Check it yourself">
+        <ProofStrip />
+        <p className="text-meta text-dim">
+          Details and edge cases:{" "}
+          <Link href="/how" className="link">
             how it works
           </Link>
           .
