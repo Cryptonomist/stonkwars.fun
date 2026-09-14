@@ -129,8 +129,10 @@ export type ReceiptRow = {
   /** The wallet that signed the step, when it is known. */
   signer: string | null;
   signature: string | null;
-  /** Settled by a wallet that fought in neither corner. */
+  /** Settled by a wallet that fought in neither corner and is not the settler. */
   spectator: boolean;
+  /** Posted by one of the settler's own fee wallets (the cron or a page nudge). */
+  settler: boolean;
   /** The transaction's network fee in lamports; null when it is not known. */
   fee: number | null;
   slot: number | null;
@@ -147,6 +149,19 @@ const LABEL: Record<ReceiptKind, [ReceiptStep, string]> = {
   DuelRefunded: ["refunded", "Refunded"],
   DuelCancelled: ["cancelled", "Called off"],
 };
+
+/* THE SETTLER'S OWN WALLETS.
+ *
+ * Starts and settles are paid by whoever posts them, and on devnet that is
+ * almost always the settler: the cron's crank key, or the key a fight page's
+ * nudge pays from. Both are public addresses (fee payers on every transaction
+ * they send). Without this list the receipt called the settler "a spectator",
+ * which undersold the one part of the app that runs by itself. Anyone else
+ * who posts is still a spectator, and says so. */
+export const SETTLER_WALLETS: ReadonlySet<string> = new Set([
+  "7UoQ9CBJTomyTBHpYVivjKrTghWe8N4vCSj7gE7yHVyY", // cron crank key
+  "CDvkaPF9LzECEEEJVZ4f896KgbwkG7tHWCS23LE26TYx", // page nudge key
+]);
 
 /** A row per event, oldest first. Who "signed" is the wallet the event names
  *  where it names one (the creator, the taker), and otherwise the fee payer. */
@@ -166,13 +181,15 @@ export function rowsFromEvents(events: readonly ReceiptEvent[], d: Pick<DuelView
       const named =
         e.kind === "DuelCreated" ? e.data.creator : e.kind === "DuelAccepted" ? e.data.opponent : e.kind === "DuelCancelled" ? e.data.by : null;
       const signer = typeof named === "string" ? named : e.feePayer;
+      const settler = !!e.feePayer && SETTLER_WALLETS.has(e.feePayer) && (e.kind === "DuelStarted" || e.kind === "DuelSettled" || e.kind === "DuelRefunded" || e.kind === "DuelVoided");
       return {
         step,
         label,
         at: e.blockTime ?? 0,
         signer,
         signature: e.signature || null,
-        spectator: e.kind === "DuelSettled" && !!e.feePayer && !fighters.has(e.feePayer),
+        spectator: e.kind === "DuelSettled" && !!e.feePayer && !fighters.has(e.feePayer) && !settler,
+        settler,
         fee: e.fee,
         slot: e.slot,
         sharedWith: e.sharedWith,
@@ -237,7 +254,7 @@ export function waitWords(seconds: number): string {
 export function rowsFromAccount(
   d: Pick<DuelView, "creator" | "opponent" | "createdTs" | "acceptedTs" | "startTs" | "endTs" | "creatorEnd">,
 ): ReceiptRow[] {
-  const none = { signature: null, spectator: false, fee: null, slot: null, sharedWith: 0 };
+  const none = { signature: null, spectator: false, settler: false, fee: null, slot: null, sharedWith: 0 };
   const rows: ReceiptRow[] = [];
   if (d.createdTs) rows.push({ step: "called", label: "Called", at: d.createdTs, signer: d.creator.toBase58(), ...none });
   if (d.acceptedTs) rows.push({ step: "taken", label: "Taken", at: d.acceptedTs, signer: d.opponent.toBase58(), ...none });

@@ -162,6 +162,7 @@ function Step({
           </>
         ) : null}
         {row.spectator ? <Badge variant="neutral">Settled by a spectator</Badge> : null}
+        {row.settler ? <Badge variant="neutral">The settler, nobody pressed a button</Badge> : null}
         {outcome ? <span className="text-meta text-ink">{outcome}</span> : null}
         {row.step === "settled" && afterBell !== null ? (
           <span className="text-meta text-dim">{waitWords(afterBell)} after the bell</span>

@@ -16,6 +16,7 @@ import {
   rowsFromAccount,
   rowsFromEvents,
   settledAfterBell,
+  SETTLER_WALLETS,
   solFromLamports,
   waitWords,
   type ReceiptRow,
@@ -138,6 +139,14 @@ describe("receipt", () => {
     // A fighter who settles it themselves is no spectator.
     const own = classifyTx(tx([settled(DUEL)], OPPONENT, "sig-own", 1_789_000_600))!;
     expect(rowsFromEvents([own], d)[0].spectator).to.equal(false);
+
+    // The settler's own fee wallets are the settler, not a spectator.
+    for (const key of SETTLER_WALLETS) {
+      const bySettler = classifyTx(tx([settled(DUEL)], new PublicKey(key), `sig-settler-${key}`, 1_789_000_700))!;
+      const row = rowsFromEvents([bySettler], d)[0];
+      expect([row.settler, row.spectator], key).to.deep.equal([true, false]);
+    }
+    expect(rows[3].settler).to.equal(false);
   });
 
   it("falls back to the account's own timestamps, with no signer it cannot prove", () => {
@@ -187,6 +196,7 @@ describe("receipt", () => {
       signer: null,
       signature,
       spectator: false,
+      settler: false,
       fee,
       slot: null,
       sharedWith: 0,
