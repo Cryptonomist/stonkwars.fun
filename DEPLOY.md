@@ -146,7 +146,16 @@ Two things follow the domain and one does not:
 - Advanced → **Requires HTTP authentication**: OFF. It generates a competing
   `Authorization: Basic` header that displaces this one.
 
-Check it: the job's history should show HTTP 200 with `{"results": [...]}`.
+Check it: the job's history should show HTTP 200 with
+`{"ok": true, "at": ..., "due": [...], "parked": [...]}`. The route answers as
+soon as it has listed what is due and does the work after the response, so the
+ping stays well inside cron-job.org's 30 second limit; what each job did goes
+to the Vercel function log as one JSON line. `parked` lists fights whose market
+is shut, which nothing is tried for until it opens. `"ok": false` with an
+`error` means the chain could not be read that minute: it is still a 200 on
+purpose, so a bad minute at the RPC does not count towards cron-job.org
+switching the job off. Add `?wait=1` to the URL by hand to run a pass before
+the answer and see its results in the body.
 
 If it shows 401, read the saved response body, which now names the mistake:
 
