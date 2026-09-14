@@ -293,6 +293,83 @@ export function recordFor(wallet: string, duels: DuelView[]): FighterRecord {
   return recordsByWallet(mine).get(wallet) ?? emptyRecord();
 }
 
+/* ─── What a record is made of ────────────────────────────────────────────── */
+
+export type BestWin = {
+  address: string;
+  /** The stock in the winner's corner, and the one it beat. */
+  ticker: string;
+  against: string;
+  /** Percentage points between the two on-chain moves. */
+  margin: number | null;
+  usd: number;
+  endTs: number;
+};
+
+export type FavouriteStock = { ticker: string; fights: number; wins: number; losses: number; ties: number };
+
+export type Highlights = { bestWin: BestWin | null; favourite: FavouriteStock | null };
+
+/* THE TWO LINES A BOARD ROW WAS MISSING. A leaderboard row said how much a
+ * wallet had taken but not from which fight, and a podium card held one
+ * dollar figure in a card 450px wide. For every wallet with a result: its
+ * biggest win by money taken (the later one on a tie, so a rematch that paid
+ * the same shows), and the stock it put in its own corner most often, with how
+ * that stock did for it. Read from the same fights with a result as
+ * recordsByWallet, so the numbers agree with the record beside them. */
+export function highlightsByWallet(duels: DuelView[], decimals?: number): Map<string, Highlights> {
+  const best = new Map<string, BestWin>();
+  const favs = new Map<string, Map<string, FavouriteStock>>();
+  const fav = (wallet: string, ticker: string) => {
+    let byTicker = favs.get(wallet);
+    if (!byTicker) favs.set(wallet, (byTicker = new Map()));
+    let f = byTicker.get(ticker);
+    if (!f) byTicker.set(ticker, (f = { ticker, fights: 0, wins: 0, losses: 0, ties: 0 }));
+    return f;
+  };
+
+  for (const d of results(duels)) {
+    const t1 = tickerForMint(d.creatorMint) ?? "?";
+    const t2 = tickerForMint(d.opponentMint) ?? "?";
+    const creator = d.creator.toBase58();
+    const opponent = d.opponent.toBase58();
+    if (isDeadHeat(d)) {
+      for (const [wallet, ticker] of [
+        [creator, t1],
+        [opponent, t2],
+      ] as const) {
+        const f = fav(wallet, ticker);
+        f.fights++;
+        f.ties++;
+      }
+      continue;
+    }
+    const creatorWon = d.outcome === OUTCOME_CREATOR;
+    const [winner, loser] = creatorWon ? [creator, opponent] : [opponent, creator];
+    const [wt, lt] = creatorWon ? [t1, t2] : [t2, t1];
+    const w = fav(winner, wt);
+    w.fights++;
+    w.wins++;
+    const l = fav(loser, lt);
+    l.fights++;
+    l.losses++;
+
+    const take = loserTake(d, decimals)!;
+    const had = best.get(winner);
+    if (!had || take.usd >= had.usd) {
+      best.set(winner, { address: d.address.toBase58(), ticker: wt, against: lt, margin: margin(d), usd: take.usd, endTs: d.endTs });
+    }
+  }
+
+  const out = new Map<string, Highlights>();
+  for (const [wallet, byTicker] of favs) {
+    const favourite =
+      [...byTicker.values()].sort((a, b) => b.fights - a.fights || b.wins - a.wins || a.ticker.localeCompare(b.ticker))[0] ?? null;
+    out.set(wallet, { bestWin: best.get(wallet) ?? null, favourite });
+  }
+  return out;
+}
+
 /** Wins over fights with a result, 0 to 1; 0 with no results. */
 export const winRate = (r: Pick<FighterRecord, "wins" | "fights">) => (r.fights > 0 ? r.wins / r.fights : 0);
 

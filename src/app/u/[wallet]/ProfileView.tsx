@@ -37,7 +37,9 @@ import {
   decodeDuel,
   duelsAcceptedBy,
   duelsCreatedBy,
+  isInviteOnly,
   PROGRAM_ID,
+  STATUS_ACCEPTED,
   STATUS_LIVE,
   STATUS_OPEN,
   type DuelView,
@@ -54,8 +56,9 @@ import {
 } from "@/lib/derive";
 import { shares, until, usd } from "@/lib/format";
 import { useDuels, useProfiles } from "@/lib/hooks";
-import { usePrices } from "@/lib/prices";
+import { stakeValue, usePrices } from "@/lib/prices";
 import { decimalsForMint, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import { useHoldings } from "@/lib/useHoldings";
 import { useNow } from "@/lib/useNow";
 
 const PAGE = 20;
@@ -235,18 +238,53 @@ export function ProfileView({ wallet }: { wallet: string }) {
       </div>
     ) : null;
 
+  const holdingsRail = <HoldingsRail wallet={wallet} fights={mine} self={self} />;
+
   if (mine.length === 0) {
+    /* A wallet with no fights still has a next step, and for the viewer's own
+     * page it is a real one: the open seat nearest its deadline that this
+     * wallet may take, named with its stake, before the generic "Pick a fight". */
+    const seat = self ? nearestSeat(duels.data, wallet, now) : null;
+    const seatT1 = seat ? (tickerForMint(seat.creatorMint) ?? "?") : "";
+    const seatT2 = seat ? (tickerForMint(seat.opponentMint) ?? "?") : "";
     return (
       <div className="flex flex-col gap-6 py-6">
         {header}
         {connect}
-        <Empty
-          title="No fights on chain for this wallet yet."
-          body={self ? "Pick one and this page starts keeping score." : undefined}
-          // On someone else's page the challenge above is the one side-coloured action.
-          action={{ href: "/new", label: "Pick a fight", tone: self ? "p1" : "ghost" }}
-        />
-        {testToggle}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,8fr)_minmax(0,4fr)]">
+          <div className="flex min-w-0 flex-col gap-3">
+            <Empty
+              title="No fights on chain for this wallet yet."
+              body={
+                self
+                  ? seat
+                    ? `${seatT1} vs ${seatT2} is open now and yours to take, or pick your own. This page starts keeping score at the first one.`
+                    : "Pick one and this page starts keeping score."
+                  : undefined
+              }
+              // On someone else's page the challenge above is the one side-coloured action.
+              action={
+                seat ? (
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {/* Taking is the answerer's move, so the button is the answerer's colour. */}
+                    <Link href={`/f/${seat.address.toBase58()}`} className="btn btn-sm btn-p2">
+                      <SeatLabel d={seat} t1={seatT1} t2={seatT2} />
+                    </Link>
+                    <Link href="/new" className="btn btn-sm btn-ghost">
+                      Pick a fight
+                    </Link>
+                  </div>
+                ) : (
+                  { href: "/new", label: "Pick a fight", tone: self ? "p1" : "ghost" }
+                )
+              }
+            />
+            {testToggle}
+          </div>
+          <aside className="flex min-w-0 flex-col gap-6" aria-label="About this wallet">
+            {holdingsRail}
+          </aside>
+        </div>
       </div>
     );
   }
@@ -306,6 +344,7 @@ export function ProfileView({ wallet }: { wallet: string }) {
         </section>
 
         <aside className="flex min-w-0 flex-col gap-6" aria-label="About this fighter">
+          {holdingsRail}
           {openByThem.length ? (
             <section className="flex flex-col gap-3" aria-labelledby="profile-open">
               <SectionHead id="profile-open" title="Open challenges" count={openByThem.length} />
@@ -363,6 +402,114 @@ export function ProfileView({ wallet }: { wallet: string }) {
         </aside>
       </div>
     </div>
+  );
+}
+
+/* ─── What the wallet holds, and what it has up ─────────────────────────── */
+
+/** The open seat, nearest its deadline, that `wallet` may take: a listed pair,
+ *  not its own, and open to anyone or naming it. */
+function nearestSeat(duels: DuelView[], wallet: string, now: number): DuelView | null {
+  if (!now) return null;
+  return (
+    duels
+      .filter(
+        (d) =>
+          isRosterFight(d) &&
+          d.status === STATUS_OPEN &&
+          d.expiresTs > now &&
+          d.creator.toBase58() !== wallet &&
+          (!isInviteOnly(d) || d.invitee.toBase58() === wallet),
+      )
+      .sort((a, b) => a.expiresTs - b.expiresTs)[0] ?? null
+  );
+}
+
+/** "AMZN vs HOOD · $25 a side · Take it", the stake at the challenger's live price. */
+function SeatLabel({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
+  const prices = usePrices([t1]);
+  const v = stakeValue(d.creatorAmount, decimalsForMint(d.creatorMint), prices.data?.quotes[t1]);
+  return (
+    <>
+      {t1} vs {t2}
+      {v !== null && Number.isFinite(v) ? <span className="num"> · {usd(Math.max(1, Math.round(v)), { cents: false })} a side</span> : null} · Take it
+    </>
+  );
+}
+
+/* SHARES HELD AND STAKES UP. A profile used to be only a fight history, so a
+ * wallet holding $1,000 of stock tokens with a stake waiting in escrow read as
+ * empty. The holdings are the chain's token accounts (lib/useHoldings); the
+ * escrow is every stake this wallet has in a fight still open, taken or live,
+ * from the same duel list the history is built from, valued at live prices. */
+function HoldingsRail({ wallet, fights, self }: { wallet: string; fights: DuelView[]; self: boolean }) {
+  const { holdings, valued, total, unpriced } = useHoldings(wallet);
+
+  const staked = fights
+    .filter((d) => d.status === STATUS_OPEN || d.status === STATUS_ACCEPTED || d.status === STATUS_LIVE)
+    .map((d) => {
+      const asCreator = d.creator.toBase58() === wallet;
+      const mint = asCreator ? d.creatorMint : d.opponentMint;
+      return { ticker: tickerForMint(mint), raw: asCreator ? d.creatorAmount : d.opponentAmount, decimals: decimalsForMint(mint) };
+    })
+    .filter((s) => s.ticker && s.raw > BigInt(0));
+  const stakePrices = usePrices(staked.map((s) => s.ticker));
+  const stakeValues = staked.map((s) => stakeValue(s.raw, s.decimals, stakePrices.data?.quotes[s.ticker!]));
+  const escrow = stakeValues.every((v) => v !== null) ? stakeValues.reduce<number>((sum, v) => sum + (v ?? 0), 0) : null;
+
+  return (
+    <section className="flex flex-col gap-3" aria-labelledby="profile-shares">
+      <SectionHead id="profile-shares" title="Shares held" count={valued.length || null} />
+      <div className="card flex flex-col">
+        {holdings.isError ? (
+          <p className="px-3 py-2.5 text-meta text-dim">Could not reach Solana. Holdings fill in when it answers.</p>
+        ) : !holdings.data ? (
+          <div className="flex flex-col gap-2 px-3 py-2.5" aria-busy="true">
+            <span className="sr-only">Loading holdings</span>
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        ) : valued.length === 0 ? (
+          <p className="px-3 py-2.5 text-meta text-dim">
+            {self ? "No stock tokens in your wallet yet." : "No stock tokens in this wallet."}
+          </p>
+        ) : (
+          <ul className="flex flex-col">
+            {valued.map((h) => (
+              <li key={h.ticker} className="flex h-9 min-w-0 items-center gap-3 border-t border-line px-3 first:border-t-0">
+                <Link href={`/s/${h.ticker}`} className="display w-16 shrink-0 truncate text-hud-xs text-ink hover:underline">
+                  {h.ticker}
+                </Link>
+                <span className="num min-w-0 flex-1 truncate text-meta text-dim">
+                  {shares(h.raw, h.decimals)} <span className="normal-case">{tokenSymbol(h.ticker)}</span>
+                </span>
+                <span className={cx("num shrink-0 text-meta", h.usd === null ? "text-dim" : "text-ink")}>
+                  {h.usd === null ? "no price" : usd(h.usd)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {total !== null || staked.length ? (
+          <dl className="flex flex-col border-t border-line px-3 py-2">
+            {total !== null ? (
+              <div className="flex h-7 items-center justify-between gap-3">
+                <dt className="label">Total now{unpriced ? ` · ${unpriced} unpriced` : ""}</dt>
+                <dd className="num text-sm text-ink">{usd(total)}</dd>
+              </div>
+            ) : null}
+            {staked.length ? (
+              <div className="flex h-7 items-center justify-between gap-3">
+                <dt className="label">
+                  In escrow · {staked.length} {staked.length === 1 ? "fight" : "fights"}
+                </dt>
+                <dd className="num text-sm text-ink">{escrow !== null ? usd(escrow) : "--"}</dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

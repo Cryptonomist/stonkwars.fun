@@ -107,7 +107,9 @@ export function LiveBoard({ limit = 12, columns = 1 }: { limit?: number; columns
         href="/fights?tab=final&test=1"
         className="micro self-start text-dim underline decoration-line-strong underline-offset-4 transition-colors hover:text-ink"
       >
-        {hidden.data} {hidden.data === 1 ? "fight" : "fights"} on devnet test tokens hidden
+        {/* Every test fight on chain, in any state, so it says so: /fights
+          * counts only the ones on the tab it is showing. */}
+        {hidden.data} test-token {hidden.data === 1 ? "fight" : "fights"} hidden across all tabs
       </Link>
     ) : null;
 

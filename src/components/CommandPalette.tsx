@@ -29,8 +29,10 @@ import { PALETTE_EVENT } from "@/components/ui/intents";
 import { Kbd } from "@/components/ui/Kbd";
 import { Sheet } from "@/components/ui/Sheet";
 import { allDuels, decodeDuel, PROGRAM_ID, STATUS_LIVE, STATUS_OPEN, type DuelView } from "@/lib/duel";
-import { shares, shortAddress } from "@/lib/format";
+import { Move } from "@/components/Ticker";
+import { shares, shortAddress, usd } from "@/lib/format";
 import { useDuels, useProfiles } from "@/lib/hooks";
+import { dayChangePct, quoteValue, usePrices, type Quotes } from "@/lib/prices";
 import { useNow } from "@/lib/useNow";
 import { decimalsForMint, ROSTER, tickerForMint, tokenSymbol, tradesAroundTheClock, type Stock } from "@/lib/stocks";
 
@@ -191,17 +193,41 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
       });
     }
 
-    /* Stocks: ticker prefix first (an exact ticker before a longer one), then
-     * a name that contains the query. */
+    /* STOCKS, RANKED FOR WHAT PEOPLE FIGHT WITH. Sorting ticker prefixes by
+     * length put NVO, NVR and NVT above NVDA for "nv", and a two-letter query
+     * matched "agnc" and "covel" from the middle of a word. Now:
+     *   exact ticker           1000
+     *   ticker prefix           500, +50 if it trades around the clock, + up to
+     *                           40 for the fights on chain with it, minus a
+     *                           hair for its place in the roster
+     *   a word of the name      200 when the word starts with the query
+     *   inside a word           100, only from three letters up */
     const upper = q.toUpperCase();
-    const prefix: Stock[] = [];
-    const named: Stock[] = [];
-    for (const s of ROSTER) {
-      if (s.ticker.startsWith(upper)) prefix.push(s);
-      else if (lower.length >= 2 && s.name.toLowerCase().includes(lower)) named.push(s);
+    const fightsWith = new Map<string, number>();
+    for (const d of list) {
+      for (const t of new Set([tickerForMint(d.creatorMint), tickerForMint(d.opponentMint)])) {
+        if (t) fightsWith.set(t, (fightsWith.get(t) ?? 0) + 1);
+      }
     }
-    prefix.sort((a, b) => a.ticker.length - b.ticker.length || a.ticker.localeCompare(b.ticker));
-    for (const s of [...prefix, ...named].slice(0, 8)) {
+    const scored: { s: Stock; score: number }[] = [];
+    ROSTER.forEach((s, index) => {
+      let score = 0;
+      if (s.ticker === upper) score = 1000;
+      else if (s.ticker.startsWith(upper)) {
+        score =
+          500 +
+          (tradesAroundTheClock(s.ticker) ? 50 : 0) +
+          Math.min(40, fightsWith.get(s.ticker) ?? 0) -
+          index / ROSTER.length;
+      } else if (lower.length >= 2) {
+        const name = s.name.toLowerCase();
+        if (name.split(/[^a-z0-9]+/).some((w) => w.startsWith(lower))) score = 200;
+        else if (lower.length >= 3 && name.includes(lower)) score = 100;
+      }
+      if (score > 0) scored.push({ s, score });
+    });
+    scored.sort((a, b) => b.score - a.score || a.s.ticker.localeCompare(b.s.ticker));
+    for (const { s } of scored.slice(0, 8)) {
       out.push({
         kind: "stock",
         id: `stock:${s.ticker}`,
@@ -245,6 +271,9 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
 
     return out;
   }, [q, lower, duels, handles, now, pasted, pastedIsFight, checking]);
+
+  /* What each stock shown is doing, for just those (at most eight) tickers. */
+  const prices = usePrices(results.map((r) => (r.kind === "stock" ? r.stock.ticker : null)));
 
   useEffect(() => setActive(0), [q]);
 
@@ -366,7 +395,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
                     selected ? "bg-panel-3" : "bg-panel",
                   )}
                 >
-                  <ResultLine r={r} />
+                  <ResultLine r={r} quotes={prices.data} />
                   {r.kind === "stock" ? (
                     <button
                       type="button"
@@ -409,7 +438,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
   );
 }
 
-function ResultLine({ r }: { r: Result }) {
+function ResultLine({ r, quotes }: { r: Result; quotes?: Quotes }) {
   switch (r.kind) {
     case "paste":
       return (
@@ -420,16 +449,24 @@ function ResultLine({ r }: { r: Result }) {
           <span className="num truncate text-meta text-dim">{shortAddress(r.address, 8)}</span>
         </span>
       );
-    case "stock":
+    case "stock": {
+      const q = quotes?.quotes[r.stock.ticker];
+      const price = quoteValue(q);
       return (
-        <span className="flex min-w-0 items-center gap-3">
+        <span className="flex min-w-0 flex-1 items-center gap-3">
           <span className="w-16 shrink-0 truncate font-display text-hud-xs font-black uppercase text-ink">
             {r.stock.ticker}
           </span>
           <span className="min-w-0 truncate text-meta text-dim">{r.stock.name}</span>
           {tradesAroundTheClock(r.stock.ticker) ? <Badge variant="neutral">24/7</Badge> : null}
+          {/* Fixed-width columns, so a price arriving never shifts the row. */}
+          <span className="ml-auto flex shrink-0 items-baseline gap-2 text-meta">
+            <span className="num w-20 text-right text-ink">{price !== null ? usd(price) : "--"}</span>
+            <Move value={dayChangePct(q)} className="num hidden w-14 text-right sm:inline" />
+          </span>
         </span>
       );
+    }
     case "fighter":
       return <FighterName wallet={r.wallet} href={null} size="md" />;
     case "fight": {

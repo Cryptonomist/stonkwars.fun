@@ -12,6 +12,7 @@ import {
   calledOut,
   fightEvents,
   headToHead,
+  highlightsByWallet,
   inWindow,
   isRosterFight,
   lastBell,
@@ -253,6 +254,24 @@ describe("a fighter's record", () => {
       wins.reduce((s, d) => s + loserTake(d)!.usd, 0),
       1e-9,
     );
+  });
+
+  it("finds the biggest win by money taken, the later one on a tie", () => {
+    const best = highlightsByWallet(history).get(wallet)!.bestWin!;
+    // Two wins took 0.1 AAPL at $202; the later of them is the one shown.
+    expect(best.endTs).to.equal(T0 + 700);
+    expect([best.ticker, best.against]).to.deep.equal(["NVDA", "AAPL"]);
+    expect(best.usd).to.be.closeTo(20.2, 1e-9);
+    expect(best.margin).to.be.closeTo(1, 1e-9);
+  });
+
+  it("names the stock a wallet fought with most, with its record in that corner", () => {
+    const fav = highlightsByWallet(history).get(wallet)!.favourite!;
+    expect(fav).to.deep.equal({ ticker: "NVDA", fights: 5, wins: 3, losses: 1, ties: 1 });
+    // A wallet that never won has a favourite but no best win.
+    const loser = highlightsByWallet([fought(rival, other, T0, 5, 1)]).get(other.toBase58())!;
+    expect(loser.bestWin).to.equal(null);
+    expect(loser.favourite?.ticker).to.equal("AAPL");
   });
 
   it("names rivals by fights, with the record against each", () => {

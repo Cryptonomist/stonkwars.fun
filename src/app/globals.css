@@ -102,12 +102,13 @@ body {
 }
 
 :root {
-  /* The fixed bottom bar's height. Zero until a page opts in below 640px, so
-   * anything pinned above it (toasts, sticky action bars) can always add it. */
+  /* The fixed bottom bar's height. Zero until a page opts in below 768px (the
+   * bar's own md breakpoint), so anything pinned above it (toasts, sticky
+   * action bars) can always add it. */
   --bottom-nav-h: 0px;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .has-bottom-nav {
     --bottom-nav-h: 3.5rem;
   }

@@ -382,10 +382,12 @@ export function CreateFight() {
           successTitle="Fight picked."
           className={cx("btn-p1", compact ? "btn-sm" : "w-full")}
           label={
-            <>
+            /* One line on a phone: "and get the link" wrapped the label to
+             * three lines at 375px, so there it is left to the success step. */
+            <span className="whitespace-nowrap">
               Stake <span className="num normal-case">{need}</span>
-              {compact ? null : " and get the link"}
-            </>
+              {compact ? null : <span className="hidden sm:inline"> and get the link</span>}
+            </span>
           }
         />
       );

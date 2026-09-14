@@ -280,11 +280,17 @@ function Tile({
     >
       {/* One badge per line, so a five-letter ticker never loses letters to
         * them in a four-column grid. */}
+      {/* The source badge only where it is the exception: all but a handful of
+        * a thousand tiles are priced by the oracle, and "ORACLE" on each of
+        * them was noise that hid the rare Pyth one. The tile's title and the
+        * ticket still name every source. */}
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="display min-w-0 truncate text-hud-xs normal-case">{s.ticker}</span>
-        <Badge variant="source" className="ml-auto">
-          {s.source === "pyth" ? "Pyth" : "Oracle"}
-        </Badge>
+        {s.source === "pyth" ? (
+          <Badge variant="source" className="ml-auto">
+            Pyth
+          </Badge>
+        ) : null}
       </span>
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="min-w-0 truncate text-meta text-dim">{s.name}</span>

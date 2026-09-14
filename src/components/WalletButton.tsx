@@ -24,10 +24,8 @@
  * holds, and disconnecting takes a second click inside three seconds. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletReadyState, type WalletName } from "@solana/wallet-adapter-base";
-import { PublicKey } from "@solana/web3.js";
-import { useQuery } from "@tanstack/react-query";
 
 import { useFaucet } from "@/components/FaucetButton";
 import { Badge } from "@/components/ui/Badge";
@@ -40,7 +38,6 @@ import { Notice } from "@/components/ui/Notice";
 import { Sheet } from "@/components/ui/Sheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
-import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@/lib/duel";
 import { shares, shortAddress, usd } from "@/lib/format";
 import { GuestWalletName } from "@/lib/guestWallet";
 import { explorerAddress } from "@/lib/hooks";
@@ -52,8 +49,8 @@ import {
   storeFor,
   type Platform,
 } from "@/lib/mobile";
-import { stakeValue, usePrices } from "@/lib/prices";
-import { CLUSTER, tokenForMint, tokenSymbol } from "@/lib/stocks";
+import { CLUSTER, tokenSymbol } from "@/lib/stocks";
+import { SOL_DECIMALS, useHoldings } from "@/lib/useHoldings";
 
 type Problem = { title: string; body: string };
 
@@ -263,68 +260,17 @@ export function WalletButton({ className = "" }: { className?: string }) {
 
 /* ─── Connected ───────────────────────────────────────────────────────────── */
 
-const SOL_DECIMALS = 9;
 const MAX_HOLDINGS = 8;
 
-type Holding = { ticker: string; raw: bigint; decimals: number };
-
-/* The amount in an SPL token account, read from the raw bytes: mint in the
- * first 32, amount as a little-endian u64 at 64. Token-2022 accounts share the
- * same base layout, with any extensions after it. */
-function readTokenAccount(data: Uint8Array): { mint: string; amount: bigint } | null {
-  if (data.length < 72) return null;
-  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-  return { mint: new PublicKey(data.subarray(0, 32)).toBase58(), amount: view.getBigUint64(64, true) };
-}
-
 function WalletMenu({ address, className }: { address: string; className?: string }) {
-  const { connection } = useConnection();
   const { wallet, disconnect } = useWallet();
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
   const { drip, busy } = useFaucet();
   const guest = wallet?.adapter.name === GuestWalletName;
 
-  /* Balances are read only while somebody is looking at them. */
-  const sol = useQuery<number>({
-    queryKey: ["sol-balance", address],
-    enabled: open,
-    queryFn: () => connection.getBalance(new PublicKey(address), "confirmed"),
-    refetchInterval: open ? 20_000 : false,
-  });
-
-  const holdings = useQuery<Holding[]>({
-    queryKey: ["holdings", address],
-    enabled: open,
-    queryFn: async () => {
-      const owner = new PublicKey(address);
-      const [classic, t22] = await Promise.all([
-        connection.getTokenAccountsByOwner(owner, { programId: TOKEN_PROGRAM_ID }, "confirmed"),
-        connection.getTokenAccountsByOwner(owner, { programId: TOKEN_2022_PROGRAM_ID }, "confirmed"),
-      ]);
-      const byTicker = new Map<string, Holding>();
-      for (const a of [...classic.value, ...t22.value]) {
-        const acct = readTokenAccount(a.account.data);
-        if (!acct || acct.amount === BigInt(0)) continue;
-        const token = tokenForMint(acct.mint);
-        if (!token) continue;
-        const had = byTicker.get(token.ticker);
-        byTicker.set(token.ticker, {
-          ticker: token.ticker,
-          raw: (had?.raw ?? BigInt(0)) + acct.amount,
-          decimals: token.decimals,
-        });
-      }
-      return [...byTicker.values()];
-    },
-    refetchInterval: open ? 20_000 : false,
-  });
-
-  const tickers = open ? (holdings.data ?? []).map((h) => h.ticker) : [];
-  const prices = usePrices(tickers, 10_000);
-  const valued = (holdings.data ?? [])
-    .map((h) => ({ ...h, usd: stakeValue(h.raw, h.decimals, prices.data?.quotes[h.ticker]) }))
-    .sort((a, b) => (b.usd ?? -1) - (a.usd ?? -1) || a.ticker.localeCompare(b.ticker));
+  /* Balances are read only while somebody is looking at them (lib/useHoldings). */
+  const { sol, holdings, valued, total } = useHoldings(address, open);
   const shown = valued.slice(0, MAX_HOLDINGS);
 
   useEffect(() => {
@@ -410,7 +356,10 @@ function WalletMenu({ address, className }: { address: string; className?: strin
             )}
           </div>
 
-          <p className="label mt-3">Stock tokens</p>
+          <p className="mt-3 flex items-baseline justify-between gap-3">
+            <span className="label">Stock tokens</span>
+            {total !== null ? <span className="num text-meta text-ink">{usd(total)} now</span> : null}
+          </p>
           {holdings.data === undefined && !holdings.isError ? (
             <div aria-busy="true" className="mt-2 flex flex-col gap-2">
               <span className="sr-only">Loading</span>

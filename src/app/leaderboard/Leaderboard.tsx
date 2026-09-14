@@ -31,8 +31,8 @@ import { Skeleton, SkeletonRows } from "@/components/ui/Skeleton";
 import { StatStrip, type StatCell } from "@/components/ui/StatStrip";
 import { Tabs, useUrlTab } from "@/components/ui/Tabs";
 import { allDuels, STATUS_SETTLED, type DuelView } from "@/lib/duel";
-import { inWindow, records, winnerSide } from "@/lib/derive";
-import { pct, points, shortAddress, usd } from "@/lib/format";
+import { highlightsByWallet, inWindow, records, winnerSide, type BestWin, type Highlights } from "@/lib/derive";
+import { ago, pct, points, shortAddress, usd } from "@/lib/format";
 import { useDuels, useProfiles } from "@/lib/hooks";
 import { rankFighters, type Record_ } from "@/lib/leaderboard";
 import { STAKE_DECIMALS, tickerForMint } from "@/lib/stocks";
@@ -55,8 +55,14 @@ const tookSomething = (n: number) => n >= 0.005;
  * first, so the money never leaves the screen, and form, record, win rate and
  * streak under it. From 640px the second line's cells join the one grid and
  * line up under the column heads. */
+/* From 1024px the fighter column left about 650px blank on every row, so two
+ * columns join it there: the wallet's biggest win and how long ago it last
+ * fought. */
 const ROW_GRID =
-  "grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_5.5rem_3.5rem_6rem_6.5rem]";
+  "grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_5.5rem_3.5rem_6rem_6.5rem] lg:grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_5.5rem_3.5rem_6rem_minmax(0,18rem)_5.5rem_6.5rem]";
+
+/** A win rate means something from three results; "100%" on a 1-0 record is noise. */
+const MIN_FIGHTS_FOR_RATE = 3;
 
 export function Leaderboard() {
   const duels = useDuels("all", allDuels(), 20_000);
@@ -88,6 +94,7 @@ export function Leaderboard() {
     [all, range, now],
   );
   const ranked = useMemo(() => rankFighters(scoped, STAKE_DECIMALS), [scoped]);
+  const highlights = useMemo(() => highlightsByWallet(scoped, STAKE_DECIMALS), [scoped]);
   const best = useMemo(() => records(scoped), [scoped]);
   const byAddress = useMemo(() => new Map((all ?? []).map((d) => [d.address.toBase58(), d])), [all]);
 
@@ -210,7 +217,14 @@ export function Leaderboard() {
             {me ? (
               mineIndex >= 0 ? (
                 <section aria-label="Your rank">
-                  <FighterRow r={ranked[mineIndex]} rank={mineIndex + 1} you name={nameOf(ranked[mineIndex].wallet)} />
+                  <FighterRow
+                    r={ranked[mineIndex]}
+                    rank={mineIndex + 1}
+                    you
+                    name={nameOf(ranked[mineIndex].wallet)}
+                    h={highlights.get(ranked[mineIndex].wallet)}
+                    now={now}
+                  />
                 </section>
               ) : (
                 <Link
@@ -230,7 +244,7 @@ export function Leaderboard() {
               <ol className="hidden gap-2 sm:grid sm:grid-cols-3" aria-label="Top three">
                 {podium.map((r, i) => (
                   <li key={r.wallet} className="min-w-0">
-                    <PodiumCard r={r} rank={i + 1} you={r.wallet === me} name={nameOf(r.wallet)} />
+                    <PodiumCard r={r} rank={i + 1} you={r.wallet === me} name={nameOf(r.wallet)} h={highlights.get(r.wallet)} now={now} />
                   </li>
                 ))}
               </ol>
@@ -253,6 +267,8 @@ export function Leaderboard() {
                 <span>Record</span>
                 <span className="text-right">Win</span>
                 <span />
+                <span className="hidden lg:block">Best win</span>
+                <span className="hidden text-right lg:block">Last fight</span>
                 <span className="text-right">Taken</span>
               </div>
               <ol className="flex flex-col border-b border-line">
@@ -262,7 +278,7 @@ export function Leaderboard() {
                     /* On a phone the podium is simply the first three rows. */
                     className={cx("border-t border-line", i < podium.length && "sm:hidden")}
                   >
-                    <FighterRow r={r} rank={i + 1} you={r.wallet === me} name={nameOf(r.wallet)} />
+                    <FighterRow r={r} rank={i + 1} you={r.wallet === me} name={nameOf(r.wallet)} h={highlights.get(r.wallet)} now={now} />
                   </li>
                 ))}
                 {winless.length ? (
@@ -288,7 +304,14 @@ export function Leaderboard() {
                 <ol id="leaderboard-winless" className="flex flex-col border-b border-line" start={winners.length + 1}>
                   {winless.map((r, i) => (
                     <li key={r.wallet} className="border-t border-line first:border-t-0">
-                      <FighterRow r={r} rank={winners.length + i + 1} you={r.wallet === me} name={nameOf(r.wallet)} />
+                      <FighterRow
+                        r={r}
+                        rank={winners.length + i + 1}
+                        you={r.wallet === me}
+                        name={nameOf(r.wallet)}
+                        h={highlights.get(r.wallet)}
+                        now={now}
+                      />
                     </li>
                   ))}
                 </ol>
@@ -336,16 +359,50 @@ function Taken({ n, className }: { n: number; className?: string }) {
   return <span className={cx("num whitespace-nowrap", tookSomething(n) ? "text-up" : "text-dim", className)}>{usd(n)}</span>;
 }
 
-const rowLabel = (r: Record_, rank: number, name: string, you: boolean) =>
+const rowLabel = (r: Record_, rank: number, name: string, you: boolean, h?: Highlights) =>
   `${you ? "You, " : ""}rank ${rank}, ${name}: ${r.wins} ${r.wins === 1 ? "win" : "wins"}, ${r.losses} ${
     r.losses === 1 ? "loss" : "losses"
-  }${r.ties ? `, ${r.ties} ${r.ties === 1 ? "tie" : "ties"}` : ""}, win rate ${Math.round(r.winRate * 100)}%, took ${usd(r.taken)}`;
+  }${r.ties ? `, ${r.ties} ${r.ties === 1 ? "tie" : "ties"}` : ""}${
+    r.fights >= MIN_FIGHTS_FOR_RATE ? `, win rate ${Math.round(r.winRate * 100)}%` : ""
+  }, took ${usd(r.taken)}${h?.bestWin ? `, best win ${h.bestWin.ticker} beat ${h.bestWin.against}, took ${usd(h.bestWin.usd)}` : ""}`;
 
-function FighterRow({ r, rank, you = false, name }: { r: Record_; rank: number; you?: boolean; name: string }) {
+/** "NVDA beat AAPL by 0.024 pts", with what it took on the podium. The row's
+ *  Last fight column carries the age, so the line does not repeat it. */
+function BestWinLine({ b, took = false }: { b: BestWin; took?: boolean }) {
+  return (
+    <span className="min-w-0 truncate text-meta">
+      <span className="text-ink">{b.ticker}</span> <span className="text-dim">beat</span>{" "}
+      <span className="text-ink">{b.against}</span>
+      <span className="num text-dim">{b.margin !== null ? ` by ${points(b.margin)} pts` : ""}</span>
+      {took ? (
+        <>
+          {" "}
+          · <span className="num text-up">took {usd(b.usd)}</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+function FighterRow({
+  r,
+  rank,
+  you = false,
+  name,
+  h,
+  now,
+}: {
+  r: Record_;
+  rank: number;
+  you?: boolean;
+  name: string;
+  h?: Highlights;
+  now: number;
+}) {
   return (
     <Link
       href={`/u/${r.wallet}`}
-      aria-label={rowLabel(r, rank, name, you)}
+      aria-label={rowLabel(r, rank, name, you, h)}
       className={cx(ROW_GRID, "row px-3 py-2.5 focus-visible:-outline-offset-2", you && "shadow-[inset_2px_0_0_var(--color-ink)]")}
     >
       <span className="row-span-2 sm:row-span-1">
@@ -358,25 +415,46 @@ function FighterRow({ r, rank, you = false, name }: { r: Record_; rank: number; 
       <span className="col-span-2 col-start-2 flex min-w-0 items-center gap-3 sm:contents">
         <FormPips results={r.form} />
         <WinLoss r={r} />
-        <span className="num text-meta text-dim sm:text-right">{Math.round(r.winRate * 100)}%</span>
+        <span className="num text-meta text-dim sm:text-right">
+          {r.fights >= MIN_FIGHTS_FOR_RATE ? `${Math.round(r.winRate * 100)}%` : null}
+        </span>
         <span className="min-w-0 sm:justify-self-start">
           {r.streak >= 2 ? <Badge variant="neutral">{r.streak} in a row</Badge> : null}
+        </span>
+        <span className="hidden min-w-0 lg:flex">{h?.bestWin ? <BestWinLine b={h.bestWin} /> : null}</span>
+        <span className="num hidden text-right text-meta text-dim lg:block">
+          {now && r.lastTs ? ago(r.lastTs, now) : null}
         </span>
       </span>
     </Link>
   );
 }
 
-function PodiumCard({ r, rank, you, name }: { r: Record_; rank: number; you: boolean; name: string }) {
+function PodiumCard({
+  r,
+  rank,
+  you,
+  name,
+  h,
+  now,
+}: {
+  r: Record_;
+  rank: number;
+  you: boolean;
+  name: string;
+  h?: Highlights;
+  now: number;
+}) {
   return (
     <Link
       href={`/u/${r.wallet}`}
-      aria-label={rowLabel(r, rank, name, you)}
+      aria-label={rowLabel(r, rank, name, you, h)}
       className="plate-card row flex h-full min-w-0 flex-col gap-3 p-4 focus-visible:-outline-offset-2"
     >
       <span className="flex min-w-0 items-center gap-3">
         <Rank n={rank} size="md" />
         <FighterName wallet={r.wallet} size="md" href={null} you={you} />
+        {now && r.lastTs ? <span className="num ml-auto shrink-0 text-meta text-dim">{ago(r.lastTs, now)}</span> : null}
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="label">Taken</span>
@@ -387,6 +465,31 @@ function PodiumCard({ r, rank, you, name }: { r: Record_; rank: number; you: boo
         <FormPips results={r.form} />
         {r.streak >= 2 ? <Badge variant="neutral">{r.streak} in a row</Badge> : null}
       </span>
+      {/* What the money above was made of: the biggest single win, and the
+        * stock this wallet reaches for, with how it has done in that corner. */}
+      {h?.bestWin || h?.favourite ? (
+        <span className="flex min-w-0 flex-col gap-1 border-t border-line pt-3">
+          {h.bestWin ? (
+            <span className="flex min-w-0 items-baseline gap-2">
+              <span className="label w-20 shrink-0">Best win</span>
+              <BestWinLine b={h.bestWin} took />
+            </span>
+          ) : null}
+          {h.favourite ? (
+            <span className="flex min-w-0 items-baseline gap-2">
+              <span className="label w-20 shrink-0">Favourite</span>
+              <span className="min-w-0 truncate text-meta">
+                <span className="text-ink">{h.favourite.ticker}</span>{" "}
+                <span className="num">
+                  <span className="text-ink">{h.favourite.wins}W</span>{" "}
+                  <span className="text-dim">{h.favourite.losses}L</span>
+                  {h.favourite.ties ? <span className="text-dim"> {h.favourite.ties}T</span> : null}
+                </span>
+              </span>
+            </span>
+          ) : null}
+        </span>
+      ) : null}
     </Link>
   );
 }

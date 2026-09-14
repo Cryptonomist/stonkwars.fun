@@ -9,8 +9,11 @@
  * and a 15px classic scrollbar: 768 fits the links, the search icon, Pick a
  * fight and the wallet; 1024 adds How it works and the faucet; 1280 adds the
  * worded search box and the market's session, with about 20px to spare when
- * the exchange is shut and the session line is at its longest. Below 640px it is only the wordmark, a search button and the wallet: the
- * places to go move to BottomNav, where a thumb can reach them.
+ * the exchange is shut and the session line is at its longest. Below 640px it
+ * is only the wordmark, a search button and the wallet: the places to go move
+ * to BottomNav, where a thumb can reach them. Between 640 and 767 the header
+ * shows its links but has no room for Pick a fight, so BottomNav stays up to
+ * 767px (md) and carries it there.
  *
  * The current page is marked in ink with a short slanted underline plate and
  * aria-current, not in a side colour: a page is not a corner. */

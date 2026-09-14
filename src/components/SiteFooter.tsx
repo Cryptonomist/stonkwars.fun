@@ -11,7 +11,7 @@ import { CLUSTER } from "@/lib/stocks";
  * stake (one click from its account on Explorer), and the reading pages.
  *
  * On a phone the fixed bottom bar sits over the end of the page, so the footer
- * reserves its height (--bottom-nav-h, zero from 640px up) below its own
+ * reserves its height (--bottom-nav-h, zero from 768px up) below its own
  * content. That keeps the last line of every page clear of the bar without
  * adding a gap between a page and its footer. */
 

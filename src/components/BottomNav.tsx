@@ -4,7 +4,9 @@
  *
  * Below 640px the header keeps only the wordmark, search and the wallet, and
  * the places to go live here: the board, fights, a fight to pick, the ranks and
- * you. Its height is --bottom-nav-h (set by .has-bottom-nav on the body), which
+ * you. It stays up to 767px, because between 640 and 768 the header has room
+ * for its links but not for Pick a fight, and a page there had no way to start
+ * a fight. Its height is --bottom-nav-h (set by .has-bottom-nav on the body), which
  * toasts and sticky action bars add to their own bottom offset, and which the
  * footer reserves so nothing on the page ends up underneath it.
  *
@@ -34,6 +36,7 @@ function Item({
   current,
   count = 0,
   countWords,
+  className,
 }: {
   href: string;
   label: string;
@@ -42,12 +45,13 @@ function Item({
   count?: number;
   /** What the count means, read after the label: "2 challenges name you". */
   countWords?: string;
+  className?: string;
 }) {
   return (
     <Link
       href={href}
       aria-current={current ? "page" : undefined}
-      className={cx(ITEM, current ? "text-ink" : "text-dim hover:text-ink")}
+      className={cx(ITEM, current ? "text-ink" : "text-dim hover:text-ink", className)}
     >
       {/* The current page, marked the way the desktop nav marks it: a short
         * slanted ink plate, here on the bar's top edge where the thumb is not. */}
@@ -98,7 +102,7 @@ export function BottomNav() {
       aria-label="Main"
       /* The hairline is an inset shadow, not a border, so the bar is exactly
        * --bottom-nav-h tall and what reserves that height clears it exactly. */
-      className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-panel-2 shadow-[inset_0_1px_0_var(--color-line)] sm:hidden"
+      className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-panel-2 shadow-[inset_0_1px_0_var(--color-line)] md:hidden"
     >
       <div className="grid h-14 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,1fr)] items-center">
         <Item href="/" label="Board" icon={<BoardGlyph />} current={at("/")} />
@@ -110,13 +114,16 @@ export function BottomNav() {
           count={calls}
           countWords={`${calls} open ${calls === 1 ? "challenge names" : "challenges name"} you`}
         />
-        <Link
-          href="/new"
-          aria-current={at("/new") ? "page" : undefined}
-          className="btn btn-sm btn-p1 mx-1 h-10 whitespace-nowrap px-4"
-        >
-          Pick a fight
-        </Link>
+        {/* On /new the ticket's own bar is the primary, so the centre slot
+          * steps down to a plain tab rather than stacking a second cyan call to
+          * the same action under it. */}
+        {at("/new") ? (
+          <Item href="/new" label="New" icon={<NewGlyph />} current className="px-4" />
+        ) : (
+          <Link href="/new" className="btn btn-sm btn-p1 mx-1 h-10 whitespace-nowrap px-4">
+            Pick a fight
+          </Link>
+        )}
         <Item href="/leaderboard" label="Ranks" icon={<RanksGlyph />} current={at("/leaderboard")} />
         {mine ? (
           <Item href={mine} label="Me" icon={<MeGlyph />} current={at(mine)} />
@@ -148,6 +155,14 @@ function FightsGlyph() {
   return (
     <svg {...glyph}>
       <path d="M3 15 15 3M3 3l12 12" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function NewGlyph() {
+  return (
+    <svg {...glyph}>
+      <path d="M9 2v14M2 9h14" stroke="currentColor" strokeWidth="2" />
     </svg>
   );
 }
