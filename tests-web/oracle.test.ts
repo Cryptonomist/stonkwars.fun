@@ -5,7 +5,15 @@ import { expect } from "chai";
 import { Keypair } from "@solana/web3.js";
 
 import {
+  BAR_SETTLE_SECS,
+  FETCH_TIMEOUT_MS,
+  fetchBars,
+  fetchPerpBars,
+  fetchPoolBars,
+  firstBarEnd,
+  POOL_ATTEMPTS,
   priceAtBoundary,
+  quoteAt,
   quoteMessage,
   signedQuoteInstruction,
   sourceAt,
@@ -185,6 +193,184 @@ describe("oracle", () => {
       // Hong Kong trades while New York sleeps; guessing would be worse than
       // waiting for its own bars.
       expect(sourceAt(at(2, 30), { market: "HK", pool: "somepool", perp: "xyz:NVDA" })).to.equal("exchange");
+    });
+  });
+
+  /* WHAT THE ORACLE ASKS OF OTHER PEOPLE'S APIS, AND WHEN.
+   *
+   * Every test here replaces fetch, so nothing leaves the machine. Each uses
+   * its own coin, pool or boundary, because the oracle keeps finished answers
+   * and a shared one would be served from memory instead of asked. */
+  describe("asking the price sources", () => {
+    const realFetch = globalThis.fetch;
+    type Call = { url: string; init?: RequestInit };
+    let calls: Call[] = [];
+
+    const stubFetch = (respond: (call: Call) => Response | Promise<Response>) => {
+      calls = [];
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const call = { url, init };
+        calls.push(call);
+        return respond(call);
+      }) as typeof fetch;
+    };
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+    });
+
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+    /** A price source with a bar for every minute: Hyperliquid's candles or
+     *  Yahoo's chart, whichever was asked. */
+    const everyMinute = ({ url, init }: Call) => {
+      if (url.includes("hyperliquid")) {
+        const { req } = JSON.parse(String(init?.body)) as { req: { startTime: number; endTime: number } };
+        const rows = [];
+        for (let t = Math.ceil(req.startTime / 60_000) * 60_000; t < req.endTime; t += 60_000) {
+          rows.push({ t, c: "230.5" });
+        }
+        return json(rows);
+      }
+      const q = new URL(url).searchParams;
+      const timestamp = [];
+      for (let t = Math.ceil(Number(q.get("period1")) / 60) * 60; t < Number(q.get("period2")); t += 60) {
+        timestamp.push(t);
+      }
+      return json({ chart: { result: [{ timestamp, indicators: { quote: [{ close: timestamp.map(() => 101.25) }] } }] } });
+    };
+
+    const feed = "0a".repeat(32);
+    // A Sunday night, when a stock with a perp is priced by it.
+    const shut = Math.floor(nyToMs(2026, 9, 13, 21, 56, 32) / 1000);
+    // A Tuesday noon, when the exchange prices it.
+    const open = Math.floor(nyToMs(2026, 9, 15, 12, 0, 30) / 1000);
+
+    /* An early nudge, or a crank ahead of its clock, must cost nobody a
+     * request: before the bar can be final there is no answer to be had. */
+    it("asks the perp nothing until its bar can be final, then asks once", async () => {
+      stubFetch(everyMinute);
+      const opts = { feed, symbol: "AAPL", market: "US", perp: "xyz:GATE-PERP", boundary: shut };
+      const final = firstBarEnd(shut) + BAR_SETTLE_SECS;
+      for (let now = shut - 900; now < final; now += 7) {
+        expect(await quoteAt({ ...opts, now }), `at ${now - shut}s`).to.equal(null);
+      }
+      expect(calls).to.have.length(0);
+
+      const q = await quoteAt({ ...opts, now: final });
+      expect(calls).to.have.length(1);
+      expect(q?.publishTime).to.equal(firstBarEnd(shut));
+      expect(q?.price).to.equal(2_305_000n);
+    });
+
+    it("asks the exchange nothing until its bar can be final, then asks once", async () => {
+      stubFetch(everyMinute);
+      const opts = { feed, symbol: "GATE-EXCH", market: "US", boundary: open };
+      const final = firstBarEnd(open) + BAR_SETTLE_SECS;
+      for (let now = open - 900; now < final; now += 7) {
+        expect(await quoteAt({ ...opts, now })).to.equal(null);
+      }
+      expect(calls).to.have.length(0);
+
+      const q = await quoteAt({ ...opts, now: final });
+      expect(calls).to.have.length(1);
+      expect(q?.publishTime).to.equal(firstBarEnd(open));
+    });
+
+    it("asks the pool nothing until its window has settled", async () => {
+      stubFetch(() => json({}, 404));
+      const opts = { feed, symbol: "GATE-POOL", market: "US", pool: "gatepool", boundary: shut };
+      expect(await quoteAt({ ...opts, now: shut + BAR_SETTLE_SECS - 1 })).to.equal(null);
+      expect(calls).to.have.length(0);
+    });
+
+    /* The bug this pins: asked before the boundary, the perp window ran from
+     * five minutes before the boundary to `now`, which was earlier still. The
+     * venue answered 502 and the quote route reported a failure where it
+     * should have said "not yet". */
+    it("never sends a window that ends before it starts", async () => {
+      stubFetch(everyMinute);
+      const coin = "xyz:WINDOW";
+      for (let now = shut - 1_200; now <= shut + 1_200; now += 13) {
+        await quoteAt({ feed, symbol: "WINDOW", market: "US", perp: coin, boundary: shut, now });
+        await quoteAt({ feed, symbol: "WINDOW", market: "US", boundary: open, now: open - shut + now });
+      }
+      expect(calls.length).to.be.greaterThan(0);
+      for (const { url, init } of calls) {
+        if (url.includes("hyperliquid")) {
+          const { req } = JSON.parse(String(init?.body)) as { req: { startTime: number; endTime: number } };
+          expect(req.startTime, url).to.be.lessThan(req.endTime);
+        } else {
+          const q = new URL(url).searchParams;
+          expect(Number(q.get("period1")), url).to.be.lessThan(Number(q.get("period2")));
+        }
+      }
+      // Asked directly for an empty window, it asks nobody.
+      const before = calls.length;
+      expect(await fetchPerpBars(coin, 2_000, 1_000)).to.deep.equal({ t: [], c: [] });
+      expect(calls).to.have.length(before);
+    });
+
+    /* ELAPSED TIME IS READ FROM THE MONOTONIC CLOCK.
+     *
+     * Date.now() is the wall clock, and the machine is free to step it. Under
+     * WSL it does, backwards by a second or more when it resyncs with the host:
+     * a run measured with Date.now() saw a five-second abort "fire" after 3.5s,
+     * while performance.now() and process.hrtime in the same run agreed on
+     * 5,027ms. Timers run on the monotonic clock, so that is the one to time
+     * them with. */
+    const elapsed = (t0: number) => performance.now() - t0;
+
+    /* A hung source used to hold a crank pass until the platform killed it.
+     * All three are started together, so the suite waits five seconds once. */
+    it("gives up on a source that never answers, within five seconds", async function () {
+      this.timeout(FETCH_TIMEOUT_MS + 4_000);
+      stubFetch(
+        ({ init }) =>
+          new Promise<Response>((_, reject) => {
+            const signal = init?.signal;
+            // No signal means nothing would ever end this request.
+            signal?.addEventListener("abort", () => reject(signal.reason));
+          }),
+      );
+      const t0 = performance.now();
+      const settle = (p: Promise<unknown>) =>
+        p.then(
+          () => ({ ok: true, name: "", ms: elapsed(t0) }),
+          (e: Error) => ({ ok: false, name: e.name, ms: elapsed(t0) }),
+        );
+      const results = await Promise.all([
+        settle(fetchBars("HUNG", 1_000, 2_000)),
+        settle(fetchPerpBars("xyz:HUNG", 1_000, 2_000)),
+        settle(fetchPoolBars("hungpool", 1_000)),
+      ]);
+      expect(calls).to.have.length(3);
+      for (const r of results) {
+        expect(r.ok).to.equal(false);
+        // Our own timeout ended it, not something else going wrong first.
+        expect(r.name).to.equal("TimeoutError");
+        expect(r.ms).to.be.within(FETCH_TIMEOUT_MS - 50, FETCH_TIMEOUT_MS + 1_500);
+      }
+    });
+
+    it("tries a failing pool twice, a second apart, and no more", async function () {
+      this.timeout(5_000);
+      stubFetch(() => json({}, 503));
+      const t0 = performance.now();
+      let error = "";
+      await fetchPoolBars("retrypool", 2_000).catch((e: Error) => (error = e.message));
+      const ms = elapsed(t0);
+      expect(error).to.match(/HTTP 503/);
+      expect(calls).to.have.length(POOL_ATTEMPTS);
+      expect(POOL_ATTEMPTS).to.equal(2);
+      expect(ms).to.be.within(900, 1_900);
+    });
+
+    it("does not retry a pool that is simply not there", async () => {
+      stubFetch(() => json({}, 404));
+      await fetchPoolBars("nopool", 3_000).catch(() => null);
+      expect(calls).to.have.length(1);
     });
   });
 });

@@ -12,6 +12,16 @@ export const DEFAULT_HERMES_URL = "https://pyth.dourolabs.app/hermes";
 
 let client: HermesClient | null = null;
 
+/* FIVE SECONDS, AND NO RETRIES OF ITS OWN.
+ *
+ * The client retries a 404 or a timeout three times by default. For a fight
+ * whose Pyth market is shut, a 404 is the honest answer and asking again
+ * cannot change it, yet every crank pass paid for all of it, up to half a
+ * minute a pass. Everything that calls this (the crank, the page's price
+ * route) comes back on its own schedule, so one quick answer is worth more
+ * than a slow certain one. */
+const HERMES_TIMEOUT_MS = 5_000;
+
 export class MissingPythKey extends Error {
   constructor() {
     super("PYTH_API_KEY is not set on the server. Get one at pythdata.app and add it to .env.local.");
@@ -23,7 +33,8 @@ export function hermes(): HermesClient {
   if (!key) throw new MissingPythKey();
   client ??= new HermesClient(process.env.HERMES_URL || DEFAULT_HERMES_URL, {
     accessToken: key,
-    timeout: 8_000,
+    timeout: HERMES_TIMEOUT_MS,
+    httpRetries: 0,
   });
   return client;
 }

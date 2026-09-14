@@ -35,6 +35,14 @@ export const BAR_SETTLE_SECS = 20;
 /** One-minute bars reach back this far at the data source. */
 export const MAX_LOOKBACK_SECS = 29 * 86_400;
 
+/* EVERY PRICE SOURCE GETS FIVE SECONDS.
+ *
+ * A fetch with no timeout waits as long as the far end likes, and a crank
+ * pass that waits on one hung request misses its own time limit and every
+ * other fight in it. Five seconds is many times what a healthy answer takes;
+ * a source slower than that is better asked again on the next try. */
+export const FETCH_TIMEOUT_MS = 5_000;
+
 export type Quote = {
   /** The stock's feed id, hex without 0x: Asset::feed_id. */
   feed: string;
@@ -72,6 +80,11 @@ export function signedQuoteInstruction(oracle: Keypair, q: Quote): TransactionIn
  * minute with no trade). */
 export type Bars = { t: number[]; c: (number | null)[] };
 
+/** The end of the bar a boundary falls in: the first bar that ends after it,
+ *  and so the earliest a bar-priced side's price can close. A boundary exactly
+ *  on the minute starts that minute's bar, which ends sixty seconds later. */
+export const firstBarEnd = (boundary: number) => Math.floor(boundary / 60) * 60 + 60;
+
 /* THE PRICE FOR A MOMENT.
  *
  * The first bar that ends after the boundary: the bar the boundary falls in,
@@ -105,7 +118,7 @@ const HEADERS = { "user-agent": "Mozilla/5.0 (compatible; stonkwars-oracle/1.0)"
  * anybody's quote. */
 export async function fetchBars(symbol: string, from: number, to: number): Promise<Bars> {
   const url = `${YAHOO}/${encodeURIComponent(symbol)}?period1=${from}&period2=${to}&interval=1m&includePrePost=true`;
-  const r = await fetch(url, { headers: HEADERS, cache: "no-store" });
+  const r = await fetch(url, { headers: HEADERS, cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!r.ok) throw new Error(`${symbol}: market data HTTP ${r.status}`);
   const body = (await r.json()) as {
     chart?: {
@@ -141,6 +154,10 @@ export async function fetchPerpBars(coin: string, from: number, to: number): Pro
   const key = `${coin}:${from}:${to}`;
   const had = perpBars.get(key);
   if (had) return had;
+  /* An empty window has no bars in it, and asking anyway is how a request
+   * with its end before its start reached the venue and came back a 502,
+   * which the quote route then reported as a failure instead of a wait. */
+  if (to <= from) return { t: [], c: [] };
 
   const r = await fetch(HYPERLIQUID, {
     method: "POST",
@@ -150,6 +167,7 @@ export async function fetchPerpBars(coin: string, from: number, to: number): Pro
       req: { coin, interval: "1m", startTime: from * 1_000, endTime: to * 1_000 },
     }),
     cache: "no-store",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!r.ok) throw new Error(`${coin}: perp data HTTP ${r.status}`);
   const rows = ((await r.json()) as { t: number; c: string }[] | null) ?? [];
@@ -226,6 +244,10 @@ export class RateLimited extends Error {}
 const poolBars = new Map<string, Bars>();
 let coolOffUntil = 0;
 
+/** Tries per pool read, and the pause between them. */
+export const POOL_ATTEMPTS = 2;
+export const POOL_RETRY_MS = 1_000;
+
 /** One-minute bars for a Solana pool, as of `before`. */
 export async function fetchPoolBars(pool: string, before: number): Promise<Bars> {
   const key = `${pool}:${before}`;
@@ -234,9 +256,21 @@ export async function fetchPoolBars(pool: string, before: number): Promise<Bars>
   if (Date.now() < coolOffUntil) throw new RateLimited("waiting out the market data source");
 
   const url = `${GECKO}/networks/solana/pools/${pool}/ohlcv/minute?aggregate=1&limit=${OFFHOURS_LOOKBACK + 5}&before_timestamp=${before}`;
+  /* TWO TRIES, ONE SECOND APART.
+   *
+   * This used to try three times and back off two and then four seconds, and
+   * slept after the last failure too: eight seconds of a crank pass spent on
+   * one pool before any other fight got a turn. The crank comes back to a
+   * fight within seconds anyway, so one quick second try catches a blip and
+   * anything longer is the next attempt's problem. */
   let last = "";
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const r = await fetch(url, { headers: { ...HEADERS, accept: "application/json" }, cache: "no-store" });
+  for (let attempt = 0; attempt < POOL_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, POOL_RETRY_MS));
+    const r = await fetch(url, {
+      headers: { ...HEADERS, accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (r.ok) {
       const body = (await r.json()) as { data?: { attributes?: { ohlcv_list?: number[][] } } };
       const rows = body.data?.attributes?.ohlcv_list ?? [];
@@ -249,7 +283,6 @@ export async function fetchPoolBars(pool: string, before: number): Promise<Bars>
     }
     last = `HTTP ${r.status}`;
     if (r.status !== 429 && r.status < 500) break;
-    await new Promise((resolve) => setTimeout(resolve, 2_000 * (attempt + 1)));
   }
   if (last === "HTTP 429") {
     // Stand back for a minute rather than joining the queue every few seconds.
@@ -380,10 +413,21 @@ export async function quoteAt(opts: {
   }
   const source = sourceAt(opts.boundary, opts);
 
+  /* NOT BEFORE THE BAR CAN BE FINAL, AND NOT EVEN ASKED.
+   *
+   * A bar-priced side's price is the close of the first bar ending after the
+   * boundary, trusted BAR_SETTLE_SECS after that. Before then priceAtBoundary
+   * would refuse whatever came back, so the request is only load on somebody
+   * else's API, and a page or crank asking early and often would make a lot
+   * of it. This answers "not yet" without a network call. It changes nothing
+   * about what is signed: the same refusal already stood in priceAtBoundary. */
+  const barFinal = firstBarEnd(opts.boundary) + BAR_SETTLE_SECS;
+
   /* The perp prints every minute, so this is the same rule the exchange path
    * uses: the close of the first bar at or after the boundary. No window, no
    * averaging, and a round measures the interval it claims to. */
   if (source === "perp") {
+    if (now < barFinal) return null;
     const bars = await fetchPerpBars(opts.perp!, opts.boundary - 300, Math.min(now, opts.boundary + 600));
     const p = priceAtBoundary(bars, opts.boundary, now);
     if (p) {
@@ -428,6 +472,7 @@ export async function quoteAt(opts: {
      * answers are history, so falling back does not make the result depend on
      * when anybody asked. */
   }
+  if (now < barFinal) return null;
   // Minute bars come at most a week per request. Six days covers any closure
   // a duel can wait through: a start more than five days late is void.
   const to = Math.min(now, opts.boundary + 6 * 86_400);

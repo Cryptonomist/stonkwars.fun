@@ -22,14 +22,35 @@ export class TransactionFailed extends Error {
 }
 
 export class NotSeen extends Error {
-  constructor(readonly signature: string) {
-    super("The blockhash expired before the transaction was seen.");
+  constructor(
+    readonly signature: string,
+    message = "The blockhash expired before the transaction was seen.",
+  ) {
+    super(message);
     this.name = "NotSeen";
   }
 }
 
-/** Resolves when the signature is confirmed; throws if it failed or expired. */
-export async function confirmSignature(conn: Connection, signature: string, latest: Blockhash): Promise<string> {
+/* A DEADLINE, FOR CALLERS THAT CANNOT WAIT OUT A BLOCKHASH.
+ *
+ * A blockhash lives for about a minute and a half, and a serverless function
+ * that polls for all of it overruns its own time limit and is killed mid-pass,
+ * reporting nothing about anything. So a server caller can pass `deadlineMs`
+ * (a Date.now() timestamp): when it passes with nothing confirmed, this looks
+ * through history exactly as an expiry does, and only then gives up with
+ * NotSeen. Giving up is not a verdict on the transaction, which may still
+ * land; the next pass reads the fight's status and sees. Browser callers pass
+ * nothing and wait for the blockhash, as before. */
+export type ConfirmOptions = { deadlineMs?: number };
+
+/** Resolves when the signature is confirmed; throws if it failed or expired,
+ *  or if `deadlineMs` passed before it was seen. */
+export async function confirmSignature(
+  conn: Connection,
+  signature: string,
+  latest: Blockhash,
+  opts: ConfirmOptions = {},
+): Promise<string> {
   for (;;) {
     const status = (await conn.getSignatureStatuses([signature])).value[0];
     if (status?.err) throw new TransactionFailed(status.err);
@@ -41,7 +62,13 @@ export async function confirmSignature(conn: Connection, signature: string, late
       if (await landed(conn, signature)) return signature;
       throw new NotSeen(signature);
     }
-    await new Promise((r) => setTimeout(r, POLL_MS));
+
+    const left = opts.deadlineMs === undefined ? Infinity : opts.deadlineMs - Date.now();
+    if (left <= 0) {
+      if (await landed(conn, signature)) return signature;
+      throw new NotSeen(signature, "The deadline passed before the transaction was seen.");
+    }
+    await new Promise((r) => setTimeout(r, Math.min(POLL_MS, left)));
   }
 }
 

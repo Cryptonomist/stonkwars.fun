@@ -19,7 +19,7 @@ import { buildSettleDuel, buildStartDuel, SOURCE_PYTH, START_DELAY_SECS, type Du
 
 export type SignedTx = { tx: VersionedTransaction; signers: Signer[] };
 
-export const boundaryOf = (d: DuelView, which: "start" | "settle") =>
+export const boundaryOf = (d: Pick<DuelView, "acceptedTs" | "endTs">, which: "start" | "settle") =>
   which === "start" ? d.acceptedTs + START_DELAY_SECS : d.endTs;
 
 export const pythFeedsOf = (d: DuelView) =>
