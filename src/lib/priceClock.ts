@@ -55,7 +55,7 @@ export type Never = { never: string[]; refundAt: number };
  *  and so does crank.ts's QuoteSymbol; tests pass their own. */
 export type MarketLookup = (
   feed: string,
-) => { symbol?: string; market?: string; pool?: string; perp?: string } | undefined;
+) => { symbol?: string; market?: string; pool?: string; perp?: string; composite?: string } | undefined;
 
 export type ClockDuel = Pick<
   DuelView,
@@ -111,7 +111,10 @@ function sideReady(
   const src = sourceAt(boundary, market);
   // The pool's window is the hour before the boundary, complete once it passes.
   if (src === "pool") return { at: boundary + BAR_SETTLE_SECS, why: "pool-window" };
-  if (src === "perp") return { at: firstBarEnd(boundary) + BAR_SETTLE_SECS, why: "minute-close" };
+  /* The composite reads the minute the boundary falls in and stamps its end,
+   * exactly the perp's timing (composite.ts, step 1), and asks nothing before
+   * that minute has closed and settled. */
+  if (src === "perp" || src === "composite") return { at: firstBarEnd(boundary) + BAR_SETTLE_SECS, why: "minute-close" };
 
   /* The exchange. Shut at the boundary with nothing else to read means the
    * price is its first bar after it reopens: final a bar and the settle time

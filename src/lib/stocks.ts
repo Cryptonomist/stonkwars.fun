@@ -32,7 +32,9 @@ import {
   pythReopeningsBetween,
   session,
 } from "@/lib/market";
+import { COMPOSITE_FROM } from "@/lib/composite";
 import { firstBarEnd, sourceAt } from "@/lib/oracle";
+import { listed247 } from "@/lib/venues247";
 
 export type Stock = {
   ticker: string;
@@ -118,8 +120,11 @@ export const byFeed = (feed: string) =>
 /* WHERE A STOCK'S PRICE COMES FROM, BY FEED ID.
  *
  * Its symbol at the market data source and the currency that source quotes it
- * in, plus the Solana pool that prices it while its exchange is shut. A stock
- * with no pinned pool keeps exchange hours; see scripts/build-pools.ts. */
+ * in, plus what prices it while its exchange is shut: the perpetual market and
+ * the Solana pool it was pinned to (scripts/build-perps.ts, build-pools.ts),
+ * and, from COMPOSITE_FROM, its ticker in venues247.json when the composite
+ * prices it (lib/composite.ts). Only a US stock quoted in dollars is ever
+ * given the composite. A stock with none of these keeps exchange hours. */
 export function quoteSymbolFor(feed: string) {
   const s = byFeed(feed);
   if (!s) return undefined;
@@ -129,8 +134,14 @@ export function quoteSymbolFor(feed: string) {
     market: s.market,
     pool: POOLS[s.ticker]?.pool,
     perp: PERPS[s.ticker]?.coin,
+    composite: s.market === "US" && s.currency === "USD" && listed247(s.ticker) ? s.ticker : undefined,
   };
 }
+
+/** Whether the composite prices `ticker` at `boundary` when its exchange is
+ *  shut: pinned in venues247.json, and at or after the cutover. */
+const compositeFrom = (s: Stock, boundary: number) =>
+  s.market === "US" && s.currency === "USD" && boundary >= COMPOSITE_FROM && listed247(s.ticker);
 
 /** Whether a stock can settle a fight whenever it is taken. Pyth's equity
  *  feeds go dark from Friday 8 PM to Sunday 8 PM New York and on holidays
@@ -158,6 +169,9 @@ export const tradesAroundTheClock = (ticker: string) => {
  *                     dark hours can never be priced at all.
  *   signed, perp/pool the boundary: the exchange's bars from 4am to 8pm, and
  *                     the perp or pool whenever the exchange is shut.
+ *   signed, composite the boundary, from COMPOSITE_FROM, for a stock pinned in
+ *                     venues247.json: the composite whenever the exchange is
+ *                     shut (oracle.ts sourceAt).
  *   signed, neither   the exchange's bars, 4am to 8pm; shut, it waits for the
  *                     next 4am, as oracle.ts's exchangeBarFinal does.
  *   outside the US    the boundary: its own exchange's hours are not modelled,
@@ -166,9 +180,11 @@ export const tradesAroundTheClock = (ticker: string) => {
  * ONE THING IT CANNOT KNOW. A pool whose hour before the boundary holds fewer
  * than OFFHOURS_MIN_BARS trades has no price worth signing, and the oracle
  * falls back to the exchange (oracle.ts quoteAt), so a pool-only stock with a
- * thin Saturday hour waits for Monday's 4am bar after all. That depends on
- * trades nobody has seen until the hour has passed, so neither this nor the
- * price clock models it: both call a pool-only stock priced at the boundary.
+ * thin Saturday hour waits for Monday's 4am bar after all. The composite does
+ * the same when too few of its markets traded (composite.ts, step 8b). That
+ * depends on trades nobody has seen until the minute has passed, so neither
+ * this nor the price clock models it: both call such a stock priced at the
+ * boundary.
  *
  * Unix seconds, never before the boundary. Null for a ticker off the roster,
  * for a Pyth boundary that can never be priced, or if nothing opens within
@@ -178,7 +194,7 @@ export function firstPriceAt(ticker: string, boundary: number): number | null {
   if (!s) return null;
   if (s.market !== "US") return boundary;
   if (s.source === "pyth") return pythPricesAt(boundary) ? boundary : null;
-  if (PERPS[ticker] || POOLS[ticker]) return boundary;
+  if (PERPS[ticker] || POOLS[ticker] || compositeFrom(s, boundary)) return boundary;
   return openingAfter(boundary, "extended");
 }
 
@@ -193,11 +209,15 @@ export function firstPriceAt(ticker: string, boundary: number): number | null {
  * Pyth's dark hours: it does not wait for anything. A listing outside the US
  * keeps its own exchange's hours, which we do not model, so it is never called
  * a wait. */
-export function pricedAt(ticker: string, boundary: number): "exchange" | "pyth" | "perp" | "pool" | "waits" | "never" {
+export function pricedAt(
+  ticker: string,
+  boundary: number,
+): "exchange" | "pyth" | "perp" | "pool" | "composite" | "waits" | "never" {
   const s = byTicker(ticker);
   if (s && s.market === "US" && s.source === "pyth") return pythPricesAt(boundary) ? "pyth" : "never";
   if (!s || firstPriceAt(ticker, boundary) !== boundary) return "waits";
   if (s.market !== "US" || session(boundary * 1_000) !== "closed") return "exchange";
+  if (compositeFrom(s, boundary)) return "composite";
   return PERPS[ticker] ? "perp" : "pool";
 }
 
@@ -226,7 +246,8 @@ export function priceTimeAt(ticker: string, boundary: number): number | null {
   if (!s) return null;
   if (s.market !== "US") return s.source === "pyth" ? boundary : firstBarEnd(boundary);
   if (s.source === "pyth") return firstPriceAt(ticker, boundary);
-  if (sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin }) === "pool") {
+  const composite = compositeFrom(s, boundary) ? ticker : undefined;
+  if (sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin, composite }) === "pool") {
     return boundary;
   }
   const from = firstPriceAt(ticker, boundary);

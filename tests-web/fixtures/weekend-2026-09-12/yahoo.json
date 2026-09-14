@@ -1,0 +1,142 @@
+{
+ "what": "Yahoo one-minute closes around the weekend of 12 Sep 2026, per stock, as [bar start in unix seconds, close]",
+ "friday": "the last bar that ended by Sat 12 Sep 00:00 UTC (Fri 7:59 PM ET): the composite's breaker reference all weekend",
+ "monday": "the first bar from Mon 14 Sep 08:00 UTC (4:00 AM ET): the exchange's first bar after a weekend boundary",
+ "source": "stonkwars-research/weekend-2026-09-12/sw247/data/yahoo__<TICKER>.json",
+ "fetched_utc": [
+  "2026-09-14T19:41:47Z",
+  "2026-09-14T19:41:49Z",
+  "2026-09-14T19:41:52Z",
+  "2026-09-14T19:41:53Z",
+  "2026-09-14T19:41:55Z",
+  "2026-09-14T19:41:58Z",
+  "2026-09-14T19:42:00Z",
+  "2026-09-14T19:42:03Z",
+  "2026-09-14T19:42:05Z",
+  "2026-09-14T19:42:08Z",
+  "2026-09-14T19:42:10Z",
+  "2026-09-14T19:42:13Z"
+ ],
+ "rows": {
+  "TSLA": {
+   "friday": [
+    1789171140,
+    365.25
+   ],
+   "monday": [
+    1789372800,
+    359.81
+   ]
+  },
+  "NVDA": {
+   "friday": [
+    1789171140,
+    218.26
+   ],
+   "monday": [
+    1789372800,
+    213.8957
+   ]
+  },
+  "AAPL": {
+   "friday": [
+    1789171140,
+    332.55
+   ],
+   "monday": [
+    1789372800,
+    330.17
+   ]
+  },
+  "GOOGL": {
+   "friday": [
+    1789171140,
+    338.3895
+   ],
+   "monday": [
+    1789372800,
+    335.21
+   ]
+  },
+  "AMZN": {
+   "friday": [
+    1789171140,
+    256.7
+   ],
+   "monday": [
+    1789372800,
+    253.75
+   ]
+  },
+  "META": {
+   "friday": [
+    1789171140,
+    647.58
+   ],
+   "monday": [
+    1789372800,
+    638.0
+   ]
+  },
+  "MSTR": {
+   "friday": [
+    1789171140,
+    130.5
+   ],
+   "monday": [
+    1789372800,
+    130.69
+   ]
+  },
+  "COIN": {
+   "friday": [
+    1789171140,
+    175.0
+   ],
+   "monday": [
+    1789372800,
+    176.024
+   ]
+  },
+  "HOOD": {
+   "friday": [
+    1789171140,
+    112.25
+   ],
+   "monday": [
+    1789372800,
+    111.44
+   ]
+  },
+  "CRCL": {
+   "friday": [
+    1789171140,
+    90.9
+   ],
+   "monday": [
+    1789372800,
+    91.75
+   ]
+  },
+  "MU": {
+   "friday": [
+    1789171140,
+    975.45
+   ],
+   "monday": [
+    1789372800,
+    932.72
+   ]
+  },
+  "MSFT": {
+   "friday": [
+    1789171140,
+    494.89
+   ],
+   "monday": [
+    1789372800,
+    492.9378
+   ]
+  }
+ }
+}

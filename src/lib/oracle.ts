@@ -12,6 +12,12 @@
  * twice gets the same signed bytes (Ed25519 signatures are deterministic).
  * There is nothing for a settler to shop between.
  *
+ * While the exchange is shut, from COMPOSITE_FROM, a stock pinned in
+ * src/data/venues247.json is priced by composite-v1 instead (composite.ts):
+ * the median of the one-minute closes of the markets that trade it around the
+ * clock, with a proof anyone can recompute. answerAt returns that proof beside
+ * the quote.
+ *
  * WHAT THIS KEY IS TRUSTED WITH. A duel with a signed side believes this key
  * about the market. Every quote it signs is public in the transaction that
  * used it, next to the bar it claims to come from, so a false one is provable
@@ -24,7 +30,18 @@
 
 import { Ed25519Program, type Keypair, type TransactionInstruction } from "@solana/web3.js";
 
+import {
+  closeText,
+  COMPOSITE_FROM,
+  compositeAt,
+  compositeGate,
+  minuteOf,
+  type CompositeProof,
+  type Reference,
+  type Tier,
+} from "./composite";
 import { session, sessionFrom } from "./market";
+import { fetchVenueWindow, inputsAt, type Venues247 } from "./venues247";
 
 export const QUOTE_PREFIX = "STONKWARS:PRICE:v1";
 export const QUOTE_LEN = 78;
@@ -272,6 +289,10 @@ export const OFFHOURS_TRIM = 0.2;
 /** The source refused us for asking too often; try again later, not harder. */
 export class RateLimited extends Error {}
 
+/** The boundary is older than the history its price is read from: nothing
+ *  will be signed for it, now or later. */
+export class TooOld extends Error {}
+
 /* A pool's minutes, once.
  *
  * A boundary's window is finished history, so the answer for a given pool and
@@ -423,31 +444,39 @@ async function dollarsPer(currency: string, at: number): Promise<number | null> 
 /* WHICH MARKET ANSWERS FOR A MOMENT.
  *
  * The stock's own exchange while it is trading, from four in the morning to
- * eight at night New York time. Outside that, the token's pool on Solana, for
- * the stocks that have one deep enough to pin. A stock with no pinned pool
- * keeps exchange hours and waits for the opening bell, as it always did.
+ * eight at night New York time. Outside that, for a boundary at or after
+ * COMPOSITE_FROM, the composite of the markets that trade the stock around
+ * the clock, for a stock pinned in src/data/venues247.json (composite.ts).
+ * Before COMPOSITE_FROM, or for a stock with no pins, the perp and then the
+ * token's pool on Solana, as they always did, so a fight that started under
+ * those rules ends under them. A stock with none of these keeps exchange hours
+ * and waits for the opening bell.
+ *
+ * `composite` is the stock's ticker in venues247.json, set by the roster
+ * (stocks.ts quoteSymbolFor) only for a listed US stock quoted in dollars.
  *
  * Listings outside the US keep their own exchange's hours either way: their
  * sessions are not what `session()` describes, and guessing would be worse
  * than waiting. */
-export type PriceSource = "exchange" | "perp" | "pool";
+export type PriceSource = "exchange" | "perp" | "pool" | "composite";
 
-export function sourceAt(boundary: number, opts: { market?: string; pool?: string; perp?: string }): PriceSource {
+export function sourceAt(
+  boundary: number,
+  opts: { market?: string; pool?: string; perp?: string; composite?: string },
+): PriceSource {
   // A listing outside the US keeps its own exchange's hours, which session()
   // does not model. Guessing would be worse than waiting for its own bars.
   if ((opts.market ?? "US") !== "US") return "exchange";
   if (session(boundary * 1_000) !== "closed") return "exchange";
-  // Shut. The perp first: it prints every minute, so the ordinary rule works.
+  // Shut. From the cutover, the composite for a stock pinned to it.
+  if (opts.composite && boundary >= COMPOSITE_FROM) return "composite";
+  // The perp next: it prints every minute, so the ordinary rule works.
   if (opts.perp) return "perp";
   if (opts.pool) return "pool";
   return "exchange";
 }
 
-/** The quote for `feed` at `boundary`, in dollars, or null if the price it
- * needs is not final yet. `symbol` is the stock's symbol at the market data
- * source, `currency` what that source quotes it in, and `pool` the Solana pool
- * that prices it when its exchange is shut. */
-export async function quoteAt(opts: {
+export type QuoteOptions = {
   feed: string;
   symbol: string;
   currency?: string;
@@ -456,13 +485,181 @@ export async function quoteAt(opts: {
   market?: string;
   pool?: string;
   perp?: string;
-}): Promise<Quote | null> {
+  composite?: string;
+  /** The composite's pins; tests pass their own. */
+  venues?: Venues247;
+};
+
+/* WHAT THE ORACLE HAS TO SAY ABOUT ONE SIDE AT ONE BOUNDARY.
+ *
+ *   quote        the price to sign, or null while it is not final
+ *   wait         why not, in words, when there is no quote
+ *   retryAt      the earliest worth asking again, when the oracle knows it
+ *   parkedUntil  the composite fell back to the exchange's first bar after the
+ *                boundary, which cannot be final before this: nothing is worth
+ *                asking until then (a Saturday boundary waits for Monday 4:01)
+ *   tier         the composite's fallback tier, null when its median priced it
+ *   proof        the composite's proof and the sha256 of its canonical JSON;
+ *                null for every other source
+ *
+ * The same boundary always gets the same answer once its price is final, and
+ * the proof carries nothing about when it was asked, so two answers minutes
+ * apart are the same bytes. */
+export type Answer = {
+  source: PriceSource;
+  quote: Quote | null;
+  wait: string | null;
+  retryAt: number | null;
+  parkedUntil: number | null;
+  tier: Tier;
+  proof: CompositeProof | null;
+  sha256: string | null;
+};
+
+/** The quote for `feed` at `boundary`, in dollars, or null if the price it
+ * needs is not final yet. `symbol` is the stock's symbol at the market data
+ * source, `currency` what that source quotes it in, `pool` the Solana pool and
+ * `perp` the perpetual market that price it when its exchange is shut, and
+ * `composite` its ticker in venues247.json. answerAt says why, with the proof. */
+export async function quoteAt(opts: QuoteOptions): Promise<Quote | null> {
+  return (await answerAt(opts)).quote;
+}
+
+const cleanFeed = (feed: string) => feed.replace(/^0x/, "").toLowerCase();
+
+export async function answerAt(opts: QuoteOptions): Promise<Answer> {
   const now = opts.now ?? Math.floor(Date.now() / 1000);
   if (now - opts.boundary > MAX_LOOKBACK_SECS) {
-    throw new Error(`${opts.symbol}: ${opts.boundary} is older than the minute bars reach`);
+    throw new TooOld(`${opts.symbol}: ${opts.boundary} is older than the minute bars reach`);
   }
   const source = sourceAt(opts.boundary, opts);
+  if (source === "composite" && (opts.currency ?? "USD") === "USD") return compositeAnswerAt(opts, now);
 
+  const quote = await legacyQuoteAt(opts, now, source === "composite" ? "exchange" : source);
+  return {
+    source,
+    quote,
+    wait: quote ? null : `the price at ${opts.boundary} is not final yet`,
+    retryAt: null,
+    parkedUntil: null,
+    tier: null,
+    proof: null,
+    sha256: null,
+  };
+}
+
+/* THE COMPOSITE, ASKED ONCE ITS MINUTE IS FINAL.
+ *
+ * Nothing is fetched before m + 60 + BAR_SETTLE_SECS. Then every pinned venue
+ * is asked in parallel (Bitget in turn, venues247.ts), and so is the
+ * exchange's last close for the breaker, and composite.ts decides.
+ *
+ * A VERDICT IS KEPT. A priced minute, or one that fell back to the exchange,
+ * is history, so this instance remembers it per (ticker, boundary): a crank
+ * retrying a Saturday fight all weekend asks the venues once, not every pass,
+ * and crank.ts reads compositeParkedUntil to wait for Monday instead of five
+ * seconds. A wait is not kept; it is the one answer that changes. */
+type Verdict = { quote: Quote; tier: "two-anchor" | null; proof: CompositeProof; sha256: string } | { parkedUntil: number; reason: string; proof: CompositeProof; sha256: string };
+const verdicts = new Map<string, Verdict>();
+const MAX_VERDICTS = 5_000;
+
+/** When a composite side at `boundary` fell back to the exchange, the moment
+ *  its bar can first be final, if this instance has computed it. */
+export function compositeParkedUntil(ticker: string, boundary: number): number | undefined {
+  const v = verdicts.get(`${ticker}:${boundary}`);
+  return v && "parkedUntil" in v ? v.parkedUntil : undefined;
+}
+
+async function compositeAnswerAt(opts: QuoteOptions, now: number): Promise<Answer> {
+  const ticker = opts.composite!;
+  const boundary = opts.boundary;
+  const m = minuteOf(boundary);
+  const base = { source: "composite" as const, quote: null, retryAt: null, parkedUntil: null, tier: null, proof: null, sha256: null };
+  const inputs = inputsAt(ticker, boundary, opts.venues);
+
+  const gate = compositeGate({ boundary, now, settleSecs: BAR_SETTLE_SECS, venues: [] });
+  if (gate && "wait" in gate) return { ...base, wait: gate.wait, retryAt: gate.retryAt };
+
+  const key = `${ticker}:${boundary}`;
+  let verdict = verdicts.get(key);
+  if (!verdict) {
+    const tooLate = compositeGate({ boundary, now, settleSecs: BAR_SETTLE_SECS, venues: inputs.map((i) => i.venue) });
+    if (tooLate && "refused" in tooLate) throw new TooOld(`${opts.symbol}: ${tooLate.refused}`);
+
+    const fetchOpts = { now, timeoutMs: FETCH_TIMEOUT_MS, settleSecs: BAR_SETTLE_SECS };
+    const [windows, reference] = await Promise.all([
+      Promise.all(inputs.map((i) => fetchVenueWindow(i, m, fetchOpts))),
+      exchangeCloseBefore(opts.symbol, boundary),
+    ]);
+    const result = compositeAt({
+      boundary,
+      now,
+      settleSecs: BAR_SETTLE_SECS,
+      windows,
+      reference,
+      exchangeFinal: exchangeBarFinal(boundary, opts.market),
+    });
+    if ("refused" in result) throw new Error(`${opts.symbol}: ${result.refused}`);
+    if ("wait" in result) return { ...base, wait: result.wait, retryAt: result.retryAt };
+    verdict =
+      "price" in result
+        ? {
+            quote: { feed: cleanFeed(opts.feed), boundary, price: result.price, expo: QUOTE_EXPO, publishTime: result.publishTime },
+            tier: result.tier,
+            proof: result.proof,
+            sha256: result.sha256,
+          }
+        : { parkedUntil: result.waitUntil, reason: result.reason, proof: result.proof, sha256: result.sha256 };
+    if (verdicts.size >= MAX_VERDICTS) verdicts.clear();
+    verdicts.set(key, verdict);
+  }
+
+  if ("quote" in verdict) {
+    return { ...base, quote: verdict.quote, wait: null, tier: verdict.tier, proof: verdict.proof, sha256: verdict.sha256 };
+  }
+  /* Tier (b): the exchange's first bar after the boundary, which is the
+   * exchange path every stock without a round-the-clock market already takes,
+   * asked nothing before it can be final. */
+  const parked = { ...base, parkedUntil: verdict.parkedUntil, tier: "exchange" as const, proof: verdict.proof, sha256: verdict.sha256 };
+  if (now < verdict.parkedUntil) {
+    return { ...parked, wait: `${verdict.reason}; the exchange prices it from ${verdict.parkedUntil}`, retryAt: verdict.parkedUntil };
+  }
+  const quote = await exchangeQuoteAt(opts, now);
+  return { ...parked, quote, wait: quote ? null : `the exchange's first bar after ${boundary} is not final yet` };
+}
+
+/* THE BREAKER'S REFERENCE: the exchange's last one-minute close that ended by
+ * the boundary. It is the same for every boundary in a minute (a bar that ends
+ * by b starts by m - 60), so it is asked and kept per minute. Six days back
+ * covers the longest closure on the calendar, a holiday next to a weekend. A
+ * close that was found is history and kept; not finding one is asked again. */
+const references = new Map<string, { t: number; close: string }>();
+
+async function exchangeCloseBefore(symbol: string, boundary: number): Promise<Reference> {
+  const m = minuteOf(boundary);
+  const key = `${symbol}:${m}`;
+  const had = references.get(key);
+  if (had) return had;
+  let bars: Bars;
+  try {
+    bars = await fetchBars(symbol, m - 6 * 86_400, m);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "market data unavailable" };
+  }
+  let found: { t: number; close: string } | null = null;
+  for (let i = 0; i < bars.t.length; i++) {
+    const close = bars.c[i];
+    if (bars.t[i] <= m - 60 && close != null && close > 0) found = { t: bars.t[i], close: closeText(close)! };
+  }
+  if (found) {
+    if (references.size >= MAX_VERDICTS) references.clear();
+    references.set(key, found);
+  }
+  return found;
+}
+
+/** Every source but the composite: the perp, the pool, or the exchange. */
+async function legacyQuoteAt(opts: QuoteOptions, now: number, source: Exclude<PriceSource, "composite">): Promise<Quote | null> {
   /* NOT BEFORE THE BAR CAN BE FINAL, AND NOT EVEN ASKED.
    *
    * A bar-priced side's price is the close of the first bar ending after the
@@ -482,7 +679,7 @@ export async function quoteAt(opts: {
     const p = priceAtBoundary(bars, opts.boundary, now);
     if (p) {
       return {
-        feed: opts.feed.replace(/^0x/, "").toLowerCase(),
+        feed: cleanFeed(opts.feed),
         boundary: opts.boundary,
         price: p.price,
         expo: QUOTE_EXPO,
@@ -509,7 +706,7 @@ export async function quoteAt(opts: {
     const m = trimmedMeanAtBoundary(bars, opts.boundary);
     if (m) {
       return {
-        feed: opts.feed.replace(/^0x/, "").toLowerCase(),
+        feed: cleanFeed(opts.feed),
         boundary: opts.boundary,
         price: m.price,
         expo: QUOTE_EXPO,
@@ -522,6 +719,11 @@ export async function quoteAt(opts: {
      * answers are history, so falling back does not make the result depend on
      * when anybody asked. */
   }
+  return exchangeQuoteAt(opts, now);
+}
+
+/** The exchange's first bar after the boundary, in dollars. */
+async function exchangeQuoteAt(opts: QuoteOptions, now: number): Promise<Quote | null> {
   /* The exchange, asked nothing before its first bar after the boundary can
    * be final. For a quiet pool on a Saturday that is Monday's pre-market, and
    * without this every retry all weekend asked the exchange's data source for
@@ -543,7 +745,7 @@ export async function quoteAt(opts: {
     price = BigInt(Math.round((Number(p.price) / 10 ** -QUOTE_EXPO) * rate * 10 ** -QUOTE_EXPO));
   }
   return {
-    feed: opts.feed.replace(/^0x/, "").toLowerCase(),
+    feed: cleanFeed(opts.feed),
     boundary: opts.boundary,
     price,
     expo: QUOTE_EXPO,

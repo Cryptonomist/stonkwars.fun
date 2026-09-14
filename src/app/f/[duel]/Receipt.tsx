@@ -182,8 +182,9 @@ function Step({
 }
 
 /* Which market the oracle read for a price, worked out the same way it was:
- * the stock's own exchange while it was trading, and once that shuts, its
- * perpetual future, or its Solana pool for the few stocks with no perp. */
+ * the stock's own exchange while it was trading, and once that shuts, the
+ * median of its round-the-clock markets (from COMPOSITE_FROM), its perpetual
+ * future, or its Solana pool for the few stocks with no perp. */
 function oracleSource(feed: string, publishTime: number): PriceSource | undefined {
   const market = quoteSymbolFor(feed);
   return market ? sourceAt(publishTime, market) : undefined;
@@ -193,7 +194,13 @@ function pricedBy(feed: string, source: number, publishTime: number): string {
   if (source === SOURCE_PYTH) return "Pyth";
   const from = oracleSource(feed, publishTime);
   if (!from) return "Oracle";
-  return from === "perp" ? "Oracle · perp" : from === "pool" ? "Oracle · pool" : "Oracle · exchange";
+  return from === "composite"
+    ? "Oracle · 24/7 median"
+    : from === "perp"
+      ? "Oracle · perp"
+      : from === "pool"
+        ? "Oracle · pool"
+        : "Oracle · exchange";
 }
 
 function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {

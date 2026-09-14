@@ -82,6 +82,7 @@ const PRICED_WORDS = {
   pyth: "Pyth",
   perp: "Perp",
   pool: "Pool",
+  composite: "24/7 median",
   waits: "Waits for the open",
   never: "Pyth is dark",
 } as const;

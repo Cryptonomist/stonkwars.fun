@@ -89,11 +89,14 @@ src/                  the Next.js app
   app/f/[duel]/       the fight page and its share card
   app/api/prices      live prices for the stocks a page shows (keys stay on the server)
   app/api/pyth        a boundary's Pyth update, for settling from the browser
-  app/api/quote       the oracle's signed quotes for a fight's boundaries
+  app/api/quote       the oracle's signed quotes for a fight's boundaries, with the composite's proof
+  app/api/quote/proof the composite's proof for a stock at a boundary, recomputed and unsigned
   app/api/crank       the settler, for an external cron
   app/api/faucet      test clusters only: test shares and SOL
   lib/duel.ts         the client half of the program: PDAs, instructions
   lib/oracle.ts       the price for a moment: the exchange's bars, or the pool's, and its signature
+  lib/composite.ts    composite-v1: the weekend and overnight price, a median of up to nine venues' minutes
+  lib/venues247.ts    the venues it reads, their fixed requests, and data/venues247.json's pins
   lib/crankTx.ts      a fight's transactions: post, quote + start/settle, close
   data/roster.json    the 1,033 stocks
 scripts/

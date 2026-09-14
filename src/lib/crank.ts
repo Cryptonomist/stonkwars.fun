@@ -52,6 +52,7 @@ import {
 } from "./duel";
 import {
   BAR_SETTLE_SECS,
+  compositeParkedUntil,
   exchangeBarFinal,
   firstBarEnd,
   poolWindowThin,
@@ -69,7 +70,7 @@ export { boundaryOf, crankTransactions, pythFeedsOf, type SignedTx } from "./cra
  * Solana pool and perpetual market that price it while its exchange is shut. */
 export type QuoteSymbol = (
   feed: string,
-) => { symbol: string; currency: string; market?: string; pool?: string; perp?: string } | undefined;
+) => { symbol: string; currency: string; market?: string; pool?: string; perp?: string; composite?: string } | undefined;
 
 /** A job that cannot run yet and should be retried, not reported as broken.
  *  `readyAt` (unix seconds), when known, is the earliest worth trying again. */
@@ -267,23 +268,34 @@ export const PERP_SLOW_RETRY_SECS = 15;
  * 05:48:20, seen at 05:49:01). So a late perp side is asked again five
  * seconds on, and every PERP_SLOW_RETRY_SECS once it is two minutes late,
  * because a market that quiet can stay quiet for a while.
+ *
+ * THE COMPOSITE WAITS LIKE A PERP, OR FOR MONDAY. A composite side that is
+ * late is a venue whose candle is not out yet, or one that did not answer
+ * (composite.ts never leaves a venue out), so it is asked again on the perp's
+ * schedule. One whose markets were too thin fell back to the exchange's first
+ * bar after the boundary (step 8b): once this instance has computed that
+ * (oracle.ts compositeParkedUntil), the retry is the exchange's own time, as
+ * for a thin pool, and a fight stays parked rather than polled all weekend.
  * Exported for tests. */
 export function retryAt(
   d: DuelView,
   which: "start" | "settle",
   now: number,
   lookup: MarketLookup,
-  side?: { market?: string; pool?: string; perp?: string },
+  side?: { market?: string; pool?: string; perp?: string; composite?: string },
 ): number | undefined {
   const boundary = boundaryOf(d, which);
-  if (side?.pool && sourceAt(boundary, side) === "pool" && poolWindowThin(side.pool, boundary)) {
+  const src = side ? sourceAt(boundary, side) : undefined;
+  if (side?.pool && src === "pool" && poolWindowThin(side.pool, boundary)) {
     const final = exchangeBarFinal(boundary, side.market);
     if (final !== null) return final > now ? final : firstBarEnd(now - BAR_SETTLE_SECS) + BAR_SETTLE_SECS;
   }
+  const parked = side?.composite && src === "composite" ? compositeParkedUntil(side.composite, boundary) : undefined;
+  if (parked !== undefined) return parked > now ? parked : firstBarEnd(now - BAR_SETTLE_SECS) + BAR_SETTLE_SECS;
   const clock = clockReadyAt(d, which, now, lookup);
   if (!("at" in clock)) return undefined;
   if (clock.at > now) return clock.at;
-  if (side?.perp && sourceAt(boundary, side) === "perp") {
+  if ((side?.perp && src === "perp") || (side?.composite && src === "composite")) {
     return now + (now - clock.at < PERP_FAST_RETRY_WINDOW_SECS ? 5 : PERP_SLOW_RETRY_SECS);
   }
   if (clock.why === "minute-close") return firstBarEnd(now - BAR_SETTLE_SECS) + BAR_SETTLE_SECS;
