@@ -440,7 +440,7 @@ function Actions({
   }
 
   /* Run it back: the same two stocks, twice the stake, with whoever is looking
-   * in their own corner. A fresh challenge — nothing about this fight changes,
+   * in their own corner. A fresh challenge: nothing about this fight changes,
    * and the other side still has to take it. */
   const over = d.status === STATUS_SETTLED || (d.status === STATUS_REFUNDED && d.outcome === OUTCOME_TIE);
   const iFought = isCreator || (hasOpponent(d) && me === d.opponent.toBase58());
