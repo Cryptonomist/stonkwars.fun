@@ -27,7 +27,7 @@
  * next step is under the thumb wherever the page is scrolled. */
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
@@ -101,6 +101,24 @@ export function Actions({
 
   const expired = now > 0 && d.expiresTs <= now;
   const canTake = canTakeFight(d, me, now);
+
+  /* Whether the card's primary is on screen and clear of the two fixed phone
+   * bars (the bottom nav and the answer bar, about 140px together), so the
+   * answer bar can step aside. Assumed in view until the observer says
+   * otherwise, so nothing flashes on load. */
+  const primaryRef = useRef<HTMLDivElement>(null);
+  const [primaryInView, setPrimaryInView] = useState(true);
+  useEffect(() => {
+    const el = primaryRef.current;
+    if (!canTake || !el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([entry]) => setPrimaryInView(entry.isIntersecting), {
+      rootMargin: "0px 0px -140px 0px",
+      threshold: 0.5,
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [canTake]);
+
   const short = balance.data !== undefined && (balance.data === null || balance.data < d.opponentAmount);
   const testCluster = CLUSTER !== "mainnet-beta";
   const stake2 = `${shares(d.opponentAmount, decimalsForMint(d.opponentMint))}`;
@@ -405,7 +423,11 @@ export function Actions({
     <>
       <Plate rope pad="std" className={cx("flex flex-col gap-3", className)}>
         <h2 className="label">{canTake || (d.status === STATUS_LIVE && !iFought) ? "Your move" : over ? "Next" : "Actions"}</h2>
-        {primary}
+        {primary ? (
+          <div ref={primaryRef} className="flex flex-col gap-3">
+            {primary}
+          </div>
+        ) : null}
         {winLine ? <p className="text-meta text-ink">{winLine}</p> : null}
         {rematch}
         {secondary}
@@ -416,7 +438,7 @@ export function Actions({
         ))}
       </Plate>
       {canTake && primary ? (
-        <PhoneBar pair={pair} win={winLine}>
+        <PhoneBar pair={pair} win={winLine} hidden={primaryInView}>
           {barAction ?? primary}
         </PhoneBar>
       ) : null}
@@ -444,14 +466,29 @@ function FaucetPrimary({ ticker, symbol }: { ticker: string; symbol: string }) {
 /* THE ANSWER BAR. Fixed above the phone's bottom nav, so it never covers it,
  * and the same height is reserved at the very end of the page (after the
  * footer, which is where a fixed bar would otherwise sit on top of content),
- * so it never covers anything else either. Phones only. */
-function PhoneBar({ pair, win, children }: { pair: string; win?: React.ReactNode; children: React.ReactNode }) {
+ * so it never covers anything else either. Phones only.
+ *
+ * It steps aside while the card's own steps are on screen, as the bar on /new
+ * does, so a phone that opens a challenge never shows "Get test HOODx" twice,
+ * one above the other. */
+function PhoneBar({
+  pair,
+  win,
+  hidden,
+  children,
+}: {
+  pair: string;
+  win?: React.ReactNode;
+  hidden: boolean;
+  children: React.ReactNode;
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
   return createPortal(
     <>
       <div
+        hidden={hidden}
         className="rope fixed inset-x-0 z-35 flex items-center gap-3 bg-panel-2 px-4 py-2.5 shadow-overlay sm:hidden"
         style={{ bottom: "calc(var(--bottom-nav-h) + env(safe-area-inset-bottom))" }}
       >
@@ -461,7 +498,7 @@ function PhoneBar({ pair, win, children }: { pair: string; win?: React.ReactNode
         </div>
         <div className="min-w-0 shrink-0 [&_.btn]:w-auto [&_.btn]:px-4 [&_.btn]:text-sm">{children}</div>
       </div>
-      <div aria-hidden="true" className="h-16 sm:hidden" />
+      {hidden ? null : <div aria-hidden="true" className="h-16 sm:hidden" />}
     </>,
     document.body,
   );
