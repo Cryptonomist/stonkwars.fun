@@ -99,6 +99,9 @@ Production and Preview:
 | `NUDGE_SECRET_KEY` | recommended: the nudge key's byte array from step 3. Unset, the nudge pays from `CRANK_SECRET_KEY` and shares its balance with the cron |
 | `NUDGE_MIN_BALANCE_SOL` | optional. Default `0.05` on the nudge's own key, `0.3` when it falls back to the crank key. Below this the nudge sends nothing and answers "settler low" (and logs it); the manual button still appears on schedule |
 | `NUDGE_DISABLED` | optional: `1` switches the page nudge off. Leave unset |
+| `JUPITER_API_KEY` (or `JUP_API_KEY`) | optional: a Jupiter API key for the trade panel's quotes and swaps. Unset, it uses Jupiter's keyless host |
+| `NEXT_PUBLIC_SWAP_FEE_BPS` | optional: the platform's cut of a swap, 0 to 100 bps. 0 or unset charges nothing |
+| `SWAP_FEE_OWNER` | optional: the treasury's public key. A swap fee is charged only when this wallet already has the token account for what the user receives |
 | `NEXT_PUBLIC_SPAR_WALLET` | optional, devnet only: the sparring wallet's PUBLIC key (`solana-keygen pubkey keys/spar-devnet.json`). A public key, so the prefix is fine here |
 | `SPAR_SECRET_KEY` | optional, devnet only: `cat keys/spar-devnet.json`. With both set, the crank keeps three open seats on the board and the wallet takes any timed challenge of 24 hours or less addressed to it. Leave both unset and sparring never appears |
 

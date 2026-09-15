@@ -31,6 +31,7 @@ import { useMemo, type ReactNode } from "react";
 import { Card } from "@/components/ClosingSoon";
 import { FightRow } from "@/components/FightRow";
 import { Move } from "@/components/Ticker";
+import { TradePanel } from "@/components/TradePanel";
 import { Badge } from "@/components/ui/Badge";
 import { cx } from "@/components/ui/cx";
 import { FlashNum } from "@/components/ui/FlashNum";
@@ -233,6 +234,8 @@ export function StockView({ ticker }: { ticker: string }) {
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6" aria-label={`About ${ticker}`}>
+          <TradePanel ticker={ticker} />
+
           <section className="flex min-w-0 flex-col gap-3" aria-labelledby="stock-record">
             <SectionHead id="stock-record" title="Record on chain" />
             {duels.isError && !duels.data ? (
@@ -439,6 +442,9 @@ function Header({
           <Link href={`/new?p2=${ticker}`} className="btn btn-p2 min-h-11 px-3 text-sm whitespace-nowrap sm:px-6 sm:text-base">
             Fight against it
           </Link>
+          <a href="#trade" className="btn btn-ghost col-span-2 min-h-11 px-3 text-sm whitespace-nowrap sm:px-6 sm:text-base">
+            Buy or sell
+          </a>
         </div>
       ) : (
         <Notice title={`Not stakeable on ${onMainnet ? "mainnet" : CLUSTER} yet.`}>
