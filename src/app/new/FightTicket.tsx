@@ -47,6 +47,8 @@ export type FightTicketProps = {
   rounds: RoundChoice[];
   round: RoundId;
   onRound: (r: RoundId) => void;
+  /** Rounds too short for the 24/7 prices they would get now, each with why. */
+  tooShort?: Partial<Record<RoundId, string>>;
   /** One line under the round chips: when this round starts and ends. */
   roundNote: string;
   /** The hours notice, when there is one. */
@@ -143,25 +145,28 @@ export function FightTicket(t: FightTicketProps) {
             </p>
           ) : null}
         </div>
-        {/* Six columns: the three timed rounds take two each, the two bells
-          * three each, so the bells' longer end times get the wider chips at
-          * every width and nothing wraps onto a lonely row. */}
+        {/* Six columns: the three short timed rounds take two each, and the
+          * two long ones and the two bells three each, so every row fills and
+          * the bells' longer end times get the wider chips at every width. */}
         <div className="mt-2 grid grid-cols-6 gap-2">
           {t.rounds.map((r) => {
             const on = t.round === r.id;
             // The sparring wallet takes only rounds a visitor can watch to the end.
-            const off = !!t.sparring && !(r.secs && r.secs <= SPAR_MAX_ROUND_SECS);
+            const sparOff = !!t.sparring && !(r.secs && r.secs <= SPAR_MAX_ROUND_SECS);
+            // A round the composite would price must run long enough that one market cannot tip it.
+            const shortOff = t.tooShort?.[r.id];
+            const off = sparOff || !!shortOff;
             return (
               <button
                 key={r.id}
                 type="button"
                 aria-pressed={on}
                 disabled={off}
-                title={off ? "The sparring wallet takes 5 and 15 minute rounds" : undefined}
+                title={sparOff ? "The sparring wallet takes 5 and 15 minute rounds" : shortOff}
                 onClick={() => t.onRound(r.id)}
                 className={cx(
                   "btn btn-sm min-w-0 flex-col gap-0.5 px-2",
-                  r.endTs ? "col-span-3" : "col-span-2",
+                  r.endTs || (r.secs ?? 0) >= 43_200 ? "col-span-3" : "col-span-2",
                   on ? "btn-light" : "btn-ghost",
                 )}
               >

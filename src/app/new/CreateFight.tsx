@@ -58,14 +58,17 @@ import {
   STAKE_DECIMALS,
   stakeAssetFor,
   tokenSymbol,
+  tooShortOffHours,
   type EndRule,
 } from "@/lib/stocks";
+import { MIN_OFFHOURS_ROUND_SECS } from "@/lib/composite";
 import {
   allDayPair,
   ctaStep,
   isRoundId,
   ROUND_SECS,
   roundChoices,
+  shortestRoundAtLeast,
   ticketFromParams,
   type RoundId,
 } from "@/lib/ticket";
@@ -85,6 +88,8 @@ const ROUND_WORDS: Record<RoundId, string> = {
   "5m": "5 min",
   "15m": "15 min",
   "1h": "1 hour",
+  "12h": "12 hours",
+  "24h": "24 hours",
   bell: "next bell",
   week: "Friday bell",
 };
@@ -110,6 +115,14 @@ export function CreateFight() {
     const r = params.get("round");
     return isRoundId(r) ? r : "15m";
   });
+  /* Whether the visitor (or their link) chose the round. Until they do, a
+   * default the composite's hours rule out moves to the shortest round they
+   * allow, so a weekend visitor never opens on a refusal. */
+  const [roundPicked, setRoundPicked] = useState(() => isRoundId(params.get("round")));
+  const pickRound = (r: RoundId) => {
+    setRoundPicked(true);
+    setRound(r);
+  };
   const [taunt, setTaunt] = useState("");
   const [invite, setInvite] = useState(initial.invite);
   const [inviteOpen, setInviteOpen] = useState(!!initial.invite);
@@ -169,6 +182,29 @@ export function CreateFight() {
   const gate = p1 && p2 && now ? blockedAt(now, p1, p2) : { mixed: null, takeable: null };
   const mixedHours = gate.mixed;
   const takeableFrom = gate.takeable;
+
+  /* ROUNDS TOO SHORT FOR THE HOURS THEY WOULD BE PRICED IN.
+   *
+   * A round the composite would price at its start or end must run at least
+   * MIN_OFFHOURS_ROUND_SECS (stocks.ts, tooShortOffHours), so while that is so
+   * the shorter chips are switched off, with the reason on them, and only the
+   * longer rounds and the bells are offered. */
+  const tooShort = useMemo(() => {
+    const off: Partial<Record<RoundId, string>> = {};
+    if (!p1 || !p2 || !now) return off;
+    for (const r of rounds) {
+      const fixed = r.secs ? 0 : (r.endTs ?? 0);
+      if (tooShortOffHours(p1, p2, now, { durationSecs: r.secs ?? 0, endTs: fixed, expiresTs: expiryFor(fixed, now) })) {
+        off[r.id] = `Priced by 24/7 markets now: rounds of ${span(MIN_OFFHOURS_ROUND_SECS)} or more`;
+      }
+    }
+    return off;
+  }, [p1, p2, now, rounds]);
+  useEffect(() => {
+    if (roundPicked || !tooShort[round]) return;
+    const longer = shortestRoundAtLeast(MIN_OFFHOURS_ROUND_SECS);
+    if (longer && !tooShort[longer]) setRound(longer);
+  }, [roundPicked, tooShort, round]);
   /* Why a side waits. Only a signed stock waits, because its exchange is
    * shut: a Pyth stock prices at once or never, and mixedHoursAt refuses the
    * never. */
@@ -531,7 +567,8 @@ export function CreateFight() {
             onDollars={setDollars}
             rounds={rounds}
             round={round}
-            onRound={setRound}
+            onRound={pickRound}
+            tooShort={tooShort}
             roundNote={roundNote}
             notice={notice}
             taunt={taunt}

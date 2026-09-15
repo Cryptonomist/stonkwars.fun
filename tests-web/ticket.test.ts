@@ -2,12 +2,14 @@ import { expect } from "chai";
 
 import { nextBell, nyToMs, session, weekBell } from "../src/lib/market";
 import { stakeForDollars, stakeValue } from "../src/lib/pricemath";
-import { mixedHoursAt, pricedAt, STAKE_DECIMALS, tradesAroundTheClock } from "../src/lib/stocks";
+import { MIN_OFFHOURS_ROUND_SECS } from "../src/lib/composite";
+import { mixedHoursAt, pricedAt, STAKE_DECIMALS, tooShortOffHours, tradesAroundTheClock } from "../src/lib/stocks";
 import {
   allDayPair,
   ctaStep,
   defaultPair,
   roundChoices,
+  shortestRoundAtLeast,
   ticketFromParams,
   winPreview,
 } from "../src/lib/ticket";
@@ -98,14 +100,32 @@ describe("the win preview", () => {
 });
 
 describe("the round chips", () => {
-  it("offer three timed rounds and two bells, each bell with its end in ET", () => {
+  it("offer five timed rounds and two bells, each bell with its end in ET", () => {
     const chips = roundChoices(MONDAY_2PM);
-    expect(chips.map((c) => c.id)).to.deep.equal(["5m", "15m", "1h", "bell", "week"]);
-    expect(chips.slice(0, 3).every((c) => c.sub === "after a taker")).to.equal(true);
-    expect(chips[3].endTs).to.equal(nextBell(MONDAY_2PM * 1000));
-    expect(chips[4].endTs).to.equal(weekBell(MONDAY_2PM * 1000));
-    expect(chips[3].sub).to.match(/^Mon 3:59\sPM ET$/);
-    expect(chips[4].sub).to.match(/^Fri 3:59\sPM ET$/);
+    expect(chips.map((c) => c.id)).to.deep.equal(["5m", "15m", "1h", "12h", "24h", "bell", "week"]);
+    expect(chips.slice(0, 5).every((c) => c.sub === "after a taker")).to.equal(true);
+    expect(chips.map((c) => c.secs ?? null)).to.deep.equal([300, 900, 3_600, 43_200, 86_400, null, null]);
+    expect(chips[5].endTs).to.equal(nextBell(MONDAY_2PM * 1000));
+    expect(chips[6].endTs).to.equal(weekBell(MONDAY_2PM * 1000));
+    expect(chips[5].sub).to.match(/^Mon 3:59\sPM ET$/);
+    expect(chips[6].sub).to.match(/^Fri 3:59\sPM ET$/);
+  });
+
+  /* After the cutover the default pair is priced by its 24/7 markets at
+   * night, and a round that short would be refused; the shortest chip that is
+   * long enough is the 12 hours. */
+  it("offer only rounds long enough for 24/7 prices when those would price the fight", () => {
+    const saturday = ny(2026, 9, 19, 12, 0);
+    const [a, b] = ["AAPL", "NVDA"];
+    const refused = roundChoices(saturday).filter((c) => {
+      const endTs = c.secs ? 0 : (c.endTs ?? 0);
+      return tooShortOffHours(a, b, saturday, { durationSecs: c.secs ?? 0, endTs });
+    });
+    expect(refused.map((c) => c.id)).to.deep.equal(["5m", "15m", "1h"]);
+    expect(shortestRoundAtLeast(MIN_OFFHOURS_ROUND_SECS)).to.equal("12h");
+    // In session nothing is refused, and before the cutover the perps keep every round.
+    expect(roundChoices(MONDAY_2PM).filter((c) => tooShortOffHours(a, b, MONDAY_2PM, { durationSecs: c.secs ?? 0, endTs: c.secs ? 0 : c.endTs! }))).to.deep.equal([]);
+    expect(roundChoices(SATURDAY_NOON).filter((c) => tooShortOffHours(a, b, SATURDAY_NOON, { durationSecs: c.secs ?? 0, endTs: c.secs ? 0 : c.endTs! }))).to.deep.equal([]);
   });
 });
 

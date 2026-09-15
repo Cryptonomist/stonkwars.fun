@@ -304,6 +304,12 @@ function bellOn(ms: number): number {
   return Math.floor(nyToMs(p.y, p.m, p.d, b.hour, b.minute, b.second) / 1000);
 }
 
+/** Whether `unix` is a bell: 3:59:30 PM New York on a trading day, 12:59:30
+ *  on a half day. */
+export function isBell(unix: number): boolean {
+  return Number.isInteger(unix) && unix > 0 && isTradingDay(unix * 1_000) && bellOn(unix * 1_000) === unix;
+}
+
 /** The next bell at least `minLeadSecs` away. */
 export function nextBell(now = Date.now(), minLeadSecs = 15 * 60): number {
   for (let i = 0; i < 10; i++) {

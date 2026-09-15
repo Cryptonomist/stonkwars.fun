@@ -602,6 +602,54 @@ describe("fights across trading hours", () => {
     });
   });
 
+  /* A ROUND THE COMPOSITE PRICES RUNS AT LEAST 12 HOURS.
+   *
+   * One venue can move a composite price by a fraction of a basis point, and
+   * over 15 minutes that is often the whole move (docs/247-hardening.md). So a
+   * round with a start or end the composite prices is refused under
+   * MIN_OFFHOURS_ROUND_SECS, a bell round that ends in session excepted. */
+  describe("refuses a round too short for the 24/7 prices that would decide it", () => {
+    const sat19 = sep(19, 14, 0);
+    const minutes = (n: number) => ({ durationSecs: n * 60, endTs: 0 });
+    const why = "and a round priced that way must run at least 12 hours, because over a shorter one a single market could tip the result.";
+
+    it("refuses 15 minutes of AAPL v NVDA on a Saturday after the cutover, and allows 12 and 24 hours", () => {
+      expect(mixedHoursAt("AAPL", "NVDA", sat19, minutes(15))).to.equal(
+        `AAPL and NVDA would be priced by their 24/7 markets at the start of this round, ${why} Pick a round of 12 hours or more, or a bell.`,
+      );
+      expect(mixedHoursAt("AAPL", "NVDA", sat19, minutes(60))).to.match(/^AAPL and NVDA would be priced by their 24\/7 markets/);
+      expect(mixedHoursAt("AAPL", "NVDA", sat19, minutes(719))).to.match(/^AAPL and NVDA would be priced by their 24\/7 markets/);
+      expect(mixedHoursAt("AAPL", "NVDA", sat19, minutes(720))).to.equal(null);
+      expect(mixedHoursAt("AAPL", "NVDA", sat19, minutes(1_440))).to.equal(null);
+      // Before the cutover the perps price it, as they always did.
+      expect(mixedHoursAt("AAPL", "NVDA", SATURDAY, minutes(15))).to.equal(null);
+      // Two Pyth stocks on a weekday night are not the composite's.
+      expect(mixedHoursAt("TSLA", "VOO", sep(22, 21, 0), minutes(15))).to.equal(null);
+    });
+
+    it("refuses an hour from 7:30 PM on a weekday, whose end the composite would price", () => {
+      expect(mixedHoursAt("AAPL", "NVDA", sep(23, 19, 30), minutes(60))).to.equal(
+        `This round would end around Wednesday 8:31 PM ET, when AAPL and NVDA would be priced by their 24/7 markets, ${why} Pick a round of 12 hours or more, or a bell.`,
+      );
+      expect(mixedHoursAt("AAPL", "NVDA", sep(23, 18, 0), minutes(60))).to.equal(null);
+    });
+
+    it("lets a bell round that ends in session start on the composite, and not a fixed end at any other time", () => {
+      expect(mixedHoursAt("AAPL", "NVDA", sep(24, 21, 0), { durationSecs: 0, endTs: sep(25, 15, 59, 30) })).to.equal(null);
+      expect(mixedHoursAt("AAPL", "NVDA", sep(25, 3, 50), { durationSecs: 0, endTs: sep(25, 15, 59, 30) })).to.equal(null);
+      expect(mixedHoursAt("AAPL", "NVDA", sat19, { durationSecs: 0, endTs: sat19 + 3_600 })).to.match(/^AAPL and NVDA would be priced by their 24\/7 markets at the start/);
+    });
+
+    it("tells a taker when a short round can be taken: when the exchange prices both ends", () => {
+      const round = { ...minutes(15), expiresTs: sep(24, 12, 0), creatorSource: SOURCE_SIGNED, opponentSource: SOURCE_SIGNED };
+      expect(mixedHoursAt("AAPL", "NVDA", sat19, round, "taker")).to.equal(
+        `AAPL and NVDA would be priced by their 24/7 markets at the start of this round, ${why} You can take it from Monday's 4:00 AM ET pre-market open.`,
+      );
+      expect(nextFairTake("AAPL", "NVDA", sat19, round)).to.equal(sep(21, 4, 0));
+      expect(mixedHoursAt("AAPL", "NVDA", sat19, { ...round, expiresTs: sep(20, 12, 0) }, "taker")).to.match(/ It closes before it can be taken\.$/);
+    });
+  });
+
   /* FROM THE CUTOVER, ONLY THE COMPOSITE PRICES A SHUT US STOCK.
    *
    * A perp or pool pinned before it priced stocks the composite does not list

@@ -114,6 +114,12 @@ With W = 3, each stock's share of rounds one venue can change. Cells show both e
 - A composite start is at 20:00 to 04:00 ET or a weekend, and the next bell is at 15:59:30 (12:59:30 on a half day). So such a round runs at least 9 hours.
 - The worst start-only share is 4.3% at 4 hours and 1.9% at 12 hours.
 
+**Where it is enforced**
+- **The rule.** `stocks.ts` `mixedHoursAt`, through `shortWithin`: a round whose start or end the composite prices for either side, measured as the program measures it (from the later start price to the end), must run at least 12 hours.
+- **Creates.** /new offers 12-hour and 24-hour rounds. While a round would be priced off-hours, it switches off the shorter chips with the reason. A default round that would be refused moves to 12 hours until the visitor picks one.
+- **Takes.** The fight page (`Actions.tsx`), the Solana Action route and the sparring wallet (`spar.server.ts`) all call `mixedHoursAt`.
+- **Telling a taker when.** A taker is told the next opening at which both ends would be priced by the exchange (`nextFairTake`).
+
 ## 6. composite-v1, for comparison
 
 One print on one venue in the end minute, or in the start and end minutes, marked fresh, on raw closes, with v1's own fallbacks. A print that breaks the quorum counts as a change, because the side would then be priced on Monday. Cells show both ends / end only.

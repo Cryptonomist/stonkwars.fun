@@ -23,6 +23,7 @@ import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
 import { SOURCE_PYTH, START_DELAY_SECS, type DuelView, type StakeAsset } from "@/lib/duel";
 import {
+  isBell,
   nyParts,
   openingAfter,
   openingsBetween,
@@ -32,7 +33,7 @@ import {
   pythReopeningsBetween,
   session,
 } from "@/lib/market";
-import { COMPOSITE_FROM, compositePublishTime, V2_WINDOW_MINUTES } from "@/lib/composite";
+import { COMPOSITE_FROM, compositePublishTime, MIN_OFFHOURS_ROUND_SECS, V2_WINDOW_MINUTES } from "@/lib/composite";
 import { firstBarEnd, sourceAt } from "@/lib/oracle";
 import { listed247 } from "@/lib/venues247";
 
@@ -540,20 +541,82 @@ function darkWords(d: Dark, round?: EndRule): string {
   return `This round would end ${when}, but ${hours}, and an end that lands then, or within a minute of it, can never be priced.`;
 }
 
+/* A ROUND TOO SHORT FOR A 24/7 PRICE TO DECIDE.
+ *
+ * The composite's markets sit so close together once de-biased that one venue
+ * can move a price by a fraction of a basis point, but a weekend's median
+ * 15-minute move is about that size too. Measured on last weekend's minutes
+ * (docs/247-hardening.md), one venue pushing through the window could change
+ * up to 35.5% of 15-minute rounds for some stock, and no more than 2.6% of
+ * 12-hour rounds for any. So a round whose start or end the composite prices
+ * for either side must run MIN_OFFHOURS_ROUND_SECS, counted as the program
+ * counts it: from the later start price to the end.
+ *
+ * A bell round is exempt, as the plan decided: its end rings in session, where
+ * the exchange prices both sides, so a push can only reach its start, and from
+ * any composite start the next bell is at least nine hours on, where the start
+ * alone changed no more than 4.3% of 4-hour rounds. A fixed end at any other
+ * moment is not a bell and gets the minimum.
+ *
+ * Checked where apartIfTakenAt checks, and across the take window the same way:
+ * the hours the composite prices are hours long, and a later accept only moves
+ * both boundaries later. */
+type Short = { at: "start" | "end"; boundary: number; tickers: string[]; secs: number };
+
+function shortIfTakenAt(a: string, b: string, acceptedTs: number, round?: EndRule): Short | null {
+  if (!round) return null;
+  const src = sourcesOf(a, b, round);
+  const start = acceptedTs + START_DELAY_SECS;
+  const pa = priceTimeAt(a, start, src(a));
+  const pb = priceTimeAt(b, start, src(b));
+  if (pa === null || pb === null) return null;
+  const startTs = Math.max(pa, pb);
+  const end = round.durationSecs > 0 ? startTs + round.durationSecs : round.endTs;
+  if (end <= 0 || end - startTs >= MIN_OFFHOURS_ROUND_SECS) return null;
+  const composite = (boundary: number) => [...new Set([a, b])].filter((t) => pricedAt(t, boundary, src(t)) === "composite");
+  const bell = round.durationSecs === 0 && isBell(round.endTs);
+  const atStart = bell ? [] : composite(start);
+  if (atStart.length) return { at: "start", boundary: start, tickers: atStart, secs: end - startTs };
+  const atEnd = composite(end);
+  return atEnd.length ? { at: "end", boundary: end, tickers: atEnd, secs: end - startTs } : null;
+}
+
+function shortWithin(a: string, b: string, now: number, round?: EndRule): Short | null {
+  return shortIfTakenAt(a, b, now, round) ?? shortIfTakenAt(a, b, now + TAKE_SLACK_SECS, round);
+}
+
+/** Whether this round is too short for the prices it would get, taken at
+ *  `now`: /new switches such round chips off. */
+export const tooShortOffHours = (a: string, b: string, now: number, round: EndRule) => shortWithin(a, b, now, round) !== null;
+
+const MIN_ROUND_WORDS = `${MIN_OFFHOURS_ROUND_SECS / 3_600} hours`;
+
+/** "NVDA and AAPL would be priced by their 24/7 markets at the start, ...". */
+function shortWords(s: Short, round?: EndRule): string {
+  const names = s.tickers.join(" and ");
+  const their = s.tickers.length === 1 ? "its" : "their";
+  const why = `and a round priced that way must run at least ${MIN_ROUND_WORDS}, because over a shorter one a single market could tip the result.`;
+  if (s.at === "start") return `${names} would be priced by ${their} 24/7 markets at the start of this round, ${why}`;
+  const when = `${round && round.durationSecs > 0 ? "around" : "at"} ${nyWords(s.boundary)}`;
+  return `This round would end ${when}, when ${names} would be priced by ${their} 24/7 markets, ${why}`;
+}
+
 /* THE FIRST MOMENT A FIGHT COULD BE TAKEN FAIRLY, AFTER `from`.
  *
  * Two sides that part now can only line up again when some market opens, and
  * a Pyth side in the dark can only be taken again once Pyth has printed for
  * PYTH_EDGE_SECS, so this asks at each of those moments before the challenge
  * expires (round.expiresTs, or ten days on when there is none) and returns the
- * first whose whole take window is fair. Null when none is. */
+ * first whose whole take window is fair. A round too short for the composite
+ * is fair again once both its ends fall where the exchange prices it, which is
+ * also an opening. Null when none is. */
 export function nextFairTake(a: string, b: string, from: number, round?: EndRule): number | null {
   const src = sourcesOf(a, b, round);
   const until = round?.expiresTs || from + 10 * 86_400;
   const moments = openingsBetween(from, until);
   if (byPyth(a, src) || byPyth(b, src)) moments.push(...pythReopeningsBetween(from, until));
   for (const t of [...new Set(moments)].sort((x, y) => x - y)) {
-    if (!darkWithin(a, b, t, round) && !apartWithin(a, b, t, round)) return t;
+    if (!darkWithin(a, b, t, round) && !apartWithin(a, b, t, round) && !shortWithin(a, b, t, round)) return t;
   }
   return null;
 }
@@ -578,6 +641,11 @@ export function nextFairTake(a: string, b: string, from: number, round?: EndRule
  *   The pair starts together but the round ends where they part: NFLX
  *   against NVDA, an hour from 7:30pm on a Monday. NFLX's bars stop at 8, so
  *   the round would end on NVDA's 8:31 perp bar and on NFLX's Tuesday 4:01.
+ *
+ * Last, a pair that lines up but whose round the composite would price at
+ * either end must run MIN_OFFHOURS_ROUND_SECS (shortWithin): AAPL v NVDA for
+ * 15 minutes on a Saturday after the cutover is refused, for 12 hours it is
+ * not.
  *
  * `now` is when the take is sent, and it lands up to TAKE_SLACK_SECS later,
  * so the pair must be fair for an accept anywhere in that window: a fixed-end
@@ -613,7 +681,13 @@ export function mixedHoursAt(
   }
 
   const p = apartWithin(a, b, now, round);
-  if (!p) return null;
+  if (!p) {
+    const short = shortWithin(a, b, now, round);
+    if (!short) return null;
+    const reason = shortWords(short, round);
+    if (reader === "taker") return taker(reason, "It closes before it can be taken.");
+    return `${reason} Pick a round of ${MIN_ROUND_WORDS} or more, or a bell.`;
+  }
   const stops = closeAhead(p, now, sourcesOf(a, b, round));
   const reason = apartWords(p, stops, round);
   if (reader === "taker") return taker(reason);

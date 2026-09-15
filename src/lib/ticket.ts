@@ -94,12 +94,17 @@ export function winPreview(
  *
  * A timed round runs from the first prices after somebody takes the challenge,
  * so its end is not known yet and the chip says so. A bell round ends at a
- * fixed moment, and the chip says when, in the market's own clock. */
-export type RoundId = "5m" | "15m" | "1h" | "bell" | "week";
+ * fixed moment, and the chip says when, in the market's own clock.
+ *
+ * 12 and 24 hours are there for the hours the composite prices: a round with a
+ * start or an end priced by a stock's 24/7 markets must run at least
+ * MIN_OFFHOURS_ROUND_SECS (composite.ts), and /new switches the shorter chips
+ * off while that would be so (stocks.ts, tooShortOffHours). */
+export type RoundId = "5m" | "15m" | "1h" | "12h" | "24h" | "bell" | "week";
 
 export type RoundChoice = { id: RoundId; label: string; sub: string; secs?: number; endTs?: number };
 
-export const ROUND_SECS: Partial<Record<RoundId, number>> = { "5m": 300, "15m": 900, "1h": 3_600 };
+export const ROUND_SECS: Partial<Record<RoundId, number>> = { "5m": 300, "15m": 900, "1h": 3_600, "12h": 43_200, "24h": 86_400 };
 
 export function roundChoices(nowSec: number): RoundChoice[] {
   const bell = nextBell(nowSec * 1_000);
@@ -108,13 +113,21 @@ export function roundChoices(nowSec: number): RoundChoice[] {
     { id: "5m", label: "5 min", sub: "after a taker", secs: 300 },
     { id: "15m", label: "15 min", sub: "after a taker", secs: 900 },
     { id: "1h", label: "1 hour", sub: "after a taker", secs: 3_600 },
+    { id: "12h", label: "12 hours", sub: "after a taker", secs: 43_200 },
+    { id: "24h", label: "24 hours", sub: "after a taker", secs: 86_400 },
     { id: "bell", label: "Next bell", sub: etTime(bell), endTs: bell },
     { id: "week", label: "Friday bell", sub: etTime(week), endTs: week },
   ];
 }
 
 export const isRoundId = (s: string | null | undefined): s is RoundId =>
-  s === "5m" || s === "15m" || s === "1h" || s === "bell" || s === "week";
+  s === "5m" || s === "15m" || s === "1h" || s === "12h" || s === "24h" || s === "bell" || s === "week";
+
+/** The shortest timed round on offer that is at least `secs` long. */
+export const shortestRoundAtLeast = (secs: number): RoundId | null => {
+  const hit = (Object.entries(ROUND_SECS) as [RoundId, number][]).filter(([, s]) => s >= secs).sort((x, y) => x[1] - y[1])[0];
+  return hit ? hit[0] : null;
+};
 
 /** The stake chips, in dollars a side. */
 export const STAKE_CHIPS = [5, 10, 25, 50, 100] as const;
