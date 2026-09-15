@@ -176,7 +176,7 @@ One print on one venue in the end minute, or in the start and end minutes, marke
 - **Recording.** `create_duel` records each side's source from the registry, and a later `set_asset` changes only new fights. TSLA and QQQ move to the oracle after deploy, so an open TSLA challenge made on Pyth stays a Pyth fight.
 - **The change.** `firstPriceAt`, `pricedAt` and `priceTimeAt` in `stocks.ts` take an optional source. `mixedHoursAt`, `apartIfTakenAt` and `nextFairTake` read `creatorSource` and `opponentSource` from the round they are given.
 - **Takes use the duel.** Every take gate (the fight page's `Actions.tsx`, the Solana Action route, `spar.server.ts`) already passes the `DuelView` as the round, so each take is judged by what the duel recorded.
-- **Creates use the roster.** A create on /new passes no sources and is judged by the roster.
+- **Creates use the registry.** A create on /new reads both mints' Asset accounts (`hooks.ts` `useRegistrySources`) and is judged by the sources `create_duel` will copy; until they are read, by the roster. Section 12 says why.
 - **Tests.**
   - A grid in `tests-web/stocks.test.ts` holds a Pyth roster stock recorded as signed (TSLA, QQQ) to the price clock to the second.
   - Case tests take TSLA v NVDA on a Saturday recorded both ways.
@@ -186,7 +186,7 @@ One print on one venue in the end minute, or in the start and end minutes, marke
 ### Perps and pools retire at the cutover for unlisted stocks
 
 - **From `COMPOSITE_FROM`.** A shut US stock not in `venues247.json` waits for its exchange (`oracle.ts` `sourceAt`, `stocks.ts` `firstPriceAt`). This covers GLD, GME, KO, MCD, MRNA and STRC.
-- **Before it.** Boundaries before the cutover keep the perp and pool rules exactly, so a fight running across the cutover ends on the rules it started under.
+- **Before it.** Boundaries before the cutover keep the perp and pool rules exactly. The rule goes by boundary, not by fight, because a quote names no duel: a fight taken before the cutover whose unpriced end falls after it ends on the new rule. Section 12 has the check that keeps any open fight from being caught that way.
 - **Tests.** The tests pin each of the six on both sides of the cutover, and KO on the night before and the night of it.
 
 ## 10. Hong Kong and London hours
@@ -220,3 +220,60 @@ The owner's line, adopted on every page: *45 tokenized stocks fight 24/7/365 on 
 - **The proof on the receipt.** A side the composite priced opens "Check this 24/7 price": `/api/quote/proof` drawn as a table, one row per pinned market and one column per window minute (`src/app/f/[duel]/CompositeCheck.tsx`, `src/lib/proofWords.ts`). Nothing is fetched until it is opened.
 - **The live price.** While the exchange is shut after the cutover, a 24/7 stock's live price is the median of its pinned markets' latest prices, one bulk request per venue shared for 15 seconds, through a composite minute's quorum and guard (`src/lib/liveComposite.ts`). It is labelled "24/7 median" and is not the premium-corrected settle price.
 - **Checked in a browser.** A production build at 375 and desktop width, with `COMPOSITE_FROM` moved back locally (never committed) so the composite priced the Saturday 12 September META v NVDA fight: its receipt drew the proof from all 8 counted venues' live answers, /new queued short rounds for Tuesday's 4:00 AM open, and `/api/prices` answered "composite" for AAPL, NVDA, TSLA, QQQ, SPY and MSFT and "last" for KO and GME.
+
+## 12. After the adversarial review: what changed, the runbook, and the release
+
+Three reviews (determinism, abuse, regression) read the branch on 15 Sep. Each finding below was checked against the code before it was fixed, and each fix has a test that fails on the code before it.
+
+### The proof is the same bytes whenever it is worked out
+
+- **Hyperliquid's late quiet minutes.** Hyperliquid prints a quiet minute only after the next trade, so rows after a venue's last trade in a span depended on when the span was fetched. They moved the proof's candle stamps, and its sha256, in 1,108 of last weekend's boundaries (never a price). A forward-filling venue is now read up to its last trade (`composite.ts` `settledRows`). A test drops Hyperliquid's trailing quiet minutes from real windows and gets the same sha256.
+- **Yahoo's live point.** The breaker's reference could be Yahoo's latest trade, which is not on a minute and disappears once the session is history. It is now the last whole-minute bar inside a session (`oracle.ts` `referenceFromBars`), kept once per closure.
+
+### No price waits forever on one venue
+
+- **A skipped minute.** Every v2 request used to end at the window's last minute, so "a later row proves the minute was skipped" could never fire. Requests now reach `V2_TAIL_MINUTES` (5) past the window: 98 rows, inside OKX's 100. All nine venues answered that span for TSLA, with its end in the future, 93 of 93 span rows each, from this machine on 15 Sep at about 04:42 UTC.
+- **A venue that keeps failing** is still waited on, never left out: leaving it out would make a price depend on when it was asked. Treating an explicit "instrument not found" as the end of a pin was considered and rejected for the same reason: an instance that priced before a delisting and one after it would sign different prices for one boundary. What changed is that it is now seen. `venues247.ts` counts each venue's run of failures; `/api/crank` names them in its summary as `failingVenues` and logs `{"crank":"venue failing"}` once one has failed for five minutes; `scripts/settler.ts` prints the same; and a crank's wait names the market it waits on.
+- **A holiday fallback.** A composite side that falls back to the exchange is priced by a fresh instance only while the markets still serve its minutes: three days where Hyperliquid is pinned. The pages now refuse a round whose start or end lands where that fallback would come later (`stocks.ts` `strandedWithin`, one hour of margin). Through 2027 that is ten stretches, each from the closure's start to 5:02 AM the next morning: Thu 24 Dec 2026 5:00 PM (12 h), Thu 31 Dec 2026, Fri 15 Jan, Fri 12 Feb, Thu 25 Mar, Fri 28 May, Thu 17 Jun, Fri 2 Jul, Fri 3 Sep and Thu 23 Dec 2027 (each from 8:00 PM, 9 h). The longest fallback is 83 hours. Stocks with no Hyperliquid market keep six days and are never refused.
+
+### The runbook: a venue that keeps failing
+
+1. `/api/crank` (or `scripts/settler.ts`) names the venue and its last error. Confirm by making its request from the proof (the URL is in every proof row) from the deployment's region.
+2. If it is a lasting failure (a delisted instrument, a region the venue refuses, a changed body), end the pin: in `src/data/venues247.json`, give that venue's entry for each affected stock an `until` equal to the first boundary it left unpriced (the earliest `boundary` among the waiting fights' crank results). Nothing was signed from that venue for those boundaries, so no signed price changes.
+3. `tests-web/venues247Data.test.ts` must still pass: 3 anchors pinned at every boundary, or no pins at all, which prices the stock by its exchange from that boundary.
+4. Run the checks and redeploy. Where Hyperliquid is pinned this has to land within three days of that first boundary, or those fights can only be refunded.
+
+### Load and exposure
+
+- `/api/quote/proof` now recomputes only a real fight's own side at its start or settle (`quoteGate.server.ts` `proofTarget`), at 12 a minute per IP with a burst of 4. It used to take any feed and past boundary, and two IPs walking minutes could spend Hyperliquid's 1,200-weight budget.
+- Composite verdicts are kept per (ticker, minute) with the boundary stamped in after. A Hyperliquid window is finished once its last minute has settled. Full caches forget their oldest entries instead of emptying.
+- A Bitget request's five seconds run from when it was made; one whose time ran out in the queue is never sent; more than 12 waiting are told Bitget is busy.
+- `/api/quote` no longer shows any characters of a mis-set `ORACLE_SECRET_KEY`, only its length and shape.
+- Not done: a shared per-host request budget that serves the crank before public callers. With the proof route bound to real fights it was not needed to close the finding.
+
+### The pages and the words
+
+- **Pyth's first minute.** The price clock called a Pyth boundary in the first minute of a span never. TSLA printed at 8:00:00 PM on Sunday 13 Sep and VOO at 8:00:01, so such fights were parked though Hermes could price them. Only a boundary outside every span is never now; the pages still refuse a take within a minute of a gap.
+- **The receipt.** A composite boundary whose recorded price is not stamped at the end of its window reads "Oracle · exchange (24/7 fallback)". The proof's sentence follows its own reason: too few markets, the breaker, or no readable close.
+- **The copy** says what was measured: at most 2.6% of any stock's 12-hour rounds and 5.2% of its 24-hour ones (COIN), against over a third of some stock's 15-minute rounds (AMZN 35.5%), from `scripts/data/attack-247.json`. It no longer says no single venue can swing a result, or that every venue prints every minute with real size.
+- **Hong Kong and London** in the README: a Hong Kong stock fights a US stock only while both exchanges trade, 4:00 to 4:10 AM New York in summer and not at all in winter, and it fights VOO whenever Hong Kong and Pyth both print.
+- **Creates.** `roster.json` has TSLA and QQQ on the oracle, and the devnet registry still recorded both as Pyth (source 0) when read on 15 Sep. /new now judges a challenge by the registry's recorded sources, so a Saturday TSLA challenge is judged as the Pyth fight it would be, not let through.
+- **The bell exemption** is tested where it matters: a bell round under 12 hours from a composite start on the half day after Thanksgiving.
+
+### Decisions that depart from the plan, for the owner to confirm
+
+The owner's decisions named composite-v1 as specified, publishTime m + 60, and a two-anchor fallback. What ships is composite-v2 (sections 1 to 5), because v1 let one print decide most short rounds. That changes four things:
+
+1. **publishTime is m + 180** (the end of a 3-minute window), not m + 60. The program only requires `publish_time >= boundary` (`quote.rs`). `MAX_QUOTE_LAG_SECS` = 120 in `constants.rs` is defined and unused; a future program check that used it would reject every v2 quote whose boundary falls in the first minute of m, so any lag bound must allow at least `V2_WINDOW_SECS` + 60. This branch does not touch `programs/`.
+2. **No two-anchor tier.** A side with fewer than 3 counted venues (2 anchors) takes the exchange's first bar.
+3. **A minute whose guard leaves no quorum** is the median of all counted closes, where v1 called it a failed quorum.
+4. **Off-hours rounds run at least 12 hours** (bell rounds that end in session excepted), so "fights 24/7" means rounds of 12 hours or more, or to a bell, while the exchange is shut; shorter ones queue for the open. With the stamp at m + 180, a Pyth side (VOO) cannot fight a composite side at night.
+
+### The release
+
+1. **Choose `COMPOSITE_FROM`**, a boundary a few minutes after the deploy, and set it in `src/lib/composite.ts`. Every pin's `from` must move with it: a pin starting at the old placeholder (1,789,600,000) prices nothing before that moment, and a stock with no pins at a boundary is priced by its exchange. As section 8 did, clear `src/data/venues247.json` and run `npx tsx scripts/build-247.ts --cache ~/stonkwars-research/weekend-2026-09-12 --offline --from <that value>`, then check that the 45 and their markets are unchanged (`venues247Data.test.ts` checks the set at the cutover against the evidence).
+2. **Run `scripts/cutover-check.ts`** against the cluster with that build. It lists every accepted or live fight with an unpriced boundary at or after the cutover whose start was before it, with each side's rule before and after, and every open fight whose two price times would land more than a minute apart. It exits 1 if any fight crosses. On 15 Sep it read 1 open fight on devnet and listed none, for the placeholder and for a cutover ten minutes out. Pick a cutover that lists nothing crossing.
+3. **Run every check** on the final tree: `npx tsc --noEmit`, `npm run -s test:web`, `rm -rf .next && npx next build`, `npm test`.
+4. **Deploy**, then probe from the deployed function's region: each of the nine venues' v2 candle requests (with the five-minute tail) and the bulk ticker URLs in `liveComposite.ts`. Any 451 or 403 means ending that venue's pins (the runbook) and recounting the badge.
+5. **`set_asset(feed, enabled, SOURCE_SIGNED)` for TSLA and QQQ** on devnet, then read them back with `scripts/check-registry.ts`. Until then /new judges both by the registry's Pyth, which is correct but refuses weekend TSLA and QQQ fights.
+6. **Devnet end to end on a weekday night** (after 8 PM New York, once the cutover has passed), replacing the plan's step 8, whose 15-minute rounds the 12-hour minimum now refuses: fund the test wallet; keep a fight page visible or run `scripts/settler.ts`; take TSLA (signed) v NVDA, AVGO v NVDA and SPY v QQQ on the "Overnight 12h" chip, or on a bell round that ends the next afternoon. Accept when every start lands with `publish_time` = m + 180 and the crank's first try at m + 200; each on-chain price equals the proof route's median exactly (`/api/quote/proof?duel&which&feed`); the proof table shows every venue row; and each settle lands at its end.

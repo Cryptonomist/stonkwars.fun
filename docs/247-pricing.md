@@ -276,6 +276,8 @@ The fight page renders this as the proof table. After about 3 days the HL row sa
 - Accept when: the build is green and 9 of 9 hosts return 200 from Vercel, or the counts are updated.
 
 **Step 8: devnet end-to-end on a weekday night** (Tue 15 or Wed 16 Sep after 20:00 ET, when `session()` is closed)
+
+> Superseded (15 Sep): composite-v2 replaced v1 before any fight used it. Its prices are stamped at m+180 and the pages refuse off-hours rounds under 12 hours, so the 15-minute fights and the m+60 and m+80 timings below no longer apply, and WDC is no longer listed. The release steps and the end-to-end run that replace steps 7 and 8 are in `docs/247-hardening.md`, section 12.
 - Fund the test wallet first.
 - Keep the fight page visible or run `scripts/settler.ts`, because a hidden Browser pane pauses the nudge.
 - Run three 15-minute fights: TSLA (signed) vs NVDA, WDC vs AVGO, SPY vs QQQ.

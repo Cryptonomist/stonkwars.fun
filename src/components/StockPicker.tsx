@@ -249,8 +249,9 @@ export function StockPicker({
       </div>
       {shut && !typing && sort === "default" ? (
         <p className="mt-2 text-meta text-dim">
-          The exchange is shut. {kind === "allday" ? "These" : `The ${COUNTS.allday.toLocaleString("en-US")} marked 24/7`} fight now,
-          priced by the markets that trade them around the clock{kind === "allday" ? "." : ", and come first."}
+          The exchange is shut. {kind === "allday" ? "These" : `The ${COUNTS.allday.toLocaleString("en-US")} marked 24/7`} fight now on
+          rounds of 12 hours or more or to a bell, priced by the markets that trade them around the clock
+          {kind === "allday" ? "." : ", and come first."}
         </p>
       ) : null}
 

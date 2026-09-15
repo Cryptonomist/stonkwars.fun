@@ -34,10 +34,10 @@ a public receipt anyone can check.
 
 ## Long description
 
-> **Budget: 4,563 characters.** The form's Full Description field is reported to
+> **Budget: 4,580 characters.** The form's Full Description field is reported to
 > be a 5,000 character hard cap that truncates silently. That cap is a research
 > finding rather than something confirmed against the live form, so check it
-> before pasting. There are 437 characters of headroom.
+> before pasting. There are 420 characters of headroom.
 > `python3 scripts/description-budget.py` counts this section and the short one.
 
 **The problem.** Every group chat has the argument: *NVDA eats TSLA this week.*
@@ -68,7 +68,8 @@ share itself. That caught one venue's CL, crude oil where ours is
 Colgate-Palmolive. Then we attacked the rule with those minutes. Each venue is
 corrected for its premium to the others and the price is the median of three
 minutes, yet one venue could still change over a third of some stock's
-15-minute rounds, and never more than 2.6% of 12-hour ones. So a round priced
+15-minute rounds, but at most 2.6% of 12-hour ones and 5.2% of 24-hour ones.
+So a round priced
 this way runs at least 12 hours, and a shorter one queues for the open. Every
 price's proof, venue by venue with a sha256, is on the fight's own receipt.
 
@@ -123,7 +124,7 @@ own token lists, nine venues' public minute bars and Yahoo bars.
   counterparty, paid out in shares rather than cash, settled permissionlessly by
   anyone, and exposed as a standard Solana Action any client can take. The 24/7
   part exists only because the share is a token.
-- **Quality of execution.** 624 tests across three suites, every 24/7 price
+- **Quality of execution.** 647 tests across three suites, every 24/7 price
   published with a proof anyone can recompute, and the limits below stated in
   the app before anybody stakes.
 
@@ -143,7 +144,8 @@ is carried over from the same author's Commish.
 - **45** fight 24/7/365, each pinned to **6 to 9** public venues, **3** or
   more of them with real volume, measured minute by minute on the weekend of 12
   September. A round those venues price runs **12** hours or more, where one
-  venue could change at most **2.6%** of any measured stock's rounds
+  venue could change at most **2.6%** of any measured stock's 12-hour rounds
+  and **5.2%** of its 24-hour ones
 - **2** sources of trust, chosen per stock and frozen per fight: Pyth
   (trustless) and a signed oracle (public, checkable, labelled). **2** kinds of
   market read behind the oracle: the stock's exchange, and the median of its
@@ -151,7 +153,7 @@ is carried over from the same author's Commish.
 - **14** program instructions, **3** ways for a stake to leave escrow, **0**
   admin withdrawals
 - **26** Rust unit tests · **37** LiteSVM tests against the built binary, with
-  real Ed25519 signatures · **561** web tests · live end-to-end fights whose
+  real Ed25519 signatures · **584** web tests · live end-to-end fights whose
   every on-chain price matched its source, asked again independently
 - **1** transaction to open a fight, **1** to take it, **0** to settle it: the
   deployed settler does that, and anyone else can press the button too
@@ -312,8 +314,9 @@ counts print themselves rather than reading them out.
    the fifteen minutes before, each is divided by its premium to the others over
    the hour before, and the price is the median of three minutes. Measured on the
    same minutes, one venue can still change over a third of some stock's
-   fifteen minute rounds, and never more than two point six percent of twelve
-   hour ones. So a round priced this way runs twelve hours, and a shorter one
+   fifteen minute rounds, but at most two point six percent of twelve hour ones
+   and five point two of twenty four hour ones. So a round priced this way runs
+   twelve hours, and a shorter one
    queues for the open. Too few venues, and the side takes the exchange's first
    bar. Nothing is ever modelled.*
    *Every price carries its proof: each venue's request, closes, premium, what
@@ -386,7 +389,9 @@ counts print themselves rather than reading them out.
   Rebuilding it with `scripts/build-247.ts` on another weekend will move it.
   Whether every venue answers from the deployment's region, and each venue's
   terms, still have to be checked; a venue that does not answer makes a price
-  wait, never guess.
+  wait, never guess. One that keeps failing is named in the settler's log and
+  alerted on after five minutes, and the fix is to end its pin and redeploy,
+  within three days if Hyperliquid is pinned for that stock.
 - Pyth's equity feeds are dark from Friday 8pm to Sunday 8pm New York, so VOO
   fights only while Pyth prints, and a fight that would start or end in the gap
   is refused before anyone stakes. TSLA and QQQ moved to the oracle for exactly

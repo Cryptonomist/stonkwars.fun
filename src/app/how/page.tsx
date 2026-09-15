@@ -121,7 +121,7 @@ const RULES: Rule[] = [
     id: "three-in-the-morning",
     label: "Fighting at 3am",
     q: "Can I fight at three in the morning?",
-    a: `Yes. ${AROUND_THE_CLOCK.toLocaleString("en-US")} tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check. Every other stock fights the moment its market opens. We never invent a price. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside that, at night, at weekends and on holidays, those ${AROUND_THE_CLOCK.toLocaleString("en-US")} are priced by the markets that trade them around the clock: perpetual futures and tokenized shares on up to nine public venues, and the price is the median of their one-minute closes over three minutes. A round priced that way runs at least ${MIN_ROUND_HOURS} hours, so no single venue can swing a result; pick a shorter one and it waits for the open.${
+    a: `Yes. ${AROUND_THE_CLOCK.toLocaleString("en-US")} tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check. Every other stock fights the moment its market opens. We never invent a price. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside that, at night, at weekends and on holidays, those ${AROUND_THE_CLOCK.toLocaleString("en-US")} are priced by the markets that trade them around the clock: perpetual futures and tokenized shares on up to nine public venues, and the price is the median of their one-minute closes over three minutes. A round priced that way runs at least ${MIN_ROUND_HOURS} hours, because a round is only as hard to tip as its move is big: on the weekend we measured, one venue pushing its own price could have changed over a third of some stock's 15-minute rounds, but at most 2.6% of any stock's 12-hour rounds and 5.2% of its 24-hour ones. Pick a shorter round and it waits for the open.${
       PYTH.length
         ? ` The stocks priced by Pyth (${listWords(PYTH)}) fight while Pyth's equity feeds print, from 8pm Sunday to 8pm Friday New York time, except on market holidays and after 1pm on a half day. A fight that would start or end while Pyth is dark is refused, because nothing could ever price it.`
         : ""
@@ -137,7 +137,7 @@ const RULES: Rule[] = [
         <p>
           With fewer, the side is not priced by a guess: it takes the exchange&apos;s first bar after the boundary. Every
           price&apos;s proof, with each venue&apos;s request, closes and a sha256, is on the fight&apos;s receipt and at{" "}
-          <Code>/api/quote/proof</Code>.
+          <Code>/api/quote/proof</Code> for any side of a fight.
         </p>
       </>
     ),
@@ -146,7 +146,7 @@ const RULES: Rule[] = [
     id: "perpetual-futures",
     label: "Why 24/7 markets are fair",
     q: "A perpetual future is not a share. Why is that fair?",
-    a: `Because a fight compares two moves, not two price tags, and the alternative was worse. We priced weekends from each token's own Solana pool first, and measured it: those pools traded a median of three minutes an hour, and a fifteen-minute reading of them moved five times as much as the market actually had. The markets that trade these stocks around the clock print every minute and carry real size. A stock gets the 24/7 badge only after a weekend of their one-minute trades was measured: at least three venues with real volume, each with a trade within 15 minutes in 90% of the weekend's minutes, and each checked against the stock's own price, which is how we caught that one venue's CL is crude oil while ours is Colgate-Palmolive. That is ${AROUND_THE_CLOCK.toLocaleString("en-US")} stocks. A weekend price is what those markets traded, not the next open, and the receipt says so.`,
+    a: `Because a fight compares two moves, not two price tags, and the alternative was worse. We priced weekends from each token's own Solana pool first, and measured it: those pools traded a median of three minutes an hour, and a fifteen-minute reading of them moved five times as much as the market actually had. Some of the markets that trade these stocks around the clock carry real volume and some print trades on very little, so the price never rests on the thin ones: it needs three that traded in the last 15 minutes, two of them with real volume. A stock gets the 24/7 badge only after a weekend of their one-minute trades was measured: at least three venues with real volume, each with a trade within 15 minutes in 90% of the weekend's minutes, and each checked against the stock's own price, which is how we caught that one venue's CL is crude oil while ours is Colgate-Palmolive. That is ${AROUND_THE_CLOCK.toLocaleString("en-US")} stocks. A weekend price is what those markets traded, not the next open, and the receipt says so.`,
   },
   {
     id: "why-not-pyth",

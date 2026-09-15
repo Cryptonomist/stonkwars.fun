@@ -28,7 +28,21 @@ export function oracleKeypair(): Keypair | undefined {
  * "No oracle key" covers three different mistakes and a person fixing a
  * deployment needs to know which one they made. None of this reveals the key:
  * it reports the shape of what is there, and the public address it produces,
- * which is meant to be seen and is exactly what has to match the chain. */
+ * which is meant to be seen and is exactly what has to match the chain.
+ *
+ * NOT ONE CHARACTER OF IT. /api/quote hands this detail to any caller, and it
+ * used to quote the first and last six characters of a value that was not
+ * JSON: a secret key pasted as base58 would have given away twelve of its
+ * characters to anybody who asked. It now says only how long the value is and
+ * what it looks like. */
+/** What a value that is not JSON looks like, in words that give none of it away. */
+export function keyShape(value: string): string {
+  if (/^["'].*["']$/s.test(value)) return ", wrapped in quotes";
+  if (/^[1-9A-HJ-NP-Za-km-z]+$/.test(value)) return ", all base58 letters and digits (a key exported as text, not the key file's numbers)";
+  if (/^\[.*\]?$/s.test(value)) return ", starting with a square bracket but not a complete list";
+  return "";
+}
+
 export function oracleKeyProblem(): { problem: string; detail: string } | null {
   const cluster = process.env.NEXT_PUBLIC_CLUSTER ?? "devnet";
   const raw = process.env.ORACLE_SECRET_KEY;
@@ -50,7 +64,7 @@ export function oracleKeyProblem(): { problem: string; detail: string } | null {
   } catch {
     return {
       problem: "ORACLE_SECRET_KEY is set but is not JSON",
-      detail: `It is ${trimmed.length} characters, starting ${JSON.stringify(trimmed.slice(0, 6))} and ending ${JSON.stringify(trimmed.slice(-6))}. It should be 64 numbers in square brackets, exactly as the key file has them, with no quotes around it.`,
+      detail: `It is ${trimmed.length} characters${keyShape(trimmed)}. It should be 64 numbers in square brackets, exactly as the key file has them, with no quotes around it.`,
     };
   }
   if (!Array.isArray(parsed) || parsed.length !== 64) {
