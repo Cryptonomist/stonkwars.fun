@@ -11,7 +11,8 @@
  * Below it, the prices that decided it: each side's start and bell price, the
  * moment each printed (to the second, in New York, with the exact UTC time a
  * hover away), who priced it, and the feed it came from. How those prices were
- * chosen is one tap away, not a wall of text in the way. */
+ * chosen is one tap away, not a wall of text in the way, and a price the 24/7
+ * markets made opens its whole proof, market by market (CompositeCheck). */
 
 import { useState } from "react";
 
@@ -46,8 +47,11 @@ import {
   waitWords,
   type ReceiptRow,
 } from "@/lib/receipt";
+import { boundaryOf } from "@/lib/crankTx";
 import { quoteSymbolFor } from "@/lib/stocks";
 import { useReceipt } from "@/lib/useReceipt";
+
+import { CompositeCheck } from "./CompositeCheck";
 
 export function Receipt({ d, t1, t2, now, className }: { d: DuelView; t1: string; t2: string; now: number; className?: string }) {
   const receipt = useReceipt(d);
@@ -181,18 +185,20 @@ function Step({
   );
 }
 
-/* Which market the oracle read for a price, worked out the same way it was:
- * the stock's own exchange while it was trading, and once that shuts, the
- * median of its round-the-clock markets (from COMPOSITE_FROM), its perpetual
- * future, or its Solana pool for the few stocks with no perp. */
-function oracleSource(feed: string, publishTime: number): PriceSource | undefined {
+/* Which market the oracle read for a price, worked out the same way it was,
+ * for the boundary the price was asked for: the stock's own exchange while it
+ * was trading, and once that shuts, the median of its round-the-clock markets
+ * (from COMPOSITE_FROM), its perpetual future, or its Solana pool for the few
+ * stocks with no perp. The boundary, not the price's own stamp: a 24/7 price
+ * is stamped three minutes after it, which can be past a close. */
+function oracleSource(feed: string, boundary: number): PriceSource | undefined {
   const market = quoteSymbolFor(feed);
-  return market ? sourceAt(publishTime, market) : undefined;
+  return market ? sourceAt(boundary, market) : undefined;
 }
 
-function pricedBy(feed: string, source: number, publishTime: number): string {
+function pricedBy(feed: string, source: number, boundary: number): string {
   if (source === SOURCE_PYTH) return "Pyth";
-  const from = oracleSource(feed, publishTime);
+  const from = oracleSource(feed, boundary);
   if (!from) return "Oracle";
   return from === "composite"
     ? "Oracle · 24/7 median"
@@ -218,21 +224,24 @@ function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
   const signed = d.creatorSource !== SOURCE_PYTH || d.opponentSource !== SOURCE_PYTH;
   /* A pool price is not the one-bar close the sentence above describes, so it
    * gets its own line, but only when a price shown here was priced that way. */
-  const pooled = (
-    [
-      [d.creatorFeed, d.creatorSource, d.creatorStart],
-      [d.opponentFeed, d.opponentSource, d.opponentStart],
-      [d.creatorFeed, d.creatorSource, d.creatorEnd],
-      [d.opponentFeed, d.opponentSource, d.opponentEnd],
-    ] as const
-  ).some(([feed, source, p]) => source !== SOURCE_PYTH && p.price > BigInt(0) && oracleSource(feed, p.publishTime) === "pool");
+  const start = boundaryOf(d, "start");
+  const sides = [
+    [d.creatorFeed, d.creatorSource, d.creatorStart, start],
+    [d.opponentFeed, d.opponentSource, d.opponentStart, start],
+    [d.creatorFeed, d.creatorSource, d.creatorEnd, d.endTs],
+    [d.opponentFeed, d.opponentSource, d.opponentEnd, d.endTs],
+  ] as const;
+  const readBy = (kind: PriceSource) =>
+    sides.some(([feed, source, p, boundary]) => source !== SOURCE_PYTH && p.price > BigInt(0) && oracleSource(feed, boundary) === kind);
+  const pooled = readBy("pool");
+  const median = readBy("composite");
 
   return (
     <div className="flex flex-col gap-3 border-t border-line pt-4">
       <h3 className="label">The prices that decided it</h3>
       <div className="grid gap-3 sm:grid-cols-2">
-        <SideProof side="p1" ticker={t1} feed={d.creatorFeed} source={d.creatorSource} start={d.creatorStart} end={d.creatorEnd} />
-        <SideProof side="p2" ticker={t2} feed={d.opponentFeed} source={d.opponentSource} start={d.opponentStart} end={d.opponentEnd} />
+        <SideProof side="p1" ticker={t1} feed={d.creatorFeed} source={d.creatorSource} start={d.creatorStart} end={d.creatorEnd} startAt={start} endAt={d.endTs} />
+        <SideProof side="p2" ticker={t2} feed={d.opponentFeed} source={d.opponentSource} start={d.opponentStart} end={d.opponentEnd} startAt={start} endAt={d.endTs} />
       </div>
       <p className="text-meta text-dim">
         Start boundary{" "}
@@ -269,6 +278,9 @@ function Proof({ d, t1, t2 }: { d: DuelView; t1: string; t2: string }) {
           {pooled
             ? " A pool price is the average of the middle 60% of up to 15 one-minute closes in the hour before the boundary, so one trade cannot set it."
             : null}
+          {median
+            ? " A 24/7 price, taken while the exchange was shut, is the median over three minutes of the one-minute closes of the markets that trade the stock around the clock, each corrected by its premium to the others, and its proof lists every market and every close."
+            : null}
         </p>
       </details>
     </div>
@@ -282,6 +294,8 @@ function SideProof({
   source,
   start,
   end,
+  startAt,
+  endAt,
 }: {
   side: "p1" | "p2";
   ticker: string;
@@ -289,8 +303,11 @@ function SideProof({
   source: number;
   start: PricePoint;
   end: PricePoint;
+  /** The boundaries each price was asked for: the start, and the bell. */
+  startAt: number;
+  endAt: number;
 }) {
-  const row = (label: string, p: PricePoint) =>
+  const row = (label: string, p: PricePoint, boundary: number) =>
     p.price > BigInt(0) ? (
       <div className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-2 border-t border-line py-2 first:border-t-0">
         <dt className="label pt-0.5">{label}</dt>
@@ -299,7 +316,10 @@ function SideProof({
           <span className="text-meta text-dim" title={new Date(p.publishTime * 1000).toISOString()}>
             {etStamp(p.publishTime)}
           </span>
-          <span className="text-meta text-dim">{pricedBy(feed, source, p.publishTime)}</span>
+          <span className="text-meta text-dim">{pricedBy(feed, source, boundary)}</span>
+          {source !== SOURCE_PYTH && oracleSource(feed, boundary) === "composite" ? (
+            <CompositeCheck feed={feed} ticker={ticker} boundary={boundary} price={p.price} expo={p.expo} />
+          ) : null}
         </dd>
       </div>
     ) : null;
@@ -311,8 +331,8 @@ function SideProof({
         <FeedId feed={feed} />
       </div>
       <dl className="mt-1">
-        {row("Start", start)}
-        {row("Bell", end)}
+        {row("Start", start, startAt)}
+        {row("Bell", end, endAt)}
       </dl>
     </div>
   );
