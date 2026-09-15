@@ -14,8 +14,11 @@ import { Identicon } from "./Identicon";
  * through the site's own route (app/api/avatar), so a board full of plain
  * wallets makes no requests. A picture that fails to load, including a handle
  * linked before pictures were written, falls back to the identicon and is not
- * asked for again this visit. Same slanted plate as the identicon, so a row
- * lines up either way. */
+ * asked for again this visit.
+ *
+ * The picture is a full circle, the shape people know it in on X, never the
+ * identicon's slanted plate, which would cut its sides off. It sits in a box as
+ * wide as the plate would be, so a row lines up either way. */
 
 const failed = new Set<string>();
 
@@ -31,18 +34,19 @@ export function FighterAvatar({ wallet, size = 20, className }: { wallet: string
   return (
     <span
       aria-hidden="true"
-      className={cx("plate inline-flex shrink-0 overflow-hidden bg-panel-2", className)}
-      style={{ width: size + slant, height: size, ["--slant" as string]: `${slant}px` }}
+      className={cx("inline-flex shrink-0 items-center justify-center", className)}
+      style={{ width: size + slant, height: size }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/api/avatar/${wallet}?h=${encodeURIComponent(handle)}`}
         alt=""
-        width={size + slant}
+        width={size}
         height={size}
         loading="lazy"
         decoding="async"
-        className="h-full w-full object-cover"
+        className="rounded-full bg-panel-2 object-cover"
+        style={{ width: size, height: size }}
         onError={() => {
           failed.add(key);
           setBroken(true);
