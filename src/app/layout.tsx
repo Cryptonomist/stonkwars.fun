@@ -3,6 +3,7 @@ import { Big_Shoulders, Big_Shoulders_Stencil, Geist, Geist_Mono } from "next/fo
 
 import { BottomNav } from "@/components/BottomNav";
 import { CommandPalette } from "@/components/CommandPalette";
+import { XLinkSheet } from "@/components/ConnectX";
 import { FightWatcher } from "@/components/FightWatcher";
 import { Providers } from "@/components/Providers";
 import { SiteNav } from "@/components/SiteNav";
@@ -74,6 +75,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-4">{children}</main>
           <SiteFooter />
           <Toaster />
+          <XLinkSheet />
           <FightWatcher />
           <CommandPalette />
           <BottomNav />

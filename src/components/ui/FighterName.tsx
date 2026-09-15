@@ -8,7 +8,7 @@ import { isSparWallet } from "@/lib/spar";
 
 import { Badge } from "./Badge";
 import { cx } from "./cx";
-import { Identicon } from "./Identicon";
+import { FighterAvatar } from "./FighterAvatar";
 
 /* Who is fighting, the same way on every page.
  *
@@ -60,7 +60,7 @@ export function FighterName({
 
   const inner = (
     <>
-      {avatar ? <Identicon wallet={wallet} size={s.avatar} /> : null}
+      {avatar ? <FighterAvatar wallet={wallet} size={s.avatar} /> : null}
       {name}
       {you ? <Badge variant="neutral">You</Badge> : null}
     </>

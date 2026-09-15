@@ -1,18 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { COOKIE_LINK, COOKIE_STATE, COOKIE_VERIFIER, readProfile, sealHandle, xConfig } from "@/lib/xAuth.server";
+import { COOKIE_LINK, COOKIE_NEXT, COOKIE_STATE, COOKIE_VERIFIER, readProfile, sealHandle, xConfig } from "@/lib/xAuth.server";
+import { safeNext } from "@/lib/xLink";
 
 export const dynamic = "force-dynamic";
 
 /* Step two: X sends them back.
  *
- * The handle is read here and carried onward in a signed cookie, because the
- * chain is what actually records it and only the wallet can sign that. So this
- * route ends with a redirect back to the leaderboard, where the browser asks
- * for the wallet's signature. */
+ * The handle (and the picture X names for it) is read here and carried onward
+ * in a signed cookie, because the chain is what actually records it and only
+ * the wallet can sign that. So this route ends with a redirect back to the page
+ * they started from, where the browser asks for the wallet's signature
+ * (components/XLinkSheet). */
 export async function GET(req: NextRequest) {
   const cfg = xConfig();
-  const home = new URL("/leaderboard", req.nextUrl.origin);
+  const home = new URL(safeNext(req.cookies.get(COOKIE_NEXT)?.value), req.nextUrl.origin);
   if (!cfg) return fail(home, "X sign-in is not configured on this deployment");
 
   const error = req.nextUrl.searchParams.get("error");
@@ -38,6 +40,7 @@ export async function GET(req: NextRequest) {
   const res = NextResponse.redirect(home);
   res.cookies.delete({ name: COOKIE_STATE, path: "/api/x" });
   res.cookies.delete({ name: COOKIE_VERIFIER, path: "/api/x" });
+  res.cookies.delete({ name: COOKIE_NEXT, path: "/api/x" });
   res.cookies.set(COOKIE_LINK, sealHandle(cfg.clientSecret, profile), {
     httpOnly: true,
     secure: req.nextUrl.protocol === "https:",

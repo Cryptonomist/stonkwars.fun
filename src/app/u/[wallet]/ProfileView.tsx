@@ -18,7 +18,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 
-import { ConnectX } from "@/components/ConnectX";
+import { ConnectX, xStartHref } from "@/components/ConnectX";
 import { FightRow } from "@/components/FightRow";
 import { FirstFightOffer } from "@/components/FirstFightOffer";
 import { cx } from "@/components/ui/cx";
@@ -26,7 +26,7 @@ import { Empty } from "@/components/ui/Empty";
 import { ExplorerLink } from "@/components/ui/ExplorerLink";
 import { FighterName } from "@/components/ui/FighterName";
 import { FormPips } from "@/components/ui/FormPips";
-import { Identicon } from "@/components/ui/Identicon";
+import { FighterAvatar } from "@/components/ui/FighterAvatar";
 import { Notice } from "@/components/ui/Notice";
 import { Plate } from "@/components/ui/Plate";
 import { SectionHead } from "@/components/ui/SectionHead";
@@ -152,7 +152,7 @@ export function ProfileView({ wallet }: { wallet: string }) {
     /* The name keeps at least 14rem, so on a phone the action drops under it
      * at full width instead of squeezing the name down to three letters. */
     <Plate notch pad="std" className="flex flex-wrap items-center gap-x-4 gap-y-3">
-      <Identicon wallet={wallet} size={48} />
+      <FighterAvatar wallet={wallet} size={48} />
       <div className="min-w-0 flex-1 basis-56">
         <p className="label">Fighter</p>
         <h1 className="mt-1 flex min-w-0 items-center">
@@ -172,6 +172,13 @@ export function ProfileView({ wallet }: { wallet: string }) {
           {handle ? (
             <a href={`https://x.com/${handle}`} target="_blank" rel="noreferrer" className="link">
               @{handle} on X<span aria-hidden="true"> &#8599;</span>
+            </a>
+          ) : null}
+          {/* Linking again is how a picture changes (or arrives, for a handle
+            * linked before pictures were written). */}
+          {handle && self ? (
+            <a href={xStartHref(`/u/${wallet}`)} className="label -my-2 py-2 whitespace-nowrap transition-colors hover:text-ink">
+              Refresh X picture
             </a>
           ) : null}
         </div>

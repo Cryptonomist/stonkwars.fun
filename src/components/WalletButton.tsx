@@ -24,14 +24,17 @@
  * holds, and disconnecting takes a second click inside three seconds. */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletReadyState, type WalletName } from "@solana/wallet-adapter-base";
 
+import { xStartHref } from "@/components/ConnectX";
 import { useFaucet } from "@/components/FaucetButton";
 import { Badge } from "@/components/ui/Badge";
+import { XLogo } from "@/components/ui/BrandIcons";
 import { cx } from "@/components/ui/cx";
+import { FighterAvatar } from "@/components/ui/FighterAvatar";
 import { FighterName } from "@/components/ui/FighterName";
-import { Identicon } from "@/components/ui/Identicon";
 import { CONNECT_EVENT } from "@/components/ui/intents";
 import { Menu, MenuItem } from "@/components/ui/Menu";
 import { Notice } from "@/components/ui/Notice";
@@ -56,6 +59,7 @@ type Problem = { title: string; body: string };
 
 export function WalletButton({ className = "" }: { className?: string }) {
   const { wallets, wallet, select, connect, connecting, connected, publicKey } = useWallet();
+  const pathname = usePathname();
 
   const [picking, setPicking] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -140,7 +144,10 @@ export function WalletButton({ className = "" }: { className?: string }) {
       });
       return;
     }
-    if (available.length === 1) {
+    /* Even with one wallet the sheet opens, because "Continue with X" sits in
+     * it too. Mid sign-in (XLinkSheet sent us here) a lone wallet is picked
+     * straight away, since X is already done. */
+    if (available.length === 1 && /[?&]x=sign\b/.test(window.location.search)) {
       choose(available[0].adapter.name);
       return;
     }
@@ -164,6 +171,25 @@ export function WalletButton({ className = "" }: { className?: string }) {
     setProblem(null);
   }, []);
 
+  /* X first in the sheet: sign in with X, come back to this page, then pick a
+   * wallet for the handle (ConnectX). Hidden while that sign-in is already
+   * waiting for its wallet. */
+  const here = pathname || "/";
+  const xRow = picking && typeof window !== "undefined" && /[?&]x=sign\b/.test(window.location.search) ? null : (
+    <a
+      href={xStartHref(here)}
+      className="row flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left focus-visible:-outline-offset-2"
+    >
+      <span aria-hidden="true" className="inline-flex h-6 w-6 shrink-0 items-center justify-center bg-ink text-void">
+        <XLogo size={13} />
+      </span>
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-sm font-semibold text-ink">Continue with X</span>
+        <span className="text-meta text-dim">Fight under your X name and picture, then pick a wallet.</span>
+      </span>
+    </a>
+  );
+
   if (hydrated && connected && publicKey) {
     return <WalletMenu address={publicKey.toBase58()} className={className} />;
   }
@@ -183,9 +209,10 @@ export function WalletButton({ className = "" }: { className?: string }) {
       <Sheet
         open={picking || !!problem}
         onClose={closeSheet}
-        title={needsMobileHelp ? "Open in a wallet" : "Connect a wallet"}
+        title={needsMobileHelp ? "Open in a wallet" : "Connect"}
       >
         <div className="flex flex-col gap-4">
+          {xRow ? <div className="bg-line">{xRow}</div> : null}
           {problem ? (
             <Notice tone="error" title={problem.title}>
               {problem.body}
@@ -321,14 +348,14 @@ function WalletMenu({ address, className }: { address: string; className?: strin
         trigger={
           <>
             <span className="hidden sm:inline-flex">
-              <Identicon wallet={address} size={14} />
+              <FighterAvatar wallet={address} size={14} />
             </span>
             <span className="num">{shortAddress(address)}</span>
           </>
         }
       >
         <MenuItem href={`/u/${address}`} className="gap-3 py-3">
-          <Identicon wallet={address} size={28} />
+          <FighterAvatar wallet={address} size={28} />
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <FighterName wallet={address} href={null} avatar={false} />
             <span className="flex min-w-0 items-center gap-2 text-meta text-dim">

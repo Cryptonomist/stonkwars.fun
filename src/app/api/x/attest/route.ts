@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 
 import { buildLinkHandle, isHandle } from "@/lib/duel";
 import { oracleKeypair } from "@/lib/oracleKey.server";
 import { COOKIE_LINK, openHandle, xConfig } from "@/lib/xAuth.server";
+import { avatarMemo, MEMO_PROGRAM_ID } from "@/lib/xLink";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,10 @@ export const dynamic = "force-dynamic";
  * is holding this browser". It is worth nothing on its own: the program also
  * demands the wallet's signature, which only the wallet can add, and which the
  * browser adds next. So the server can never write a handle onto a wallet, and
- * a wallet can never write a handle the server did not vouch for. */
+ * a wallet can never write a handle the server did not vouch for.
+ *
+ * When X named a profile picture, a memo carrying its URL goes in the same
+ * transaction, under the same two signatures (lib/xLink, lib/avatar.server). */
 export async function POST(req: NextRequest) {
   const cfg = xConfig();
   if (!cfg) return NextResponse.json({ error: "X sign-in is not configured" }, { status: 503 });
@@ -39,6 +43,15 @@ export async function POST(req: NextRequest) {
     const tx = new Transaction().add(
       buildLinkHandle(wallet, oracle.publicKey, BigInt(sealed.xId), sealed.handle),
     );
+    if (sealed.avatar) {
+      tx.add(
+        new TransactionInstruction({
+          programId: new PublicKey(MEMO_PROGRAM_ID),
+          keys: [],
+          data: Buffer.from(avatarMemo(sealed.avatar), "utf8"),
+        }),
+      );
+    }
     tx.feePayer = wallet;
     tx.recentBlockhash = (await conn.getLatestBlockhash("finalized")).blockhash;
     tx.partialSign(oracle);

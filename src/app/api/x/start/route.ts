@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AUTHORIZE, COOKIE_STATE, COOKIE_VERIFIER, pkce, randomState, redirectUri, SCOPES, xConfig } from "@/lib/xAuth.server";
+import { AUTHORIZE, COOKIE_NEXT, COOKIE_STATE, COOKIE_VERIFIER, pkce, randomState, redirectUri, SCOPES, xConfig } from "@/lib/xAuth.server";
+import { safeNext } from "@/lib/xLink";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +10,14 @@ export const dynamic = "force-dynamic";
  * The state stops somebody else's sign-in being handed back as yours, and the
  * PKCE verifier stops an intercepted code being spent by anyone but this
  * browser. Both are cookies rather than server state, so nothing here has to
- * remember anybody. */
+ * remember anybody. `?next=` is the page to come back to, a path on this site
+ * only (lib/xLink safeNext). */
 export async function GET(req: NextRequest) {
   const cfg = xConfig();
+  const next = safeNext(req.nextUrl.searchParams.get("next"));
   if (!cfg) {
     // Send them back to a page rather than a page of JSON.
-    const home = new URL("/leaderboard", req.nextUrl.origin);
+    const home = new URL(next, req.nextUrl.origin);
     home.searchParams.set("x", "error");
     home.searchParams.set("message", "X sign-in is not set up on this deployment yet.");
     return NextResponse.redirect(home);
@@ -43,5 +46,6 @@ export async function GET(req: NextRequest) {
   };
   res.cookies.set(COOKIE_STATE, state, cookie);
   res.cookies.set(COOKIE_VERIFIER, verifier, cookie);
+  res.cookies.set(COOKIE_NEXT, next, cookie);
   return res;
 }

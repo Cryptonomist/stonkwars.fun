@@ -2,6 +2,8 @@ import "server-only";
 
 import crypto from "crypto";
 
+import { cleanAvatar } from "@/lib/xLink";
+
 /* Signing in with X, the only way this app ever touches it.
  *
  * We ask for permission to read a public profile and nothing else: no posting,
@@ -11,7 +13,11 @@ import crypto from "crypto";
  *
  * Nothing is stored on a server here either. What survives the round trip is a
  * cookie this file signs, and the handle inside it is worth only as much as the
- * signature: the browser can read it, and cannot change it. */
+ * signature: the browser can read it, and cannot change it.
+ *
+ * The profile picture rides along the same way: X names its URL at sign-in, the
+ * cookie carries it, and the link transaction writes it in a memo the oracle
+ * signs (see app/api/x/attest and lib/avatar.server). */
 
 export type XConfig = { clientId: string; clientSecret: string };
 
@@ -31,6 +37,10 @@ export const SCOPES = ["users.read", "tweet.read"];
 export const COOKIE_STATE = "x_state";
 export const COOKIE_VERIFIER = "x_verifier";
 export const COOKIE_LINK = "x_link";
+/** Where to come back to after X, so signing in from any page returns to it. */
+export const COOKIE_NEXT = "x_next";
+
+export type XProfile = { xId: string; handle: string; avatar?: string | null };
 
 const b64url = (b: Buffer) => b.toString("base64url");
 
@@ -46,12 +56,12 @@ export const randomState = () => b64url(crypto.randomBytes(32));
 /* A cookie the browser carries but cannot forge. HMAC-SHA256 keyed by the X
  * client secret, which is already on the server and nowhere else; a payload
  * whose expiry has passed is refused even with a good signature. */
-export function sealHandle(secret: string, value: { xId: string; handle: string }, ttlSecs = 900) {
+export function sealHandle(secret: string, value: XProfile, ttlSecs = 900) {
   const body = b64url(Buffer.from(JSON.stringify({ ...value, exp: Math.floor(Date.now() / 1000) + ttlSecs })));
   return `${body}.${hmac(secret, body)}`;
 }
 
-export function openHandle(secret: string, token: string | undefined): { xId: string; handle: string } | null {
+export function openHandle(secret: string, token: string | undefined): XProfile | null {
   if (!token) return null;
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
@@ -62,11 +72,12 @@ export function openHandle(secret: string, token: string | undefined): { xId: st
     const value = JSON.parse(Buffer.from(body, "base64url").toString()) as {
       xId?: string;
       handle?: string;
+      avatar?: string | null;
       exp?: number;
     };
     if (!value.xId || !value.handle || !value.exp) return null;
     if (value.exp < Math.floor(Date.now() / 1000)) return null;
-    return { xId: value.xId, handle: value.handle };
+    return { xId: value.xId, handle: value.handle, avatar: cleanAvatar(value.avatar) };
   } catch {
     return null;
   }
@@ -84,7 +95,7 @@ export async function readProfile(
   code: string,
   verifier: string,
   origin: string,
-): Promise<{ xId: string; handle: string }> {
+): Promise<XProfile> {
   const res = await fetch(TOKEN, {
     method: "POST",
     headers: {
@@ -104,14 +115,14 @@ export async function readProfile(
   const token = (await res.json()) as { access_token?: string };
   if (!token.access_token) throw new Error("X returned no access token");
 
-  const me = await fetch(ME, {
+  const me = await fetch(`${ME}?user.fields=profile_image_url`, {
     headers: { authorization: `Bearer ${token.access_token}` },
     cache: "no-store",
   });
   if (!me.ok) throw new Error(`X would not say who you are (HTTP ${me.status})`);
-  const body = (await me.json()) as { data?: { id?: string; username?: string } };
+  const body = (await me.json()) as { data?: { id?: string; username?: string; profile_image_url?: string } };
   const id = body.data?.id;
   const handle = body.data?.username;
   if (!id || !handle) throw new Error("X returned no account");
-  return { xId: id, handle };
+  return { xId: id, handle, avatar: cleanAvatar(body.data?.profile_image_url) };
 }

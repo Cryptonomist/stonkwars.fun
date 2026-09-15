@@ -44,12 +44,13 @@ export default function Privacy() {
           request offline access, so X gives us no refresh token and we cannot act as you later.
         </p>
         <p>
-          At the moment you connect we read two things, your numeric X account id and your handle. The access token
-          that let us read them is discarded immediately and never stored.
+          At the moment you connect we read three things, your numeric X account id, your handle, and the address of
+          your X profile picture. The access token that let us read them is discarded immediately and never stored.
         </p>
         <p className="text-ink">
-          Your handle and your numeric X id are then written onto the Solana blockchain, beside your wallet address, in
-          a transaction you sign yourself. That record is public and permanent. Unlinking closes the account and returns
+          Your handle and your numeric X id, and a memo with your profile picture&apos;s address, are then written onto
+          the Solana blockchain, beside your wallet address, in a transaction you sign yourself. The picture itself is
+          fetched from X by this site and shown beside your handle, so a visitor&apos;s browser never contacts X for it. That record is public and permanent. Unlinking closes the account and returns
           its rent, but the transaction that created it stays in the chain&apos;s history for good. If you would rather not
           have an X account tied publicly to a wallet, do not connect one.
         </p>
@@ -57,10 +58,11 @@ export default function Privacy() {
 
       <Section title="Cookies">
         <p>
-          Two, both short-lived, both only during the few seconds you are connecting an X account. One carries the
-          one-time security values that stop somebody else&apos;s sign-in being swapped for yours. The other carries the
-          handle X just confirmed, from the moment you come back to the moment you sign. Both expire within minutes and
-          neither is readable by scripts in the page.
+          Three, all short-lived, all only during the few seconds you are connecting an X account. One carries the
+          one-time security values that stop somebody else&apos;s sign-in being swapped for yours. One remembers which
+          page on this site to bring you back to. The last carries the handle and picture X just confirmed, from the
+          moment you come back to the moment you sign. All expire within minutes and none is readable by scripts in the
+          page.
         </p>
         <p>There are no analytics cookies, because there are no analytics.</p>
       </Section>
