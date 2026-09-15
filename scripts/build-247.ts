@@ -40,8 +40,9 @@
  *
  *   pin       a market that passed all four and was fresh in at least 50% of
  *             the minutes is an input. One market per venue per stock.
- *   badge     at least 2 anchors and at least 3 markets in all fresh in at
- *             least 90% of the minutes. Only a stock with the badge is
+ *   badge     at least 3 anchors and at least 3 markets in all fresh in at
+ *             least 90% of the minutes (BADGE_ANCHORS says why three). Only a
+ *             stock with the badge is
  *             written to venues247.json: listed means priced 24/7, so every
  *             stock the composite prices has a quorum on an ordinary
  *             weekend minute, and the rest keep the exchange's hours.
@@ -93,7 +94,18 @@ const IDENTITY_MINUTE = 1_789_156_740;
 const IDENTITY_MAX_BPS = 150;
 const BADGE_FRESH = 2_592; // 90% of 2,880
 const PIN_FRESH = 1_440; // 50% of 2,880
-const BADGE_ANCHORS = 2;
+/* THREE ANCHORS, NOT TWO.
+ *
+ * The composite prices a side from 3 fresh markets with 2 anchors, and with
+ * only 2 anchors pinned a stock's quorum rests on both of them every minute.
+ * The adversarial study measured what that allows under composite-v1: one
+ * anchor print knocked GPRO's and HPE's priced sides to Monday's bar in 99.5%
+ * and 100% of minutes. Composite-v2 decides who counts before its window, so
+ * a print can no longer do that inside it (docs/247-hardening.md), but a stock
+ * whose quorum is two particular anchors still loses its 24/7 price whenever
+ * either goes quiet, and either one alone is half of its anchors. So a badge
+ * needs 3 anchors fresh in 90% of the weekend's minutes. */
+const BADGE_ANCHORS = 3;
 const BADGE_MARKETS = 3;
 
 /* REFUSED BY NAME (docs/247-pricing.md, step 3).
@@ -941,7 +953,10 @@ function writeLog(ev: Evidence, cache: string, roster: RosterStock[]) {
   say("- **Market lists:** fetched live from each venue at the times below.");
   say("- **Identity:** each market's one-minute closes from Fri 11 Sep 2026, 14:59 to 15:59 New York (regular session), fetched with the oracle's own request (`fetchVenueWindow`), against Yahoo's closes for the same minutes from the research cache. The regular session was closed when this roster was first built (Monday 14 Sep, evening in New York), so the check uses Friday's last hour, the latest the research saved Yahoo minutes for. Median gap at most 1.5%.");
   say("- **Liveness:** exact 15-minute freshness over the 2,880 weekend minutes (Sat 12 Sep 00:00 to Mon 14 Sep 00:00 UTC), from one-minute data: the research cache for Hyperliquid, Lighter, Backpack and the archived stocks, and a one-time sweep of the venues' history for the other CEX markets (saved under `build247/weekend` in the cache).");
-  say("- **Pin** at 50% freshness or more; **badge** with at least 2 anchors and at least 3 markets at 90% or more. Only badge stocks are written to `src/data/venues247.json`.");
+  say(
+    "- **Pin** at 50% freshness or more; **badge** with at least 3 anchors and at least 3 markets at 90% or more. Only badge stocks are written to `src/data/venues247.json`. " +
+      "The plan's badge asked for 2 anchors; 3 is the hardening step's rule (docs/247-hardening.md), because a stock whose quorum rests on two particular anchors loses its price whenever either goes quiet.",
+  );
   say("- **Reading the tables:** `BG 92.7% (412)` means the Bitget market was fresh in 92.7% of the weekend's minutes and 412 of those minutes had a trade. HL Hyperliquid, OKX, BG Bitget, BN Binance, LT Lighter, BP Backpack (anchors); GT Gate, MX MEXC, BX BingX (inputs that never make the two anchors).");
   say();
   say("| Venue | Stock markets listed | Fetched |");
@@ -951,6 +966,13 @@ function writeLog(ev: Evidence, cache: string, roster: RosterStock[]) {
   say(`Denied by name or id: ${ev.denied.length ? ev.denied.map((d) => `\`${d}\``).join(", ") : "none listed"}.`);
   say();
   say(`## Result: ${ev.badge.length} stocks, ${ev.badge.filter((t) => three(t) >= 3).length} of them with 3 or more anchors`);
+  say();
+  // The stocks that cleared the plan's two-anchor badge and not this one.
+  const twoAnchor = Object.entries(ev.tickers)
+    .filter(([t, e]) => !mine.has(t) && e.anchors90 === 2 && e.markets90 >= 3)
+    .map(([t]) => t)
+    .sort();
+  say(`With only 2 anchors required, ${ev.badge.length + twoAnchor.length} would have the badge. The ${twoAnchor.length} that do not: ${twoAnchor.join(", ") || "none"}.`);
   say();
   say("| Ticker | Counts towards the badge (90%+) | Pinned as input (50 to 90%) |");
   say("|---|---|---|");

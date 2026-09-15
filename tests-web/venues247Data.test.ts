@@ -9,17 +9,19 @@
  *   schema      the oracle's own reader accepts it, and nothing else is in it
  *   roster      every stock is a US roster stock quoted in dollars
  *   the flip    TSLA and QQQ are listed, VOO is not (section 4 of the plan)
- *   quorum      every listed stock has 3 markets, 2 of them anchors, at the
- *               cutover and at every boundary its set changes after it
+ *   quorum      every listed stock has 3 anchors pinned, at the cutover and
+ *               at every boundary its set changes after it
  *   denied      no pinned id is one the reader refuses, and the reader does
  *               refuse them
  *   evidence    the pins are exactly the markets the build measured as the
  *               same stock (within 1.5% of Yahoo) and alive (fresh in at least
- *               50% of last weekend's minutes), and each listed stock has 2
- *               anchors and 3 markets fresh in at least 90%
+ *               50% of last weekend's minutes), and each listed stock has 3
+ *               anchors fresh in at least 90%
  *
- * The thresholds are restated here from the plan, not imported from the
- * script, so a change to the script's numbers shows up as a failure. */
+ * The thresholds are restated here from the plan and the hardening step
+ * (docs/247-hardening.md, which raised the badge from 2 anchors to 3), not
+ * imported from the script, so a change to the script's numbers shows up as a
+ * failure. */
 
 import { expect } from "chai";
 import { readFileSync } from "node:fs";
@@ -62,6 +64,7 @@ const WEEKEND_MINUTES = 2_880;
 const BADGE_FRESH = 2_592;
 const PIN_FRESH = 1_440;
 const IDENTITY_BPS = 150;
+const BADGE_ANCHORS = 3;
 
 const tickers = Object.keys(raw.tickers);
 const freshOf = (m: { weekend: unknown }) => (m.weekend as { fresh?: number } | null)?.fresh ?? -1;
@@ -90,7 +93,7 @@ describe("venues247.json, the round-the-clock roster", () => {
     expect(tickers).to.not.include("VOO");
   });
 
-  it("gives every stock 3 markets, 2 of them anchors, at the cutover and wherever its set changes after it", () => {
+  it("gives every stock 3 anchors, at the cutover and wherever its set changes after it", () => {
     for (const t of tickers) {
       const pins = VENUES247.tickers[t];
       const moments = [COMPOSITE_FROM, ...pins.flatMap((p) => [p.from, p.until ?? p.from])].filter((b) => b >= COMPOSITE_FROM);
@@ -99,7 +102,7 @@ describe("venues247.json, the round-the-clock roster", () => {
         const venues = new Set(set.map((i) => i.venue));
         expect(venues.size, `${t} markets at ${b}`).to.equal(set.length);
         expect(set.length, `${t} markets at ${b}`).to.be.at.least(3);
-        expect(set.filter((i) => VENUES[i.venue].anchor).length, `${t} anchors at ${b}`).to.be.at.least(2);
+        expect(set.filter((i) => VENUES[i.venue].anchor).length, `${t} anchors at ${b}`).to.be.at.least(BADGE_ANCHORS);
       }
     }
   });
@@ -146,7 +149,7 @@ describe("venues247.json, the round-the-clock roster", () => {
       }
       const at90 = pinned.filter((m) => freshOf(m) >= BADGE_FRESH);
       expect(at90.length, `${t} markets at 90%`).to.be.at.least(3);
-      expect(at90.filter((m) => m.anchor).length, `${t} anchors at 90%`).to.be.at.least(2);
+      expect(at90.filter((m) => m.anchor).length, `${t} anchors at 90%`).to.be.at.least(BADGE_ANCHORS);
       for (const m of e.markets) expect(m.anchor, `${t} ${m.venue}`).to.equal(VENUES[m.venue].anchor);
     }
   });
@@ -159,7 +162,7 @@ describe("venues247.json, the round-the-clock roster", () => {
       const at90 = new Set(
         e.markets.filter((m) => ((m.identity as { bps?: number } | null)?.bps ?? Infinity) <= IDENTITY_BPS && freshOf(m) >= BADGE_FRESH).map((m) => m.venue),
       );
-      const clears = at90.size >= 3 && [...at90].filter((v) => VENUES[v].anchor).length >= 2;
+      const clears = at90.size >= 3 && [...at90].filter((v) => VENUES[v].anchor).length >= BADGE_ANCHORS;
       expect(clears, `${t} is measured to the badge but not listed`).to.equal(false);
     }
   });

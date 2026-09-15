@@ -146,7 +146,7 @@ One print on one venue in the end minute, or in the start and end minutes, marke
 
 ## 7. What this does not show
 
-- **Evidence base.** One weekend, and 12 stocks that are among the most liquid 24/7 names. Thinner listed names have fewer counted venues and larger gaps between them. The roster rule below requires 3 anchors for that reason.
+- **Evidence base.** One weekend, and 12 stocks that are among the most liquid 24/7 names. Thinner listed names have fewer counted venues and larger gaps between them. The roster rule in section 8 requires 3 anchors for that reason.
 - **Cost.** No order books were read, so a changeable round is an opportunity, not a measured profit.
 - **Attacks not modelled:**
   - Two venues colluding.
@@ -156,7 +156,20 @@ One print on one venue in the end minute, or in the start and end minutes, marke
 - **Pairs.** The opponent is flat. Two stocks that move together, such as two semiconductor names, are closer than this, and two that do not are further apart.
 - **Timing against a side priced at the boundary.** A composite side is stamped up to 3 minutes after its boundary. A Pyth side (VOO) or an exchange side in session (a Hong Kong stock at 21:30 ET) is stamped within a minute. So such a pair lands more than `SAME_PRICE_SECS` apart and is refused, with a sentence that says so.
 
-## 8. Which source prices a side
+## 8. The roster: three anchors
+
+- **The old rule and its risk.** The plan's badge needed 2 anchors fresh in 90% of the weekend's minutes. Under v1 a stock resting on exactly two anchors could be knocked to Monday's bar by one print. The study measured GPRO at 99.5% and HPE at 100%.
+- **What v2 changes, and what it does not.** v2 fixes who counts before the window, so a print can no longer do that. But such a stock still loses its 24/7 price whenever either anchor goes quiet, and each anchor is half its anchors.
+- **The new rule.** The badge now needs 3 anchors at 90%. `scripts/build-247.ts` sets `BADGE_ANCHORS` = 3.
+- **The rebuild.**
+  - It ran with `--offline` on the same research cache, with `src/data/venues247.json` cleared first so every pin keeps its single `from`. It made 0 requests.
+  - It lists **45 stocks, down from 64**. Every kept stock's pins are unchanged.
+- **The 19 that dropped:** ALAB, ARM, ASTS, BABA, CBRS, DJT, FLNC, GPRO, IBM, IREN, LITE, NOK, PURR, QCOM, SMH, SQQQ, TQQQ, USAR and WDC. HPE was already out.
+- **After the cutover.** Together with section 9, the dropped names price on their exchange's hours from `COMPOSITE_FROM`. Before it they keep any perp or pool they had.
+- **Records.** `docs/247-roster.md` is the regenerated build log. `tests-web/venues247Data.test.ts` now requires 3 pinned anchors at every boundary and 3 anchors at 90% in the evidence.
+- **The flip still holds.** TSLA, QQQ, SPY and MSFT each keep 3 or more anchors, so TSLA and QQQ remain listed.
+
+## 9. Which source prices a side
 
 ### A duel keeps the sources it recorded
 
