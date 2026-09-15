@@ -53,6 +53,7 @@ import {
   byTicker,
   CLUSTER,
   firstPriceAt,
+  offHoursWords,
   openingWords,
   pricedAt,
   sourceLabel,
@@ -404,7 +405,7 @@ function Header({
       <dl className="flex flex-wrap gap-x-6 gap-y-3 border-t border-line pt-3">
         <Fact label="Hours">
           {now ? <Badge>{us ? SESSION_WORDS[session(now * 1_000)] : `${stock.market} exchange hours`}</Badge> : <Skeleton className="h-4.5 w-20" />}
-          {tradesAroundTheClock(ticker) ? <Badge>24/7</Badge> : null}
+          {tradesAroundTheClock(ticker) ? <Badge title={`While the exchange is shut: ${offHoursWords(ticker)}`}>24/7</Badge> : null}
         </Fact>
         <Fact label="Priced by" hint="Where a start or bell price set right now would come from.">
           {priced ? <Badge variant="source">{PRICED_WORDS[priced]}</Badge> : <Skeleton className="h-4.5 w-16" />}

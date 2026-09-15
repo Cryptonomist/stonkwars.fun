@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/Badge";
@@ -15,13 +16,37 @@ import { AROUND_THE_CLOCK } from "@/lib/stocks";
  * None of it is green. Green on this site means a price went up, and a session
  * opening is not a price moving. Open gets the split live dot and ink; the
  * in-between sessions are ink; shut is dim, with a neutral badge counting the
- * stocks that fight around the clock. */
+ * stocks that fight around the clock, and the whole thing is the way to them:
+ * the picker on /new, opened on its Live 24/7 filter. */
 
 const WORDS: Record<Exclude<Session, "closed">, string> = {
   open: "Market open",
   pre: "Pre-market",
   after: "After hours",
 };
+
+/** The picker, opened on the stocks that fight now. */
+export const LIVE_247_HREF = "/new?filter=247";
+
+/* "LIVE 24/7 NOW", WHERE A PAGE HAS ROOM FOR IT.
+ *
+ * Only while the exchange is shut, and only once the page has a clock, so the
+ * server render (which cannot know the hour) never shows it. */
+export function LiveNowLink({ className }: { className?: string }) {
+  const [s, setS] = useState<Session | null>(null);
+  useEffect(() => {
+    const tick = () => setS(session());
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  if (s !== "closed" || AROUND_THE_CLOCK === 0) return null;
+  return (
+    <Link href={LIVE_247_HREF} className={cx("btn btn-sm btn-ghost shrink-0 whitespace-nowrap", className)}>
+      Live 24/7 now <span className="num text-dim">{AROUND_THE_CLOCK}</span>
+    </Link>
+  );
+}
 
 /** `className` carries the display (the nav passes "hidden xl:inline-flex"). */
 export function MarketBadge({ className = "inline-flex" }: { className?: string }) {
@@ -36,10 +61,13 @@ export function MarketBadge({ className = "inline-flex" }: { className?: string 
 
   if (s === "closed") {
     return (
-      <span className={cx("label items-center gap-2 whitespace-nowrap text-dim", className)}>
+      <Link
+        href={LIVE_247_HREF}
+        className={cx("label items-center gap-2 whitespace-nowrap text-dim transition-colors hover:text-ink", className)}
+      >
         Exchange shut
-        {AROUND_THE_CLOCK > 0 ? <Badge variant="neutral">{`${AROUND_THE_CLOCK} fight 24/7`}</Badge> : null}
-      </span>
+        {AROUND_THE_CLOCK > 0 ? <Badge variant="neutral">{`${AROUND_THE_CLOCK} live 24/7`}</Badge> : null}
+      </Link>
     );
   }
   return (

@@ -583,6 +583,7 @@ export function CreateFight() {
               className="mt-3"
             >
               <StockPicker
+                initialKind={params.get("filter") === "247" ? "allday" : "all"}
                 side={corner}
                 value={corner === "p1" ? p1 : p2}
                 taken={corner === "p1" ? p2 : p1}

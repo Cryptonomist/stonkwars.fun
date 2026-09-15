@@ -7,6 +7,9 @@
 Stake real tokenized shares on your stock. Your friend stakes theirs.
 At the bell, whichever moved more takes both stakes. The market decides, not us.
 
+45 tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check.
+Every other stock fights the moment its market opens. We never invent a price.
+
 [stonkwars.fun](https://stonkwars.fun) · Built on Solana · Every tokenized stock on Solana: 1,033 of them · Entry for [Stocklana](https://hackathons.solana.com/hackathons/stocklana)
 
 </div>
@@ -43,7 +46,7 @@ Two issuers' tokens of one stock (TSLAx and TSLAon) share one feed id, and the p
 
 ## A fight, start to finish
 
-1. **Call it.** Pick your fighter, theirs, a stake ($25 each, sized in integers from the live price), and a round: 5 minutes, an hour, the next closing bell, or Friday's. Add a taunt; it is written on chain with the fight.
+1. **Call it.** Pick your fighter, theirs, a stake ($25 each, sized in integers from the live price), and a round: 5 or 15 minutes, an hour, overnight (12 hours), 24 hours, the next closing bell, or Friday's. Add a taunt; it is written on chain with the fight. A pair that cannot start fairly now but can later (a stock that waits for its exchange against one that trades, or a short round while the exchange is shut) is queued, not refused: the challenge says when it can be taken.
 2. **They answer.** The link unfurls on X as a VS card, and every fight is also a standard Solana Action any Actions client can take. Whoever takes it stakes exactly the terms offered. A fight can be open to anyone or addressed to one wallet.
 3. **The round runs** from each stock's first price at least two seconds after the accept. The fight page is a fighting-game HUD: live moves, health bars that drain with the gap between the two stocks, a clock to the bell.
 4. **The bell.** Each stock's first price at or after the end. Bigger percentage move wins both stakes; an exact tie refunds each side. The settler posts it within a minute, and anyone can post it from the fight page.
@@ -52,9 +55,11 @@ Two issuers' tokens of one stock (TSLAx and TSLAon) share one feed id, and the p
 
 Each stock is priced by one of two sources, fixed when it is registered and copied onto every fight that uses it:
 
-**Pyth, trusting nobody** (TSLA, QQQ and VOO on this deployment). A `PriceUpdateV2` account written by the Pyth receiver after it checks Wormhole guardian signatures. Pyth prints several times a second, but every update records the publish time of the one before it, and the program accepts only `prev_publish_time < boundary <= publish_time`: the unique first price at or after the bell, the rule Pyth's own EVM contract enforces as `parsePriceFeedUpdatesUnique`.
+**Pyth, trusting nobody** (VOO on this deployment). A `PriceUpdateV2` account written by the Pyth receiver after it checks Wormhole guardian signatures. Pyth prints several times a second, but every update records the publish time of the one before it, and the program accepts only `prev_publish_time < boundary <= publish_time`: the unique first price at or after the bell, the rule Pyth's own EVM contract enforces as `parsePriceFeedUpdatesUnique`.
 
-**The Stonk Wars oracle, for every other stock.** Pyth's free plan grants three US equity feeds; the other 1,030 stocks would otherwise be locked. The oracle answers the same question, the first price at or after the boundary, from completed one-minute bars of the stock's regular session: the close of the bar the boundary falls in, or of the first bar after it when the market was shut, converted to dollars at the same minute for a foreign listing. It signs a fixed 78-byte message (feed, boundary, price, exponent, time); the settler puts the signature in an Ed25519 program instruction in the same transaction, and the program finds it through the instructions sysvar (`quote.rs`).
+**The Stonk Wars oracle, for every other stock.** Pyth's free plan grants three US equity feeds, and Pyth's equity feeds are dark from Friday 8 PM to Sunday 8 PM New York, so TSLA and QQQ, which trade all weekend elsewhere, are priced by the oracle for new fights, and the other 1,030 stocks would otherwise be locked. The oracle answers the same question, the first price at or after the boundary, from completed one-minute bars of the stock's regular session: the close of the bar the boundary falls in, or of the first bar after it when the market was shut, converted to dollars at the same minute for a foreign listing. It signs a fixed 78-byte message (feed, boundary, price, exponent, time); the settler puts the signature in an Ed25519 program instruction in the same transaction, and the program finds it through the instructions sysvar (`quote.rs`).
+
+**24/7, on real markets.** While a US stock's exchange is shut (8 PM to 4 AM New York, weekends, holidays), the oracle prices the 45 stocks pinned in `src/data/venues247.json` by composite-v2: the median, over the three minutes from the boundary, of the one-minute closes of up to nine public venues that trade the stock around the clock (Hyperliquid, OKX, Bitget, Binance, Lighter, Backpack, Gate, MEXC, BingX), each corrected by its premium to the others over the hour before. A venue counts only if it traded in the 15 minutes before; at least 3 must count, 2 of them with real volume, or the side takes the exchange's first bar. The pins and the rule were measured on a real weekend of minutes (`docs/247-roster.md`, `docs/247-hardening.md`), and because one venue can still tip a short round, a round the composite prices runs at least 12 hours. Every such price comes with a proof, each venue's request, closes and what was kept, with a sha256, drawn on the fight's receipt and recomputed by `/api/quote/proof`. Every other stock waits for its own market.
 
 Why not the tokens' own DEX prices? Most tokenized stocks barely trade on Solana: Jupiter prices 31 of the first 89 xStocks we checked, and some of those were far from the real share (a VXUS token at $250.85 against an $87.12 share). A thin pool can be pushed with one swap at the bell. Fights settle on the stock's real market price.
 
@@ -83,7 +88,7 @@ programs/duel/        the Anchor program (Anchor 1.1.2)
   src/outcome.rs      the exact, integer winner test
   src/mint_check.rs   which Token-2022 mints can sit in escrow
   src/lib.rs          12 instructions, 3 ways out
-tests/duel.ts         29 LiteSVM tests against the built binary, real Ed25519 signatures included
+tests/duel.ts         37 LiteSVM tests against the built binary, real Ed25519 signatures included
 tests-web/            the quote layout (pinned against the Rust side), bar selection, market clock, stake sizing
 src/                  the Next.js app
   app/f/[duel]/       the fight page and its share card
@@ -95,7 +100,7 @@ src/                  the Next.js app
   app/api/faucet      test clusters only: test shares and SOL
   lib/duel.ts         the client half of the program: PDAs, instructions
   lib/oracle.ts       the price for a moment: the exchange's bars, or the pool's, and its signature
-  lib/composite.ts    composite-v1: the weekend and overnight price, a median of up to nine venues' minutes
+  lib/composite.ts    composite-v2: the weekend and overnight price, a median of up to nine venues' minutes, with its proof
   lib/venues247.ts    the venues it reads, their fixed requests, and data/venues247.json's pins
   lib/crankTx.ts      a fight's transactions: post, quote + start/settle, close
   data/roster.json    the 1,033 stocks
@@ -103,8 +108,9 @@ scripts/
   data/tokens.json    every issuer's tokens, with on-chain mint facts
   build-roster.ts     tokens -> the roster: what a fight can hold and a market can price
   watch-listings.ts   what the issuers publish today that the snapshot does not have
-  build-perps.ts      the perpetual market that prices each stock while its exchange is shut
-  build-pools.ts      the Solana pool that prices it when there is no perp
+  build-247.ts        the venues that price each 24/7 stock while its exchange is shut, from a measured weekend
+  build-perps.ts      before COMPOSITE_FROM: the perpetual market that priced a shut stock
+  build-pools.ts      before COMPOSITE_FROM: the Solana pool, where there was no perp
   offhours-audit.ts   which stocks can actually be priced right now, asked of the real oracle
   setup-devnet.ts     config, oracle, a test mint and registration per stock
   settler.ts          the permissionless cranks, on a timer
@@ -142,8 +148,8 @@ Everything below runs in WSL/Linux with the Solana toolchain (Anchor 1.1.2, Agav
 npm install
 anchor build                       # programs/duel -> target/deploy/duel.so
 cargo test -p duel --lib           # 26 unit tests: parsing, the one-price rule, quotes, the outcome
-npm test                           # 29 LiteSVM tests against the binary
-npm run test:web                   # 17 tests: quote layout, bar selection, market clock, stake sizing
+npm test                           # 37 LiteSVM tests against the binary
+npm run test:web                   # the app's tests: quote layout, hours, the composite, the settler, stake sizing
 ```
 
 **Real prices at any hour** (surfpool forks devnet; BTC by Pyth, ETH and SOL by the oracle, because crypto never closes):
@@ -167,7 +173,7 @@ NEXT_PUBLIC_CLUSTER=localnet NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8899 RPC_URL=h
 ## Honest limits
 
 - **The oracle is a trusted key** for the stocks it prices, as above. Its market data is a public minute-bar feed; the source is one function in `lib/oracle.ts`, and swapping it (or moving a stock to Pyth) changes nothing on chain.
-- **Out of hours, the price is not the share's.** While a US stock's own market is open, 4am to 8pm New York time, the oracle reads that market. Outside it, the price comes from the stock's perpetual future on Hyperliquid, which trades every minute of every day, on the same rule the exchange gets: the close of the first one-minute bar at or after the boundary. A perp is not a share, and that is the honest cost of settling at a weekend. It is also the better of the two options we measured: the Solana pools these stocks trade in managed a median of three traded minutes an hour at a weekend, and a fifteen-minute reading of them moved five times as much as the market actually had. A stock with no perpetual market falls back to its pool, read as a trimmed average; one with neither keeps exchange hours, as do all 80 listings outside the US. Each perp market is checked against the stock's own last price before it is used, which is how we caught that the venue's `CL` is crude oil while ours is Colgate-Palmolive. Pyth's equity feeds stop with the market, so the three Pyth-priced stocks keep exchange hours whatever else is open.
+- **Out of hours, the price is not the share's.** While a US stock's own market is open, 4am to 8pm New York time, the oracle reads that market. Outside it, the 45 stocks marked 24/7 are priced by the median of perpetual futures and tokenized shares on up to nine venues. Those are not the share: a weekend price is what those markets traded, not the next open, and the receipt says so. It is also the better of the options we measured: the Solana pools these stocks trade in managed a median of three traded minutes an hour at a weekend. The evidence is one weekend and 12 of the most liquid names; the composite sat a median 5.4 bps from Friday's close and 13.8 bps from Monday's open at the handoff, and one venue can still tip a short round, so a round it prices runs at least 12 hours. Each venue was checked against the stock's own price before it was pinned, which is how one venue's `CL`, crude oil, stayed away from Colgate-Palmolive. Every other stock keeps exchange hours, as do all 80 listings outside the US. Pyth's equity feeds are dark at weekends, so VOO fights only while Pyth prints. Hyperliquid keeps about 3 days of one-minute history and Gate about 6, so older proofs cannot be recomputed in full.
 - **Thin stocks.** "The first price at or after the boundary" is the first minute with a trade. A stock that does not trade in the bell's minute settles on its next trade, which for a thin ETF can be the next morning.
 - **Foreign listings** trade in their own hours. A Hong Kong stock against a US one at the US bell settles on Hong Kong's next trade after it.
 - **Scaled amounts and dividends.** Issuers pass on dividends and splits through a `ScaledUiAmount` multiplier, which today runs from 0.07 to 10 across the roster's mints. Prices are the underlying share's, so a stock that goes ex-dividend mid-fight drops by the dividend while its token compensates holders; a mainnet build must also apply the multiplier when it values and sizes stakes. The test shares have none.

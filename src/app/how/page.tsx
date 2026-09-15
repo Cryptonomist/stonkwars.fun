@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/ui/PageHeader";
+import { MIN_OFFHOURS_ROUND_SECS } from "@/lib/composite";
 import { AROUND_THE_CLOCK, ROSTER } from "@/lib/stocks";
 
 import { ContentsDetails, ContentsRail, type Contents } from "./OnThisPage";
@@ -28,6 +29,8 @@ export const metadata: Metadata = { title: "How it works" };
  * stocks, which are priced by Pyth, and how many fight around the clock. */
 
 const PYTH = ROSTER.filter((s) => s.source === "pyth").map((s) => s.ticker);
+
+const MIN_ROUND_HOURS = MIN_OFFHOURS_ROUND_SECS / 3_600;
 
 /** "TSLA, QQQ and VOO". */
 const listWords = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
@@ -118,19 +121,32 @@ const RULES: Rule[] = [
     id: "three-in-the-morning",
     label: "Fighting at 3am",
     q: "Can I fight at three in the morning?",
-    a: `Yes, on ${AROUND_THE_CLOCK.toLocaleString("en-US")} of them. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside even that, and at weekends, the price comes from a market that never closes: the stock's perpetual future on Hyperliquid, which trades every minute of every day. The rule is the same one the exchange gets, so a round measures exactly the interval it says it does.${
+    a: `Yes. ${AROUND_THE_CLOCK.toLocaleString("en-US")} tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check. Every other stock fights the moment its market opens. We never invent a price. A US stock's own market runs from 4am to 8pm New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside that, at night, at weekends and on holidays, those ${AROUND_THE_CLOCK.toLocaleString("en-US")} are priced by the markets that trade them around the clock: perpetual futures and tokenized shares on up to nine public venues, and the price is the median of their one-minute closes over three minutes. A round priced that way runs at least ${MIN_ROUND_HOURS} hours, so no single venue can swing a result; pick a shorter one and it waits for the open.${
       PYTH.length
         ? ` The stocks priced by Pyth (${listWords(PYTH)}) fight while Pyth's equity feeds print, from 8pm Sunday to 8pm Friday New York time, except on market holidays and after 1pm on a half day. A fight that would start or end while Pyth is dark is refused, because nothing could ever price it.`
         : ""
     }`,
-    dev: "Off-hours, a perpetual future is read exactly as the exchange is: the close of its first one-minute bar at or after the moment in question.",
+    dev: (
+      <>
+        <p>
+          The rule is <Code>composite-v2</Code>. A venue counts only if it traded in the 15 minutes before the window and its
+          premium to the others can be measured over the 75 minutes before; its closes are divided by that premium. Each
+          minute takes the median of the counted closes, drops any more than 50 bps from it, and the price is the median of
+          the three minutes, stamped at the end of the window. At least 3 venues must count, 2 of them with real volume.
+        </p>
+        <p>
+          With fewer, the side is not priced by a guess: it takes the exchange&apos;s first bar after the boundary. Every
+          price&apos;s proof, with each venue&apos;s request, closes and a sha256, is on the fight&apos;s receipt and at{" "}
+          <Code>/api/quote/proof</Code>.
+        </p>
+      </>
+    ),
   },
   {
     id: "perpetual-futures",
-    label: "Why perps are fair",
+    label: "Why 24/7 markets are fair",
     q: "A perpetual future is not a share. Why is that fair?",
-    a: "Because a fight compares two moves, not two price tags, and the alternative was worse. We priced weekends from each token's own Solana pool first, and measured it: those pools traded a median of three minutes an hour, and a fifteen-minute reading of them moved five times as much as the market actually had. The perps print every minute, carry real size, and track the underlying share closely; each market is checked against the stock's own last price before it is used at all, which is how we caught that the venue's CL is crude oil while our CL is Colgate-Palmolive. A stock with no perpetual market falls back to its pool, and one with neither keeps exchange hours.",
-    dev: "A pool price is the average of the middle 60% of up to 15 one-minute closes in the hour before the boundary, so one trade cannot set it.",
+    a: `Because a fight compares two moves, not two price tags, and the alternative was worse. We priced weekends from each token's own Solana pool first, and measured it: those pools traded a median of three minutes an hour, and a fifteen-minute reading of them moved five times as much as the market actually had. The markets that trade these stocks around the clock print every minute and carry real size. A stock gets the 24/7 badge only after a weekend of their one-minute trades was measured: at least three venues with real volume, each with a trade within 15 minutes in 90% of the weekend's minutes, and each checked against the stock's own price, which is how we caught that one venue's CL is crude oil while ours is Colgate-Palmolive. That is ${AROUND_THE_CLOCK.toLocaleString("en-US")} stocks. A weekend price is what those markets traded, not the next open, and the receipt says so.`,
   },
   {
     id: "why-not-pyth",
@@ -142,7 +158,7 @@ const RULES: Rule[] = [
     id: "why-not-the-token",
     label: "Why not the token price",
     q: "Why not the token's price all the time?",
-    a: "Because while the stock's own market is open it is the better number by a distance: far deeper, far harder to move, and the thing the token is a claim on. The stock's perpetual future, or for the few without one its Solana pool, is the answer to a shut exchange, not a replacement for an open one.",
+    a: "Because while the stock's own market is open it is the better number by a distance: far deeper, far harder to move, and the thing the token is a claim on. The markets that trade it around the clock are the answer to a shut exchange, not a replacement for an open one.",
   },
   {
     id: "round-start",
@@ -160,7 +176,7 @@ const RULES: Rule[] = [
     id: "market-closed",
     label: "Market closed",
     q: "What if the market is closed?",
-    a: `For the ${AROUND_THE_CLOCK.toLocaleString("en-US")} that fight around the clock, nothing changes: the fight runs and settles on schedule, priced by the stock's perpetual future or, for a few with none, by its own Solana pool. For the rest, and for listings outside the US, a fight taken while their market is shut starts at the first price when trading resumes. If that is more than five days away, or it lands inside the last minute of a fixed-end round, the fight is void and both stakes go home.`,
+    a: `For the ${AROUND_THE_CLOCK.toLocaleString("en-US")} that fight around the clock, nothing changes: the fight runs and settles on schedule, priced by the median of the markets that trade the stock around the clock, on a round of ${MIN_ROUND_HOURS} hours or more. For the rest, and for listings outside the US, a price comes from the first trade after their market opens again. Two stocks whose prices would land hours apart cannot be taken until they line up, so a challenge made then is queued: it says when it can be taken, and a take from then starts it at the first prices after. A fight that still cannot start fairly (its market reopens more than five days later, or inside the last minute of a fixed-end round) is void, and both stakes go home.`,
   },
   {
     id: "no-taker",

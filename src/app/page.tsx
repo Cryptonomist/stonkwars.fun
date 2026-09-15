@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ClosingSoon } from "@/components/ClosingSoon";
 import { LiveBoard } from "@/components/LiveBoard";
 import { MainEvent } from "@/components/MainEvent";
+import { LiveNowLink } from "@/components/MarketBadge";
 import { Movers } from "@/components/Movers";
 import { ProofStrip } from "@/components/ProofStrip";
 import { SiteTally } from "@/components/SiteTally";
@@ -66,6 +67,8 @@ export default function Home() {
               * line as asking for their money. */}
             {CLUSTER !== "mainnet-beta" ? " On Solana devnet: real market prices, free test shares, nothing real at stake." : ""}
           </p>
+          {/* While the exchange is shut, the way straight to a fight that runs now. */}
+          <LiveNowLink />
           {/* A phone already has this button in the bar under its thumb, and the
             * second copy up here cost the first screen a fight row. */}
           <Link href="/new" className="btn btn-p1 hidden shrink-0 sm:inline-flex">

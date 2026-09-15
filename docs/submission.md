@@ -29,16 +29,16 @@ ones, and the entry should lead with the first: **24/7 trading venues**, and
 
 1v1 stock fights on Solana, on any of 1,033 tokenized stocks. Stake shares of
 the stock you back; somebody stakes theirs. The bigger percentage move by the
-bell takes both stakes, paid in shares. 37 fight around the clock, priced
-off-hours by markets that never shut.
+bell takes both stakes, paid in shares. 45 fight 24/7/365 on real markets, with
+a public receipt anyone can check.
 
 ## Long description
 
-> **Budget: 4,997 characters.** The form's Full Description field is reported to
+> **Budget: 4,563 characters.** The form's Full Description field is reported to
 > be a 5,000 character hard cap that truncates silently. That cap is a research
 > finding rather than something confirmed against the live form, so check it
-> before pasting. Either way there are three characters of headroom, so anything
-> added here has to displace something. `python3` over this section counts it.
+> before pasting. There are 437 characters of headroom.
+> `python3 scripts/description-budget.py` counts this section and the short one.
 
 **The problem.** Every group chat has the argument: *NVDA eats TSLA this week.*
 There has never been a way to settle it. A brokerage cannot hold a bet between
@@ -53,30 +53,24 @@ tokenized stocks make that possible: nobody hands a friend "my Tesla shares" at
 a brokerage.
 
 **Fights that do not wait for a bell.** This is the part that could not exist
-off chain. A share on a chain does not stop when the exchange does, so 37
-stocks fight at midnight on a Sunday. During market hours the price is the
-stock's own market, 4am to 8pm New York time, pre-market and after-hours
-included. Outside that, one of two markets that never close answers.
+off chain. 45 tokenized stocks fight 24/7/365 on real markets, with a public
+receipt anyone can check. Every other stock fights the moment its market opens.
+We never invent a price. In market hours the price is the stock's own market,
+4am to 8pm New York time. Outside them it is the median of the one-minute
+closes of up to nine public venues that trade the stock around the clock,
+perpetual futures and tokenized shares, from Hyperliquid and OKX to Binance and
+Lighter.
 
-For 31 of them it is the stock's perpetual future on Hyperliquid, a HIP-3
-equity perp printing a candle every minute of every day. With no gaps, the
-off-hours price uses the ordinary rule, the close of the first bar at or after
-the boundary, so a five-minute round measures five minutes. The honest cost: a
-perpetual future is a derivative of the equity, not the share in escrow. What
-it buys is a price that exists. We tried the tokens' own pools first and
-measured them at one in the morning: of 23 that passed the depth floors, five
-could be priced at all, and CRCL held $2.19M without trading a minute in the
-hour. Depth is not trading. A matching ticker is not a matching instrument
-either, so every perp is checked against the stock's own last price and refused
-more than 5% out. That caught the venue's CL, crude oil where ours is
-Colgate-Palmolive: 95.62 against 86.80, refused. No volume figure would have.
-
-The other 6 settle on a pinned Solana pool: up to fifteen of the token's own
-one-minute closes, discarding the highest and lowest fifth and averaging the
-rest. A bought minute lands in the part thrown away and counts for nothing. We
-tried a median first and replaced it: it moves in jumps and declared draws on
-fights somebody had won. A price that says nothing happened when something did
-is the wrong price, however unpushable.
+A median is only as honest as its inputs, so we measured before trusting any.
+A stock gets the badge only if three venues with real volume traded it within
+15 minutes through 90% of last weekend's minutes, each checked against the
+share itself. That caught one venue's CL, crude oil where ours is
+Colgate-Palmolive. Then we attacked the rule with those minutes. Each venue is
+corrected for its premium to the others and the price is the median of three
+minutes, yet one venue could still change over a third of some stock's
+15-minute rounds, and never more than 2.6% of 12-hour ones. So a round priced
+this way runs at least 12 hours, and a shorter one queues for the open. Every
+price's proof, venue by venue with a sha256, is on the fight's own receipt.
 
 **Every tokenized stock.** We pulled every issuer's token list, read each mint's
 Token-2022 extensions on chain, and kept what a program can escrow: 1,345 issuer
@@ -87,7 +81,7 @@ today and screens anything new the same way, because a stock listing on Solana
 every week is the normal state now.
 
 **Why nobody can rig it.** Each stock has one price authority, copied onto every
-fight at creation. TSLA, QQQ and VOO are Pyth updates verified on Solana against
+fight at creation. VOO is priced by Pyth updates verified on Solana against
 Wormhole guardian signatures, and the program accepts only the unique first
 price at or after each boundary (Pyth's own `parsePriceFeedUpdatesUnique` rule).
 Every other stock is priced by the Stonk Wars oracle: a price signed off chain
@@ -116,7 +110,7 @@ is a knockout. A guest wallet and a faucet put a stranger in a fight within a
 minute, no extension and no SOL.
 
 Built on Anchor, Pyth, Solana's Ed25519 program and LiteSVM, over the issuers'
-own token lists, Hyperliquid's HIP-3 markets, GeckoTerminal and Yahoo bars.
+own token lists, nine venues' public minute bars and Yahoo bars.
 
 ## Against the four things judges look for
 
@@ -136,7 +130,7 @@ own token lists, Hyperliquid's HIP-3 markets, GeckoTerminal and Yahoo bars.
 ## What was built in the window (Sept 11 to 18)
 
 All of it. The duel program and its tests, the Next.js app and brand, the
-oracle and its off-hours pricing, pools and then perps, the settler, the Solana Action,
+oracle and its off-hours pricing (pools, then perps, then the nine-venue median), the settler, the Solana Action,
 the share cards, X handle linking, the devnet deployment. Wallet plumbing (the
 React 19 connect button, phone wallet hand-off, honest transaction confirmation)
 is carried over from the same author's Commish.
@@ -146,13 +140,14 @@ is carried over from the same author's Commish.
 - **1,033** stocks and ETFs, screened from 1,345 issuer tokens across 7
   issuers; 122 ETFs, 80 listed outside the US. Every mint checked against the
   program's escrow rules, read from mainnet
-- **37** fight around the clock: **31** priced by a Hyperliquid HIP-3 equity
-  perp, **6** by a pinned Solana pool. Pinned on 12 September, $567M of 24-hour
-  notional across the 32 perp markets that passed the gates and $11.8M of
-  liquidity across the 13 pinned pools
+- **45** fight 24/7/365, each pinned to **6 to 9** public venues, **3** or
+  more of them with real volume, measured minute by minute on the weekend of 12
+  September. A round those venues price runs **12** hours or more, where one
+  venue could change at most **2.6%** of any measured stock's rounds
 - **2** sources of trust, chosen per stock and frozen per fight: Pyth
-  (trustless) and a signed oracle (public, checkable, labelled). **3** markets
-  read behind them: the exchange, the perp, the pool
+  (trustless) and a signed oracle (public, checkable, labelled). **2** kinds of
+  market read behind the oracle: the stock's exchange, and the median of its
+  24/7 venues, with a proof for every price
 - **14** program instructions, **3** ways for a stake to leave escrow, **0**
   admin withdrawals
 - **26** Rust unit tests · **37** LiteSVM tests against the built binary, with
@@ -249,11 +244,11 @@ read. Nothing on screen shows a keypair, a seed phrase or a `.env`.
    dramatic one. The drama was round one. The point of round two is that it ran
    at all."*
 10. **2:32 to 2:47. How much of the market this is.** The picker scrolling 1,033
-    stocks and ETFs, then filtered to the ones that fight around the clock.
-    *"One thousand and thirty three tokenized stocks and ETFs. Thirty seven
-    fight around the clock: thirty one on a perpetual market, each one checked
-    against its own share's price to be the same company, and six on their own
-    Solana pool."*
+    stocks and ETFs, then the Live 24/7 filter.
+    *"One thousand and thirty three tokenized stocks and ETFs. Forty five fight
+    around the clock, every day of the year, each priced by the median of up to
+    nine public venues, each venue checked against its own share's price. Every
+    other stock fights the moment its market opens. We never invent a price."*
 11. **2:47 to 3:00. From the feed to the fight.** On a phone: an X post of an
     open fight showing its VS card. Tap it. The fight page opens, a guest wallet
     takes the fight with no extension and no SOL, and the round starts. Cut to
@@ -279,7 +274,7 @@ counts print themselves rather than reading them out.
    be forged or replayed, and that a shut exchange is priced by something real."*
 2. **0:15 to 0:50. The one price** (`programs/duel/src/pyth.rs`). The
    PriceUpdateV2 layout comment, the owner check, the Full verification check,
-   the boundary condition. *"Pyth prices TSLA, QQQ and VOO. The account is
+   the boundary condition. *"Pyth prices VOO. The account is
    parsed by hand, because the receiver SDK stops at Anchor 0.31 and this
    program is on 1.1, so every byte is checked in view. Each update carries the
    publish time of the one before it, so the program demands previous below the
@@ -300,50 +295,30 @@ counts print themselves rather than reading them out.
    all. The quote names no duel and no cluster, because a true statement about
    the market stays true wherever it is replayed."*
 4. **1:25 to 2:55. Pricing a shut market** (`src/lib/oracle.ts`,
-   `scripts/build-perps.ts`, `scripts/build-pools.ts`). On screen in order:
-   `sourceAt`, `perps.json`, the gate constants, the CL comment, the `OFFHOURS_*`
-   block. *"Two sources of trust, and three markets read. `sourceAt` picks
-   between them in four lines. A listing outside the US returns the exchange
-   before the clock is even consulted, because `session()` models New York and
-   nothing else, and guessing would be worse than waiting. A US stock inside its
-   own session, four in the morning to eight at night, gets its own market.
-   Shut, with a perpetual market pinned, it gets the perp: thirty one of the
-   thirty seven. Shut, with only a pool, it gets the pool: the other six.
-   Neither, and it waits for the opening bell exactly as it always did.*
-   *The perp is the newest of the three and the reason the count went from
-   twenty three to thirty seven. Hyperliquid's HIP-3 lets a third party deploy
-   perp markets on a shared order book, and this deployer runs about a hundred
-   and twenty of them across equities, indices and commodities. It prints a
-   candle every minute of every day, which buys something structural: with no
-   gaps, the off-hours price uses the ordinary rule instead of an average over a
-   window, so a five minute round measures five minutes. Say the cost before
-   anyone else does: a perpetual future is not a share. What it buys is a price
-   that exists. Measured at one in the morning, only five of the twenty three
-   pools that had passed the depth floors could be priced at all, and one held
-   two million dollars of liquidity without trading a single minute in the hour.
-   Depth is not trading.*
-   *Four gates decide whether a market may price a fight. Exact ticker only,
-   because `xyz:SP500` is the index and SPY is the ETF. A million dollars of
-   daily notional, so the mark is somebody's real position. Dollars only. And
-   then the one that matters: the perp's mark against the share's own last
-   price, refused above five percent. Our CL is Colgate-Palmolive. On a futures
-   venue, CL is crude oil, so `xyz:CL` marks near oil and sits next door to a
-   Brent contract in the same list. It marked 95.62 against Colgate's 86.80,
-   about ten percent out, and it was refused. There is no CL in `perps.json`. No
-   volume test and no candle coverage test would have caught it, because that
-   market is one of the venue's busiest. Only comparing against the share itself
-   catches it. Last, at least fifty five minutes of the last hour had to print,
-   asked last because it costs a request each.*
-   *The six pool-priced stocks keep the trimmed mean, and only they do. Up to
-   fifteen one-minute closes, reaching back through an hour to find them, at
-   least five or there is no price at all, then a fifth discarded off each end
-   and never fewer than one, and the rest averaged. We ran a median first and
-   replaced it: a median moves in jumps, so sliding the window two minutes often
-   does not change the middle sample, both sides report the price they started
-   with, and the program correctly calls a draw on a fight somebody won. Both
-   properties are pinned by tests: one takes a minute of an honest window to nine
-   hundred and asserts the answer does not move, one slides the window into a
-   rising market and asserts it does."*
+   `src/lib/composite.ts`, `scripts/build-247.ts`, `docs/247-hardening.md`). On
+   screen in order: `sourceAt`, `venues247.json`, `compositeV2At`, the attack
+   table, a fight's receipt with its proof open.
+   *"`sourceAt` picks the market in a few lines. A listing outside the US gets
+   its own exchange's session. A US stock from four in the morning to eight at
+   night gets its own market. Shut, and pinned in `venues247.json`, it gets the
+   composite: forty five stocks. Neither, and it waits for the opening.*
+   *The composite reads the one-minute candles of up to nine public venues,
+   perpetual futures and tokenized shares, by requests fixed in the proof. The
+   pins came from a real weekend: three venues with real volume, fresh in ninety
+   percent of its minutes, each checked against the share itself. That is how
+   `CL`, crude oil on the venues and Colgate-Palmolive here, stayed out.*
+   *Then we attacked it. Under a median of one minute, one print on one venue
+   changed up to three in five fifteen minute rounds. So a venue counts only if it traded in
+   the fifteen minutes before, each is divided by its premium to the others over
+   the hour before, and the price is the median of three minutes. Measured on the
+   same minutes, one venue can still change over a third of some stock's
+   fifteen minute rounds, and never more than two point six percent of twelve
+   hour ones. So a round priced this way runs twelve hours, and a shorter one
+   queues for the open. Too few venues, and the side takes the exchange's first
+   bar. Nothing is ever modelled.*
+   *Every price carries its proof: each venue's request, closes, premium, what
+   was kept, and a sha256. The receipt draws it, and the route recomputes it for
+   anyone."*
 5. **2:55 to 3:15. The outcome** (`outcome.rs`). Cross-multiplication, exponent
    alignment. *"No division, no rounding, no basis-point truncation in the
    decision; basis points exist only for the event and the page. This is why a
@@ -385,41 +360,40 @@ counts print themselves rather than reading them out.
   tokenized shares. The mint screen was run against mainnet.
 - The oracle is a trusted key for the stocks Pyth does not price here. Its
   quotes are public and checkable after the fact, not preventable.
-- Off-hours, the price is not the share's own market. For 31 stocks it is a
-  perpetual future that references the equity, a different instrument carrying
-  its own basis; for 6 it is a pool print thinner than an exchange print. Either
-  can differ from where the stock next opens.
-- That basis is bigger than a quiet weekend's margin. When the perp list was
-  pinned, the 32 kept markets sat between 0.01% and 2.25% away from their
-  share's own last price, median 0.29%, which is why the safety gate refuses
-  anything past 5%. A five-minute weekend round therefore measures how the two
-  perpetual markets moved, not how the two shares moved. Both sides are read the
-  same way at the same moment and the comparison is exact, so it is a fair
-  contest and a correct result. It is not a reading of the underlying.
+- Off-hours, the price is not the share's own market. For the 45 it is the
+  median of perpetual futures and tokenized shares on up to nine venues,
+  instruments with their own basis, and it can differ from where the stock next
+  opens. A weekend round measures how those markets moved, read the same way for
+  both sides, not how the shares moved.
+- One weekend of evidence. The venues were pinned and the rule was attacked on
+  the minutes of 12 and 13 September, for 12 of the most liquid names. Gate,
+  MEXC and BingX print nearly every minute on little volume, so they count
+  toward three venues but can never be the two with real volume a price needs.
+- At the handoff the composite sat a median 5.4 bps from Friday's close and 13.8
+  bps from Monday's open, and one venue can still tip a short round, which is
+  why a round it prices runs 12 hours or more. With fewer than 3 venues counted,
+  2 with real volume, a side takes the exchange's first bar, and the proof says
+  so.
 - The weekend round above came down to 0.006 percentage points. The program
   decides by cross-multiplying integer prices, so nothing rounds anywhere in the
   comparison and that is a real result rather than an artefact of the
   arithmetic, but a five-minute fight on a dead weekend is not a dramatic one.
-- Those perps are one deployer's markets on Hyperliquid, a venue with its own
-  risks. If a market stops printing, that fight gets no price and waits for the
-  exchange rather than falling through to a pool, because a pool would answer a
-  different question. A pool that goes quiet falls through to the exchange the
-  same way, which means the fight waits for the bell exactly as it did before
-  any of this existed.
-- The list of 37 is a snapshot taken on 12 September, pinned in the repo so that
-  anyone can read the same numbers the settler did. Re-run `build-perps.ts` or
-  `build-pools.ts` and the list, and every total behind it, will move.
-- Pyth's equity feeds stop when the market does, so TSLA, QQQ and VOO keep
-  exchange hours whatever their off-hours markets do. TSLA has a perp good
-  enough to qualify and QQQ has a pool good enough to qualify, and both are
-  refused anyway rather than mix two sources within one stock. The app says so
-  before you stake.
-- A round shorter than the off-hours sample settles on the move across the
-  sample, not across the round. That applies to the 6 pool-priced stocks; a perp
-  round measures the interval it claims. The app says that too.
-- The off-hours prices come from public third-party data: Hyperliquid for the
-  perps, GeckoTerminal for the pools, Yahoo minute bars for the exchange. Being
-  rate-limited is a wait, not a failure, and the crank comes back.
+  It was priced by a perp, before the composite replaced them.
+- History expires. Hyperliquid serves about 3 days of one-minute candles and
+  Gate about 6, so an older proof cannot be recomputed in full; the other venues
+  keep 25 days or more.
+- The list of 45 is pinned in `src/data/venues247.json` from those minutes.
+  Rebuilding it with `scripts/build-247.ts` on another weekend will move it.
+  Whether every venue answers from the deployment's region, and each venue's
+  terms, still have to be checked; a venue that does not answer makes a price
+  wait, never guess.
+- Pyth's equity feeds are dark from Friday 8pm to Sunday 8pm New York, so VOO
+  fights only while Pyth prints, and a fight that would start or end in the gap
+  is refused before anyone stakes. TSLA and QQQ moved to the oracle for exactly
+  that reason; a fight made on Pyth keeps Pyth.
+- The prices come from public third-party data: the venues' own APIs and Yahoo
+  minute bars for the exchange. Being rate-limited is a wait, not a failure, and
+  the crank comes back.
 - The program is not audited.
 - Every issuer keeps the power to freeze an account, pause transfers, or move
   tokens out of any account. A fight inherits that over what it holds.

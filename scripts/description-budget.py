@@ -1,4 +1,8 @@
-s = open("/home/cryptonomist/stockduel/docs/submission.md", encoding="utf-8").read()
+import os
+
+# This checkout's own docs/submission.md, wherever the repo sits.
+PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "submission.md")
+s = open(PATH, encoding="utf-8").read()
 i = s.find("## Long description")
 j = s.find("## Against the four things")
 raw = s[s.find("\n", i) + 1 : j].strip()
@@ -12,3 +16,9 @@ for para in body.split("\n\n"):
     if not para.strip():
         continue
     print("  %5d  %s" % (len(para), para.strip().split("\n")[0][:56]))
+
+# The short description is pasted as one line, so its line breaks are spaces.
+k = s.find("## Short description")
+short = " ".join(s[s.find("\n", k) + 1 : i].split())
+print()
+print("Short description: %d chars of 280  (%+d)" % (len(short), len(short) - 280))

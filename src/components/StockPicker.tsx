@@ -18,7 +18,13 @@
  * Prices are fetched only for tiles on screen, in groups the price route
  * accepts in one request (MAX_PRICE_TICKERS). Every tile carries who prices
  * the stock (Pyth, or the Stonk Wars oracle) and whether it can fight while
- * the exchange is shut. */
+ * the exchange is shut.
+ *
+ * LIVE 24/7 FIRST WHILE THE EXCHANGE IS SHUT. Somebody who opens the picker at
+ * midnight or on a Saturday wants a fight that runs now. The "Live 24/7"
+ * filter narrows to the stocks the 24/7 markets price (stocks.ts,
+ * tradesAroundTheClock), and while the exchange is shut the default order puts
+ * them first, the most traded of them leading, with a line that says so. */
 
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 
@@ -31,9 +37,11 @@ import { allDuels } from "@/lib/duel";
 import { usd } from "@/lib/format";
 import { useDuels } from "@/lib/hooks";
 import { dayChangePct, MAX_PRICE_TICKERS, quoteValue, usePrices, type Quotes } from "@/lib/prices";
-import { STAKEABLE, byTicker, quoteSymbolFor, tickerForMint, tradesAroundTheClock, type Stock } from "@/lib/stocks";
+import { session } from "@/lib/market";
+import { STAKEABLE, byTicker, offHoursWords, tickerForMint, tradesAroundTheClock, type Stock } from "@/lib/stocks";
+import { useNow } from "@/lib/useNow";
 
-type Kind = "all" | "stock" | "etf" | "allday";
+export type Kind = "all" | "stock" | "etf" | "allday";
 type Sort = "default" | "movers" | "fought";
 
 const SORTS: { id: Sort; label: string }[] = [
@@ -66,8 +74,9 @@ const PAGE_PHONE = 12;
 /** Tiles per price request: whole pages, and never more than the route takes. */
 const PRICE_GROUP = Math.min(PAGE_WIDE, MAX_PRICE_TICKERS);
 
-const ofKind = (s: Stock, kind: Kind) =>
-  kind === "all" || (kind === "allday" ? tradesAroundTheClock(s.ticker) : s.kind === kind);
+const allDay = (s: Stock) => tradesAroundTheClock(s.ticker);
+
+const ofKind = (s: Stock, kind: Kind) => kind === "all" || (kind === "allday" ? allDay(s) : s.kind === kind);
 
 const COUNTS: Record<Kind, number> = {
   all: STAKEABLE.length,
@@ -96,6 +105,7 @@ export function StockPicker({
   onChange,
   id,
   className,
+  initialKind = "all",
 }: {
   side: "p1" | "p2";
   value: string | null;
@@ -104,9 +114,15 @@ export function StockPicker({
   onChange: (ticker: string) => void;
   id?: string;
   className?: string;
+  /** The filter it opens on: a "Live 24/7 now" link opens it on "allday". */
+  initialKind?: Kind;
 }) {
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<Kind>("all");
+  const [kind, setKind] = useState<Kind>(initialKind);
+  /* Whether the exchange is shut, once the page has a clock: until then the
+   * list keeps roster order, so the server render and hydration agree. */
+  const now = useNow(30_000);
+  const shut = now > 0 && session(now * 1_000) === "closed";
   const [sort, setSort] = useState<Sort>("default");
   const [fought, setFought] = useState<Map<string, number> | null>(null);
   const wide = useWide();
@@ -133,7 +149,9 @@ export function StockPicker({
   const hits = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
-      const all = STAKEABLE.filter((s) => ofKind(s, kind));
+      const listed = STAKEABLE.filter((s) => ofKind(s, kind));
+      // While shut, the stocks that fight now lead, each group in roster order.
+      const all = shut && kind !== "allday" ? [...listed.filter(allDay), ...listed.filter((s) => !allDay(s))] : listed;
       if (sort === "fought" && fought) {
         const n = (s: Stock) => fought.get(s.ticker) ?? 0;
         return all.map((s, i) => ({ s, i })).sort((a, b) => n(b.s) - n(a.s) || a.i - b.i).map((x) => x.s);
@@ -159,7 +177,7 @@ export function StockPicker({
       return t === q ? 0 : t.startsWith(q) ? 1 : 2;
     };
     return match.sort((a, b) => rank(a) - rank(b));
-  }, [query, kind, sort, fought, moverPool, moverPrices.data]);
+  }, [query, kind, sort, fought, moverPool, moverPrices.data, shut]);
 
   const visible = useMemo(() => {
     const first = hits.slice(0, shown);
@@ -224,10 +242,16 @@ export function StockPicker({
             { id: "all", label: "All", count: COUNTS.all },
             { id: "stock", label: "Stocks", count: COUNTS.stock },
             { id: "etf", label: "ETFs", count: COUNTS.etf },
-            { id: "allday", label: "24/7", count: COUNTS.allday },
+            { id: "allday", label: "Live 24/7", count: COUNTS.allday },
           ]}
         />
       </div>
+      {shut && !typing && sort === "default" ? (
+        <p className="mt-2 text-meta text-dim">
+          The exchange is shut. {kind === "allday" ? "These" : `The ${COUNTS.allday.toLocaleString("en-US")} marked 24/7`} fight now,
+          priced by the markets that trade them around the clock{kind === "allday" ? "." : ", and come first."}
+        </p>
+      ) : null}
 
       <div role="group" aria-label="Sort stocks" className="mt-2 flex min-w-0 flex-wrap items-center gap-1">
         <span className="label mr-1">Sort</span>
@@ -350,13 +374,12 @@ function Tile({
 }) {
   const q = quotes?.quotes[s.ticker];
   const price = quoteValue(q);
-  const allDay = tradesAroundTheClock(s.ticker);
-  const offHours = quoteSymbolFor(s.feed)?.perp ? "perpetual future" : "Solana pool";
+  const offHours = offHoursWords(s.ticker);
   const why = [
     s.name,
     s.market === "US" ? null : `listed in ${s.market}`,
     `priced by ${s.source === "pyth" ? "Pyth" : "the Stonk Wars oracle"}`,
-    allDay ? `its ${offHours} prices it when the exchange is shut` : null,
+    offHours ? `24/7: ${offHours} prices it while the exchange is shut` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -390,9 +413,9 @@ function Tile({
       </span>
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="min-w-0 truncate text-meta text-dim">{s.name}</span>
-        {allDay || s.market !== "US" ? (
+        {offHours || s.market !== "US" ? (
           <Badge variant="neutral" className="ml-auto">
-            {allDay ? "24/7" : s.market}
+            {offHours ? "24/7" : s.market}
           </Badge>
         ) : null}
       </span>

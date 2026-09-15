@@ -32,7 +32,7 @@ import { shares, shortAddress, usd } from "@/lib/format";
 import { quoteValue, stakeValue, type Quote } from "@/lib/prices";
 import { sourceWords } from "@/lib/pricemath";
 import { SPAR_MAX_ROUND_SECS } from "@/lib/spar";
-import { byTicker, sourceLabel, STAKE_DECIMALS, tokenSymbol } from "@/lib/stocks";
+import { byTicker, offHoursWords, sourceLabel, STAKE_DECIMALS, tokenSymbol } from "@/lib/stocks";
 import { MAX_STAKE_USD, STAKE_CHIPS, winPreview, type RoundChoice, type RoundId } from "@/lib/ticket";
 
 export type FightTicketProps = {
@@ -294,9 +294,21 @@ export function FightTicket(t: FightTicketProps) {
         <div ref={t.actionRef} className="min-w-0">
           {t.action}
         </div>
+        {/* Who prices each side, and for a stock that fights around the clock,
+          * what prices it while the exchange is shut. */}
         {t.p1 && t.p2 ? (
           <p className="text-meta text-dim">
-            Prices: {[t.p1, t.p2].map((x) => `${x} by ${sourceLabel(byTicker(x)!)}`).join(" · ")}
+            Prices:{" "}
+            {[t.p1, t.p2].map((x, i) => {
+              const offHours = offHoursWords(x);
+              return (
+                <span key={x}>
+                  {i ? " · " : ""}
+                  {x} by {sourceLabel(byTicker(x)!)}
+                  {offHours ? `, 24/7 on ${offHours}` : ""}
+                </span>
+              );
+            })}
           </p>
         ) : null}
       </div>
