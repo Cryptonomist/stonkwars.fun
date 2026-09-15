@@ -37,15 +37,32 @@ const QUOTE_EVERY_MS = 15_000;
 const fmt = (n: number, max = 6) =>
   n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 2 : n >= 1 ? 4 : max, minimumFractionDigits: 0 });
 
-export function TradePanel({ ticker, className }: { ticker: string; className?: string }) {
+export function TradePanel({
+  ticker,
+  className,
+  initialSide = "buy",
+  initialAmount,
+  embedded = false,
+  onTraded,
+}: {
+  ticker: string;
+  className?: string;
+  initialSide?: Side;
+  /** What the amount box starts at: USDC for a buy, shares for a sell. */
+  initialAmount?: string;
+  /** Inside a sheet that has its own title: no card, no heading, no page anchor. */
+  embedded?: boolean;
+  /** Told once a trade has landed, so a sheet can close itself. */
+  onTraded?: () => void;
+}) {
   const onMainnet = CLUSTER === "mainnet-beta";
   const { connection } = useConnection();
   const { publicKey, signTransaction } = useWallet();
   const qc = useQueryClient();
 
-  const [side, setSide] = useState<Side>("buy");
+  const [side, setSide] = useState<Side>(initialSide);
   const [pay, setPay] = useState<PayWith>("USDC");
-  const [amount, setAmount] = useState("25");
+  const [amount, setAmount] = useState(initialAmount ?? "25");
   const [debounced, setDebounced] = useState(amount);
   const [slippageBps, setSlippageBps] = useState<number>(DEFAULT_SLIPPAGE_BPS);
   const [busy, setBusy] = useState(false);
@@ -116,6 +133,7 @@ export function TradePanel({ ticker, className }: { ticker: string; className?: 
         hrefLabel: "View",
       });
       await qc.invalidateQueries();
+      onTraded?.();
     } catch (e) {
       toast.push({ title: "The trade did not go through.", body: readableProgramError(e) });
     } finally {
@@ -135,9 +153,11 @@ export function TradePanel({ ticker, className }: { ticker: string; className?: 
     </button>
   );
 
-  return (
-    <Plate as="section" pad="std" id="trade" className={cx("flex scroll-mt-20 flex-col gap-4", className)} aria-labelledby="trade-head">
-      <SectionHead id="trade-head" title={`Trade ${symbol}`} count={onMainnet ? "Solana mainnet" : "Mainnet prices"} />
+  const body = (
+    <>
+      {embedded ? null : (
+        <SectionHead id="trade-head" title={`Trade ${symbol}`} count={onMainnet ? "Solana mainnet" : "Mainnet prices"} />
+      )}
 
       <div role="tablist" aria-label="Buy or sell" className="flex gap-2">
         {tab("buy", "Buy")}
@@ -275,6 +295,13 @@ export function TradePanel({ ticker, className }: { ticker: string; className?: 
         Routed by Jupiter. You sign in your own wallet; Stonk Wars never holds your funds. Tokenized stocks are not offered to
         US persons by their issuers.
       </p>
+    </>
+  );
+
+  if (embedded) return <div className={cx("flex flex-col gap-4", className)}>{body}</div>;
+  return (
+    <Plate as="section" pad="std" id="trade" className={cx("flex scroll-mt-20 flex-col gap-4", className)} aria-labelledby="trade-head">
+      {body}
     </Plate>
   );
 }

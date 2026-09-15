@@ -34,6 +34,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 
+import { BuyShortcut } from "@/components/BuyShortcut";
 import { useFaucet } from "@/components/FaucetButton";
 import { StockPicker } from "@/components/StockPicker";
 import { TaleOfTheTape } from "@/components/TaleOfTheTape";
@@ -499,6 +500,8 @@ export function CreateFight() {
           </div>
         );
       }
+      /* What the missing shares are worth: the stake, less what the wallet holds. */
+      const missingUsd = Math.max(0, dollars - (heldUsd ?? 0));
       if (testCluster) {
         return (
           <div className="flex min-w-0 flex-col gap-2">
@@ -509,13 +512,20 @@ export function CreateFight() {
                 {noAccount ? " and have none yet" : ""}. Test shares are free on devnet.
               </p>
             ) : null}
+            {!compact ? <BuyShortcut ticker={p1} usd={missingUsd} primary={false} className="self-start" /> : null}
           </div>
         );
       }
+      if (compact) return <BuyShortcut ticker={p1} usd={missingUsd} compact />;
       return (
-        <button type="button" disabled className={cx("btn btn-p1", compact ? "btn-sm" : "w-full")}>
-          You need {need ? <span className="num normal-case">{need}</span> : "more shares"}
-        </button>
+        <div className="flex min-w-0 flex-col gap-2">
+          <BuyShortcut ticker={p1} usd={missingUsd} />
+          {need ? (
+            <p className="text-meta text-dim">
+              You need <span className="num text-ink">{need}</span> to stake{noAccount ? " and have none yet" : ""}.
+            </p>
+          ) : null}
+        </div>
       );
     }
     if (step === "stake" && p1) {

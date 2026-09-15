@@ -36,6 +36,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
+import { BuyShortcut } from "@/components/BuyShortcut";
 import { useFaucet } from "@/components/FaucetButton";
 import { FeeNote } from "@/components/FeeNote";
 import { Notice } from "@/components/ui/Notice";
@@ -220,12 +221,36 @@ export function Actions({
         }
       />
     );
+    /* The shares a take needs are worth about the challenger's stake: both
+     * sides are sized to the same dollars when the challenge is made. */
+    const buyUsd = stakeUsd;
     if (!publicKey) {
       primary = (
         <button type="button" onClick={requestConnect} className="btn btn-light w-full">
           Connect to take it
         </button>
       );
+    } else if (!testCluster && short) {
+      /* Mainnet, without the shares: buy them here, then take it. */
+      primary = (
+        <ol className="flex flex-col gap-2" aria-label="Two steps to take it">
+          <li className="flex min-w-0 items-center gap-3">
+            <span className="micro num w-3 shrink-0 text-dim" aria-hidden="true">
+              1
+            </span>
+            <div className="min-w-0 flex-1">
+              <BuyShortcut ticker={t2} usd={buyUsd} />
+            </div>
+          </li>
+          <li className="flex min-w-0 items-center gap-3">
+            <span className="micro num w-3 shrink-0 text-dim" aria-hidden="true">
+              2
+            </span>
+            <div className="min-w-0 flex-1">{takeButton}</div>
+          </li>
+        </ol>
+      );
+      barAction = <BuyShortcut ticker={t2} usd={buyUsd} compact />;
     } else if (testCluster) {
       /* TWO STEPS, BOTH IN SIGHT. A wallet without the stock used to see only
        * "Get test HOODx" and two notices, so nobody could tell a second step
@@ -249,7 +274,10 @@ export function Actions({
                   You have {shares(balance.data!, decimalsForMint(d.opponentMint))} {symbol2}
                 </p>
               ) : (
-                <FaucetPrimary ticker={t2} symbol={symbol2} />
+                <div className="flex min-w-0 flex-col gap-2">
+                  <FaucetPrimary ticker={t2} symbol={symbol2} />
+                  <BuyShortcut ticker={t2} usd={buyUsd} primary={false} className="self-start" />
+                </div>
               )}
             </div>
           </li>

@@ -3,7 +3,7 @@
 
 import { expect } from "chai";
 
-import { MAX_SWAP_FEE_BPS, PAY, SOL_MINT, swapFeeBps, toAtomic, USDC_MINT, type JupiterQuote } from "../src/lib/swap";
+import { buyAmountFor, MAX_SWAP_FEE_BPS, PAY, SOL_MINT, swapFeeBps, toAtomic, USDC_MINT, type JupiterQuote } from "../src/lib/swap";
 import { mainnetStockToken, pairFor, summarize, tradeFor } from "../src/lib/swapPairs";
 
 const TSLAX = "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB";
@@ -38,6 +38,15 @@ describe("trading", () => {
     expect(tradeFor(USDC_MINT, SOL_MINT)).to.equal(null, "no stock");
     expect(tradeFor(TSLAX, TSLAX)).to.equal(null);
     expect(tradeFor(USDC_MINT, "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263")).to.equal(null, "a memecoin");
+  });
+
+  it("starts a buy a little over what the fight needs, in whole dollars", () => {
+    expect(buyAmountFor(25)).to.equal("26");
+    expect(buyAmountFor(24.99)).to.equal("26");
+    expect(buyAmountFor(100)).to.equal("103");
+    expect(buyAmountFor(1)).to.equal("5", "never below $5");
+    expect(buyAmountFor(null)).to.equal("26", "no price yet: the default stake");
+    expect(buyAmountFor(Number.NaN)).to.equal("26");
   });
 
   it("caps the swap fee and treats nonsense as none", () => {

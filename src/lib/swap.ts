@@ -42,6 +42,10 @@ export const swapFeeBps = (raw = process.env.NEXT_PUBLIC_SWAP_FEE_BPS) => {
   return Number.isFinite(n) ? Math.min(MAX_SWAP_FEE_BPS, Math.max(0, n)) : 0;
 };
 
+/** The USDC a buy starts at for shares worth `usd`: 3% over (price moves, any fee), whole dollars, at least $5. */
+export const buyAmountFor = (usd: number | null | undefined) =>
+  String(Math.max(5, Math.ceil((usd != null && Number.isFinite(usd) ? usd : 25) * 1.03)));
+
 export const SLIPPAGE_CHOICES = [50, 100, 200] as const;
 export const DEFAULT_SLIPPAGE_BPS = 100;
 
