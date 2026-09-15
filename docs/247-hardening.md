@@ -208,3 +208,15 @@ One print on one venue in the end minute, or in the start and end minutes, marke
   - Typhoon and black rainstorm closures.
   - The LSE's half-day hours for 2026 and 2027 are its long-standing convention and were not confirmed.
   - HKEX's half days are its rule applied to the calendar, from the same research.
+
+## 11. The pages
+
+The owner's line, adopted on every page: *45 tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check. Every other stock fights the moment its market opens. We never invent a price.*
+
+- **The badge.** `stocks.ts` `tradesAroundTheClock(ticker, at)` answers for a moment: from `COMPOSITE_FROM`, the stocks pinned in `venues247.json` that the roster prices by the oracle (45); before it, any stock with a perp or pool. A page with no clock asks about `COMPOSITE_FROM` itself, so a server render and its hydration agree. `AROUND_THE_CLOCK` is that count.
+- **TSLA and QQQ.** `roster.json` records them as signed for new fights (`scripts/build-roster.ts`, `ON_COMPOSITE`). A duel keeps the source it recorded, and every take gate reads the duel's. The release still has to run `set_asset(feed, enabled, SOURCE_SIGNED)` for both.
+- **The edge rule.** A round under 4 hours whose ends fall either side of an exchange and composite edge is refused by the 12-hour minimum. `tests-web/stocks.test.ts` walks weekday closes and openings, a weekend, Thanksgiving and its early close for four kinds of pair.
+- **Queue, do not refuse.** `stocks.ts` `queueAt` is null when a take now is fair, the first fair moment before the challenge expires (`nextFairTake`) with the reason, or the refusal. /new makes a queued challenge and says when it can be taken; the take gate (`mixedHoursAt`) is unchanged. Short round chips queue for the open while the exchange is shut, and "Overnight 12h" and "24 hours" run now. The fight page counts down to a queued take, a fight waiting on a shut market says "Starts at the open" with how long (`roundClock`), and the board rows say the same.
+- **The proof on the receipt.** A side the composite priced opens "Check this 24/7 price": `/api/quote/proof` drawn as a table, one row per pinned market and one column per window minute (`src/app/f/[duel]/CompositeCheck.tsx`, `src/lib/proofWords.ts`). Nothing is fetched until it is opened.
+- **The live price.** While the exchange is shut after the cutover, a 24/7 stock's live price is the median of its pinned markets' latest prices, one bulk request per venue shared for 15 seconds, through a composite minute's quorum and guard (`src/lib/liveComposite.ts`). It is labelled "24/7 median" and is not the premium-corrected settle price.
+- **Checked in a browser.** A production build at 375 and desktop width, with `COMPOSITE_FROM` moved back locally (never committed) so the composite priced the Saturday 12 September META v NVDA fight: its receipt drew the proof from all 8 counted venues' live answers, /new queued short rounds for Tuesday's 4:00 AM open, and `/api/prices` answered "composite" for AAPL, NVDA, TSLA, QQQ, SPY and MSFT and "last" for KO and GME.

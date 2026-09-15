@@ -123,9 +123,9 @@ own token lists, nine venues' public minute bars and Yahoo bars.
   counterparty, paid out in shares rather than cash, settled permissionlessly by
   anyone, and exposed as a standard Solana Action any client can take. The 24/7
   part exists only because the share is a token.
-- **Quality of execution.** 128 tests across three suites, every off-hours price
-  checked against its source afterwards, and the limits below stated in the app
-  before anybody stakes.
+- **Quality of execution.** 624 tests across three suites, every 24/7 price
+  published with a proof anyone can recompute, and the limits below stated in
+  the app before anybody stakes.
 
 ## What was built in the window (Sept 11 to 18)
 
@@ -151,7 +151,7 @@ is carried over from the same author's Commish.
 - **14** program instructions, **3** ways for a stake to leave escrow, **0**
   admin withdrawals
 - **26** Rust unit tests · **37** LiteSVM tests against the built binary, with
-  real Ed25519 signatures · **65** web tests · live end-to-end fights whose
+  real Ed25519 signatures · **561** web tests · live end-to-end fights whose
   every on-chain price matched its source, asked again independently
 - **1** transaction to open a fight, **1** to take it, **0** to settle it: the
   deployed settler does that, and anyone else can press the button too
