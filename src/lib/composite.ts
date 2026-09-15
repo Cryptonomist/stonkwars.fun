@@ -155,13 +155,13 @@ export type CompositeProof = {
   price: string | null;
 };
 
-export type CompositePriced = { price: bigint; publishTime: number; tier: "two-anchor" | null; proof: CompositeProof; sha256: string };
+export type CompositePriced<P = CompositeProof> = { price: bigint; publishTime: number; tier: "two-anchor" | null; proof: P; sha256: string };
 /** Ask again: `retryAt` when the rule knows the earliest worth asking. */
 export type CompositeWait = { wait: string; retryAt: number | null };
 /** The exchange prices this side, and its bar cannot be final before `waitUntil`. */
-export type CompositeWaitUntil = { waitUntil: number; reason: string; proof: CompositeProof; sha256: string };
+export type CompositeWaitUntil<P = CompositeProof> = { waitUntil: number; reason: string; proof: P; sha256: string };
 export type CompositeRefused = { refused: string };
-export type CompositeResult = CompositePriced | CompositeWait | CompositeWaitUntil | CompositeRefused;
+export type CompositeResult<P = CompositeProof> = CompositePriced<P> | CompositeWait | CompositeWaitUntil<P> | CompositeRefused;
 
 export const minuteOf = (boundary: number) => Math.floor(boundary / 60) * 60;
 
@@ -246,15 +246,18 @@ function readVenue(w: VenueWindow & { rows: Candle[] }, m: number): Omit<ProofRo
 }
 
 /** The earliest moment a composite for `boundary` can be asked, and whether
- *  it is too late to sign one for a set with these venues. Pure gate, no rows. */
+ *  it is too late to sign one for a set with these venues. Pure gate, no rows.
+ *  `windowSecs` is how long after m the rule's last minute closes: one minute
+ *  for v1, the window for v2. */
 export function compositeGate(opts: {
   boundary: number;
   now: number;
   settleSecs: number;
   venues: VenueId[];
+  windowSecs?: number;
 }): CompositeWait | CompositeRefused | null {
   const m = minuteOf(opts.boundary);
-  const finalAt = m + 60 + opts.settleSecs;
+  const finalAt = m + (opts.windowSecs ?? 60) + opts.settleSecs;
   if (opts.now < finalAt) return { wait: `the minute is not final until ${finalAt}`, retryAt: finalAt };
   /* TOO LATE TO SIGN. A proof has to be recomputable from the venues' own
    * history, and the shortest history in the set sets how long that is: three
@@ -427,6 +430,386 @@ export function compositeAt(opts: {
   return { waitUntil: opts.exchangeFinal, reason: reason ?? "", proof, sha256: proofHash(proof) };
 }
 
+/* ─── Composite-v2 ───────────────────────────────────────────────────────── */
+
+/* COMPOSITE-V2: THE SAME MARKETS, MUCH HARDER TO PUSH.
+ *
+ * v1 prices one minute by the median of the venues that traded in it, and on
+ * last weekend's minutes that is a price a single trade can decide. The fresh
+ * venues sat a median 10 to 19 bps apart while the median 15-minute weekend
+ * move was 1 to 2 bps, so one print on one venue in the end minute changed 43%
+ * to 81% of 15-minute rounds, and one anchor print 60 bps off knocked a priced
+ * side to Monday's bar in 5.4% of priced minutes (the adversarial study; the
+ * measurements for v2 are in docs/247-hardening.md). v2 takes both levers away:
+ *
+ *   de-bias   every venue trades at a steady premium of its own to the rest
+ *             (funding, fees, whoever makes its market), which is most of that
+ *             10 to 19 bps. So each close is divided by its venue's premium:
+ *             the median, over the minutes 75 to 6 before it (never reaching
+ *             into the window), of the venue's close over v1's median at that
+ *             minute, from at least 10 minutes the venue was fresh. Calibrated,
+ *             the venues sit almost on top of each other, and one venue can
+ *             only move a median as far as its nearest neighbour.
+ *   who       the venues that count are settled before the window opens:
+ *             fresh in the 15 minutes before it (m - 15 to m - 1) and
+ *             calibrated through all of it. At least 3, 2 of them anchors, or
+ *             the exchange prices the side. Nothing a venue does inside the
+ *             window adds or removes one, so a print can no longer knock a
+ *             side to Monday, and a venue that wakes up in the window does not
+ *             join it.
+ *   guard     each minute, a calibrated close more than 50 bps from the median
+ *             of the counted closes is set aside; if that leaves fewer than 3
+ *             (2 anchors), the median of all of them is taken, which one
+ *             outlier among three or more cannot carry past the others.
+ *   window    the price is the median of those per-minute medians over the W
+ *             minutes that start at the boundary's own minute, stamped at the
+ *             end of the last one. Every minute of it ends after the boundary,
+ *             so no minute a taker could already see decides a start price,
+ *             and one pushed minute is outvoted by the rest.
+ *   breaker   as v1: more than 15% from the exchange's last close is a failed
+ *             quorum, and the exchange prices the side.
+ *
+ * NO TWO-ANCHOR TIER. With two venues, either one can drag their mean by half
+ * of whatever it prints, which is the lever v2 exists to remove. A side with
+ * fewer than three counted venues waits for the exchange's first bar.
+ *
+ * W and the shortest round priced this way were measured with the attack
+ * harness in scripts/attack-247.ts, on the same weekend fixtures; the program
+ * only needs publishTime >= boundary, which the window's end always is. */
+
+export const COMPOSITE_V2_RULE = "composite-v2";
+/** The window: minutes from the boundary's own minute whose medians are
+ *  medianed. Chosen by measurement (docs/247-hardening.md). */
+export const V2_WINDOW_MINUTES = 3;
+export const V2_WINDOW_SECS = V2_WINDOW_MINUTES * 60;
+/** A minute k's premium is read over minutes k - 75 to k - 6, and never past
+ *  the minute before the window. */
+export const CALIBRATION_FROM_MINUTES = 75;
+export const CALIBRATION_TO_MINUTES = 6;
+export const CALIBRATION_MIN_SAMPLES = 10;
+/** Premiums are integers of 1e-8: 100,000,000 is a venue trading level with
+ *  the rest. */
+export const PREMIUM_SCALE = 100_000_000n;
+/** How far before m a v2 window's rows reach: 75 minutes of calibration and
+ *  the 14 before its first sample that say whether a venue was fresh then. */
+export const V2_LOOKBACK_SECS = 5_400;
+
+/* THE SHORTEST ROUND THE COMPOSITE MAY PRICE.
+ *
+ * A round is only as hard to change as its move is large against what one
+ * venue can do to its two prices. On last weekend's minutes, with v2, one
+ * venue pushing 60 bps through a window could change the result of up to
+ * 35.5% of 15-minute rounds, 16.4% of 1-hour rounds and 9.2% of 4-hour rounds
+ * for some stock, and at most 2.6% of 12-hour rounds for every one of the
+ * twelve (scripts/attack-247.ts; docs/247-hardening.md has the table). So a
+ * fight with a boundary the composite prices must run at least 12 hours, the
+ * shortest measured round at or under 5% for every stock. A bell round that
+ * ends in session is exempt: its end is the exchange's, a push can only reach
+ * its start, and it runs at least nine hours from any composite start. */
+export const MIN_OFFHOURS_ROUND_SECS = 12 * 3_600;
+
+/** When a v2 price for `boundary` is stamped: the end of its window. */
+export const compositePublishTime = (boundary: number) => minuteOf(boundary) + V2_WINDOW_SECS;
+/** The start of the last minute in the window for minute m. */
+export const v2LastMinute = (m: number) => m + V2_WINDOW_SECS - 60;
+
+/** A positive ratio a / b rounded half up, in integers. */
+const divRound = (a: bigint, b: bigint) => (2n * a + b) / (2n * b);
+
+/** One venue's minutes from `from` to `last` as the rule reads them: for each
+ *  minute, the latest candle at or before it and the latest traded one. */
+export type VenueSeries = {
+  venue: VenueId;
+  anchor: boolean;
+  from: number;
+  candle: (number | null)[];
+  close: (string | null)[];
+  ticks: (bigint | null)[];
+  lastTraded: (number | null)[];
+};
+
+export function venueSeries(venue: VenueId, rows: Candle[], from: number, last: number): VenueSeries {
+  const n = (last - from) / 60 + 1;
+  const sorted = rows.filter((r) => Number.isInteger(r.t) && r.t % 60 === 0 && r.t >= from && r.t <= last).sort((a, b) => a.t - b.t);
+  const s: VenueSeries = { venue, anchor: VENUES[venue].anchor, from, candle: [], close: [], ticks: [], lastTraded: [] };
+  let i = 0;
+  let latest: Candle | null = null;
+  let latestTicks: bigint | null = null;
+  let traded: number | null = null;
+  for (let k = 0; k < n; k++) {
+    const t = from + k * 60;
+    while (i < sorted.length && sorted[i].t <= t) {
+      // In time order, so a repeated minute keeps its last row, as v1 does.
+      latest = sorted[i];
+      latestTicks = toTicks(latest.close);
+      if (latest.traded) traded = latest.t;
+      i++;
+    }
+    s.candle.push(latest?.t ?? null);
+    s.close.push(latest?.close ?? null);
+    s.ticks.push(latestTicks);
+    s.lastTraded.push(traded);
+  }
+  return s;
+}
+
+/** Whether a venue had traded in the 15 minutes up to minute index k, with a
+ *  readable close: v1's freshness. */
+export const freshAt = (s: VenueSeries, k: number) => {
+  const traded = s.lastTraded[k];
+  return s.ticks[k] !== null && traded !== null && traded >= s.from + k * 60 - FRESH_SECS;
+};
+
+/** v1's median at minute index k over these series (steps 3 to 5, no breaker
+ *  and no fallback): the reference a premium is measured against. Null when
+ *  v1 has no quorum there. */
+export function referenceAt(series: VenueSeries[], k: number): bigint | null {
+  const fresh = series.filter((s) => freshAt(s, k));
+  if (fresh.length < QUORUM || fresh.filter((s) => s.anchor).length < QUORUM_ANCHORS) return null;
+  const m0 = medianTicks(fresh.map((s) => s.ticks[k]!));
+  const survivors = fresh.filter((s) => within(s.ticks[k]!, m0, GUARD_BPS));
+  if (survivors.length < QUORUM || survivors.filter((s) => s.anchor).length < QUORUM_ANCHORS) return null;
+  return medianTicks(survivors.map((s) => s.ticks[k]!));
+}
+
+/** A venue's premium at minute index k: the median of its close over the
+ *  reference, in PREMIUM_SCALE, over indices k - 75 to min(k - 6, cap) where
+ *  it was fresh and the reference exists. Null under CALIBRATION_MIN_SAMPLES. */
+export function premiumAt(s: VenueSeries, refs: (bigint | null)[], k: number, cap: number): { premium: bigint | null; samples: number } {
+  const ratios: bigint[] = [];
+  const hi = Math.min(k - CALIBRATION_TO_MINUTES, cap);
+  for (let j = Math.max(0, k - CALIBRATION_FROM_MINUTES); j <= hi; j++) {
+    const r = refs[j];
+    if (r !== null && r !== undefined && freshAt(s, j)) ratios.push(divRound(s.ticks[j]! * PREMIUM_SCALE, r));
+  }
+  return { premium: ratios.length >= CALIBRATION_MIN_SAMPLES ? medianTicks(ratios) : null, samples: ratios.length };
+}
+
+/** A close divided by its venue's premium, in ticks. */
+export const calibrate = (ticks: bigint, premium: bigint) => divRound(ticks * PREMIUM_SCALE, premium);
+
+/** One minute of the window: the guard, then the median of what it kept, or
+ *  of everything when it kept fewer than 3 with 2 anchors. `kept` is by
+ *  position in `inputs`. */
+export function minuteMedian(inputs: { anchor: boolean; value: bigint }[]): { m0: bigint; value: bigint; kept: boolean[]; guard: "held" | "all" } {
+  const m0 = medianTicks(inputs.map((x) => x.value));
+  const inside = inputs.map((x) => within(x.value, m0, GUARD_BPS));
+  const survivors = inputs.filter((_, i) => inside[i]);
+  if (survivors.length >= QUORUM && survivors.filter((x) => x.anchor).length >= QUORUM_ANCHORS) {
+    return { m0, value: medianTicks(survivors.map((x) => x.value)), kept: inside, guard: "held" };
+  }
+  return { m0, value: medianTicks(inputs.map((x) => x.value)), kept: inputs.map(() => true), guard: "all" };
+}
+
+export type V2MinuteRow = {
+  t: number;
+  /** Start of the latest candle at or before t, its close and its ticks. */
+  candle: number | null;
+  close: string | null;
+  ticks: string | null;
+  /** The venue's premium at t, in 1e-8, and how many minutes it was read from. */
+  premium: string | null;
+  samples: number;
+  /** The close divided by the premium, in ticks. */
+  calibrated: string | null;
+  kept: boolean;
+};
+
+export type V2ProofRow = {
+  venue: VenueId;
+  name: string;
+  instrument: string;
+  anchor: boolean;
+  request: VenueRequest;
+  /** The latest traded candle at or before the minute before the window. */
+  lastTraded: number | null;
+  /** Traded in the 15 minutes before the window. */
+  fresh: boolean;
+  /** Counted: fresh before the window and calibrated through all of it. */
+  counted: boolean;
+  why: "counted" | "no-candle" | "bad-close" | "stale" | "uncalibrated";
+  minutes: V2MinuteRow[];
+};
+
+export type V2ProofMinute = {
+  t: number;
+  /** Median of the counted calibrated closes, the guard's centre. */
+  m0: string | null;
+  /** This minute's median. */
+  value: string | null;
+  kept: number;
+  keptAnchors: number;
+  /** held: the guard kept a quorum; all: it did not, so every close counted. */
+  guard: "held" | "all" | null;
+};
+
+export type CompositeV2Proof = {
+  rule: typeof COMPOSITE_V2_RULE;
+  boundary: number;
+  minute: number;
+  publishTime: number;
+  /** The first and last minute of the window. */
+  window: { from: number; to: number; minutes: number };
+  calibration: { fromMinutes: number; toMinutes: number; minSamples: number; scale: string };
+  venues: V2ProofRow[];
+  counted: number;
+  countedAnchors: number;
+  minutes: V2ProofMinute[];
+  /** The median of the minutes' medians, in ticks. */
+  median: string | null;
+  reference: { t: number; close: string; ticks: string } | null;
+  tier: null | "exchange";
+  reason: string | null;
+  price: string | null;
+};
+
+export type CompositeV2Result = CompositeResult<CompositeV2Proof>;
+
+/* THE RULE, V2.
+ *
+ * `windows` holds one entry per pinned venue, each reaching from
+ * m - V2_LOOKBACK_SECS to the window's last minute (venues247.ts,
+ * venueRequestV2); anything outside that is ignored. The rest is as v1. */
+export function compositeV2At(opts: {
+  boundary: number;
+  now: number;
+  settleSecs: number;
+  windows: VenueWindow[];
+  reference: Reference;
+  exchangeFinal: number | null;
+}): CompositeV2Result {
+  const { boundary } = opts;
+  const m = minuteOf(boundary);
+  const from = m - V2_LOOKBACK_SECS;
+  const last = v2LastMinute(m);
+  const gate = compositeGate({ ...opts, venues: opts.windows.map((w) => w.venue), windowSecs: V2_WINDOW_SECS });
+  if (gate) return gate;
+
+  const failed = opts.windows.flatMap((w) => ("error" in w ? [`${VENUES[w.venue].name} ${w.instrument}: ${w.error}`] : []));
+  if (failed.length) return { wait: `waiting on ${failed.join("; ")}`, retryAt: null };
+
+  const windows = [...(opts.windows as (VenueWindow & { rows: Candle[] })[])].sort(
+    (a, b) => VENUE_ORDER.indexOf(a.venue) - VENUE_ORDER.indexOf(b.venue) || (a.instrument < b.instrument ? -1 : a.instrument > b.instrument ? 1 : 0),
+  );
+  /* A venue that prints every minute and has nothing at or after the window's
+   * last minute is late, not quiet, exactly as v1 says of its one minute. */
+  const late = windows.filter((w) => !VENUES[w.venue].forwardFill && !w.rows.some((r) => r.t >= last));
+  if (late.length) {
+    return { wait: `no candle for ${last} yet at ${late.map((w) => `${VENUES[w.venue].name} ${w.instrument}`).join(", ")}`, retryAt: null };
+  }
+
+  const series = windows.map((w) => venueSeries(w.venue, w.rows, from, last));
+  const before = (m - 60 - from) / 60; // the minute before the window
+  const first = (m - from) / 60;
+  const refs: (bigint | null)[] = series[0]?.ticks.map(() => null) ?? [];
+  for (let j = Math.max(0, first - CALIBRATION_FROM_MINUTES); j <= before; j++) refs[j] = referenceAt(series, j);
+
+  const ks = Array.from({ length: V2_WINDOW_MINUTES }, (_, i) => first + i);
+  const read = series.map((s, v) => {
+    const cal = ks.map((k) => premiumAt(s, refs, k, before));
+    const fresh = freshAt(s, before);
+    const why: V2ProofRow["why"] =
+      s.candle[before] === null ? "no-candle" : s.ticks[before] === null ? "bad-close" : !fresh ? "stale" : cal.some((c) => c.premium === null) ? "uncalibrated" : "counted";
+    return { s, w: windows[v], cal, fresh, counted: why === "counted", why };
+  });
+  const counted = read.filter((r) => r.counted);
+  const countedAnchors = counted.filter((r) => r.s.anchor).length;
+
+  const keptAt: boolean[][] = read.map(() => ks.map(() => false));
+  const minutes: V2ProofMinute[] = [];
+  let median: bigint | null = null;
+  let reason: string | null = null;
+
+  if (counted.length >= QUORUM && countedAnchors >= QUORUM_ANCHORS) {
+    const values: bigint[] = [];
+    for (const [i, k] of ks.entries()) {
+      const inputs = counted.flatMap((r) => {
+        const ticks = r.s.ticks[k];
+        return ticks === null ? [] : [{ r, anchor: r.s.anchor, value: calibrate(ticks, r.cal[i].premium!) }];
+      });
+      if (!inputs.length) {
+        reason = `no counted market had a readable close at ${from + k * 60}`;
+        break;
+      }
+      const step = minuteMedian(inputs);
+      inputs.forEach((x, n) => (keptAt[read.indexOf(x.r)][i] = step.kept[n]));
+      const kept = inputs.filter((_, n) => step.kept[n]);
+      minutes.push({ t: from + k * 60, m0: step.m0.toString(), value: step.value.toString(), kept: kept.length, keptAnchors: kept.filter((x) => x.anchor).length, guard: step.guard });
+      values.push(step.value);
+    }
+    if (reason === null) median = medianTicks(values);
+  } else {
+    reason = `${counted.length} markets (${countedAnchors} anchors) had traded in the 15 minutes before ${m} and were calibrated; the rule needs 3 with 2 anchors`;
+  }
+
+  const ref = opts.reference;
+  const refTicks = ref && !("error" in ref) ? toTicks(ref.close) : null;
+  let checked = false;
+  const proofOf = (tier: null | "exchange", price: bigint | null, why: string | null): CompositeV2Proof => ({
+    rule: COMPOSITE_V2_RULE,
+    boundary,
+    minute: m,
+    publishTime: m + V2_WINDOW_SECS,
+    window: { from: m, to: last, minutes: V2_WINDOW_MINUTES },
+    calibration: {
+      fromMinutes: CALIBRATION_FROM_MINUTES,
+      toMinutes: CALIBRATION_TO_MINUTES,
+      minSamples: CALIBRATION_MIN_SAMPLES,
+      scale: PREMIUM_SCALE.toString(),
+    },
+    venues: read.map((r, v) => ({
+      venue: r.s.venue,
+      name: VENUES[r.s.venue].name,
+      instrument: r.w.instrument,
+      anchor: r.s.anchor,
+      request: r.w.request,
+      lastTraded: r.s.lastTraded[before] ?? null,
+      fresh: r.fresh,
+      counted: r.counted,
+      why: r.why,
+      minutes: ks.map((k, i) => {
+        const ticks = r.s.ticks[k];
+        const premium = r.cal[i].premium;
+        return {
+          t: from + k * 60,
+          candle: r.s.candle[k],
+          close: r.s.close[k],
+          ticks: ticks === null ? null : ticks.toString(),
+          premium: premium === null ? null : premium.toString(),
+          samples: r.cal[i].samples,
+          calibrated: ticks === null || premium === null ? null : calibrate(ticks, premium).toString(),
+          kept: keptAt[v][i],
+        };
+      }),
+    })),
+    counted: counted.length,
+    countedAnchors,
+    minutes,
+    median: median === null ? null : median.toString(),
+    reference: checked && ref && !("error" in ref) && refTicks !== null ? { t: ref.t, close: ref.close, ticks: refTicks.toString() } : null,
+    tier,
+    reason: why,
+    price: price === null ? null : price.toString(),
+  });
+
+  if (median !== null) {
+    // The breaker needs the exchange's last close; not being able to read it is a wait.
+    if (ref === null) return { wait: "no exchange close before the boundary to check the price against", retryAt: null };
+    if ("error" in ref) return { wait: `the exchange's last close could not be read: ${ref.error}`, retryAt: null };
+    if (refTicks === null) return { wait: `the exchange's last close ${ref.close} is not a price`, retryAt: null };
+    checked = true;
+    if (within(median, refTicks, BREAKER_BPS)) {
+      const proof = proofOf(null, median, null);
+      return { price: median, publishTime: m + V2_WINDOW_SECS, tier: null, proof, sha256: proofHash(proof) };
+    }
+    reason = `${(abs(median - refTicks) * 10_000n) / refTicks} bps from the exchange's last close, beyond the 1,500 bps breaker`;
+  }
+
+  if (opts.exchangeFinal === null) return { refused: `${reason}; and no exchange session opens within ten days` };
+  const proof = proofOf("exchange", null, reason);
+  return { waitUntil: opts.exchangeFinal, reason: reason ?? "", proof, sha256: proofHash(proof) };
+}
+
 /* CANONICAL JSON.
  *
  * Object keys sorted at every level, no whitespace, arrays in their own order
@@ -446,7 +829,7 @@ export function canonicalJson(value: unknown): string {
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
 }
 
-export const proofHash = (proof: CompositeProof) => sha256Hex(canonicalJson(proof));
+export const proofHash = (proof: CompositeProof | CompositeV2Proof) => sha256Hex(canonicalJson(proof));
 
 /* SHA-256, IN PLAIN TYPESCRIPT.
  *

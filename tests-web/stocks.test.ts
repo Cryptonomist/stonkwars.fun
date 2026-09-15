@@ -1,5 +1,6 @@
 import { expect } from "chai";
 
+import { compositePublishTime } from "../src/lib/composite";
 import { SOURCE_PYTH, SOURCE_SIGNED, STALL_REFUND_SECS, START_DELAY_SECS } from "../src/lib/duel";
 import { isTradingDay, nyParts, nyToMs } from "../src/lib/market";
 import { BAR_SETTLE_SECS } from "../src/lib/oracle";
@@ -741,7 +742,9 @@ describe("fights across trading hours", () => {
 
             const ready = clock as Ready;
             expect(ready, where).to.have.property("at");
-            const expected = pricedAt(ticker, b) === "pool" ? f + BAR_SETTLE_SECS : firstBarEnd(f) + BAR_SETTLE_SECS;
+            const priced = pricedAt(ticker, b);
+            const expected =
+              priced === "pool" ? f + BAR_SETTLE_SECS : priced === "composite" ? compositePublishTime(f) + BAR_SETTLE_SECS : firstBarEnd(f) + BAR_SETTLE_SECS;
             expect(ready.at, where).to.equal(expected);
             // And the time the price will carry is the clock's, less its grace.
             expect(priceTimeAt(ticker, b), `${where}, price time`).to.equal(ready.at - BAR_SETTLE_SECS);

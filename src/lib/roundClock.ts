@@ -27,6 +27,7 @@
  * are unix seconds, `now` is the page's clock, and the nudge's measured skew
  * turns it into the server's. */
 
+import { V2_WINDOW_MINUTES } from "./composite";
 import { STATUS_ACCEPTED, STATUS_LIVE, type DuelView } from "./duel";
 import { etDay } from "./format";
 import {
@@ -82,6 +83,11 @@ const inSecs = (n: number) => (n < 60 ? `${n}s` : `${Math.floor(n / 60)}m ${Stri
 function waitingOn(why: ReadyWhy, n: number, which: "start" | "settle"): string {
   if (why === "pyth") return which === "start" ? "in a few seconds, at Pyth's first price" : "in a few seconds, at Pyth's first price after the bell";
   if (why === "pool-window") return `in ${inSecs(n)}, when the pool's last minutes are in`;
+  if (why === "composite-window") {
+    return which === "start"
+      ? `in ${inSecs(n)}, when the 24/7 markets' first ${V2_WINDOW_MINUTES} minutes of the round are final`
+      : `in ${inSecs(n)}, when the 24/7 markets' ${V2_WINDOW_MINUTES} minutes from the bell are final`;
+  }
   return which === "start" ? `in ${inSecs(n)}, when this minute's price closes` : `in ${inSecs(n)}, when the minute after the bell is final`;
 }
 

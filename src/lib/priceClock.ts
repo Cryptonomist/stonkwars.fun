@@ -19,6 +19,7 @@
 
 import { boundaryOf } from "./crankTx";
 import { SOURCE_PYTH, STALL_REFUND_SECS, STATUS_ACCEPTED, STATUS_LIVE, STATUS_VOID, type DuelView } from "./duel";
+import { compositePublishTime } from "./composite";
 import { openingAfter, pythPricesAt, session } from "./market";
 import { BAR_SETTLE_SECS, exchangeBarFinal, firstBarEnd, sourceAt } from "./oracle";
 import { byFeed, quoteSymbolFor } from "./stocks";
@@ -36,7 +37,7 @@ export const PYTH_GRACE_SECS = 3;
  *  long enough for the nudge and the cron to have had several goes. */
 export const MANUAL_FALLBACK_SECS = 180;
 
-export type ReadyWhy = "minute-close" | "pool-window" | "pyth";
+export type ReadyWhy = "minute-close" | "pool-window" | "composite-window" | "pyth";
 export type Ready = { at: number; why: ReadyWhy };
 export type Shut = { shut: string[] };
 /* A FIGHT NOTHING WILL EVER PRICE.
@@ -111,10 +112,11 @@ function sideReady(
   const src = sourceAt(boundary, market);
   // The pool's window is the hour before the boundary, complete once it passes.
   if (src === "pool") return { at: boundary + BAR_SETTLE_SECS, why: "pool-window" };
-  /* The composite reads the minute the boundary falls in and stamps its end,
-   * exactly the perp's timing (composite.ts, step 1), and asks nothing before
-   * that minute has closed and settled. */
-  if (src === "perp" || src === "composite") return { at: firstBarEnd(boundary) + BAR_SETTLE_SECS, why: "minute-close" };
+  if (src === "perp") return { at: firstBarEnd(boundary) + BAR_SETTLE_SECS, why: "minute-close" };
+  /* The composite reads the W minutes from the one the boundary falls in and
+   * stamps the end of the last (composite.ts, compositePublishTime), and asks
+   * nothing before that minute has closed and settled. */
+  if (src === "composite") return { at: compositePublishTime(boundary) + BAR_SETTLE_SECS, why: "composite-window" };
 
   /* The exchange. Shut at the boundary with nothing else to read means the
    * price is its first bar after it reopens: final a bar and the settle time

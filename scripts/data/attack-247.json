@@ -1,0 +1,4324 @@
+{
+ "rule": "composite-v2",
+ "freshSecs": 840,
+ "pushBps": 60,
+ "weekend": {
+  "from": 1789171200,
+  "until": 1789344000
+ },
+ "rounds": [
+  {
+   "label": "15m",
+   "minutes": 15
+  },
+  {
+   "label": "60m",
+   "minutes": 60
+  },
+  {
+   "label": "4h",
+   "minutes": 240
+  },
+  {
+   "label": "12h",
+   "minutes": 720
+  },
+  {
+   "label": "24h",
+   "minutes": 1440
+  }
+ ],
+ "venues": [
+  "hyperliquid",
+  "okx",
+  "bitget",
+  "binance",
+  "lighter",
+  "backpack",
+  "gate",
+  "mexc",
+  "bingx"
+ ],
+ "results": {
+  "1": [
+   {
+    "ticker": "TSLA",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.34,
+     "p90": 0.86,
+     "max": 5.86
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 219,
+      "start": 238,
+      "both": 445,
+      "one": 445
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 112,
+      "start": 109,
+      "both": 188,
+      "one": 188
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 25,
+      "start": 24,
+      "both": 47,
+      "one": 47
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 17,
+      "start": 17,
+      "both": 32,
+      "one": 32
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 3,
+      "start": 1,
+      "both": 4,
+      "one": 4
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 688,
+      "start": 677,
+      "both": 1200,
+      "one": 1200
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 335,
+      "start": 325,
+      "both": 592,
+      "one": 592
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 94,
+      "start": 93,
+      "both": 153,
+      "one": 153
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 43,
+      "start": 42,
+      "both": 76,
+      "one": 76
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 11,
+      "start": 7,
+      "both": 16,
+      "one": 16
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "NVDA",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.45,
+     "p90": 0.91,
+     "max": 2.36
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 225,
+      "start": 271,
+      "both": 455,
+      "one": 455
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 76,
+      "start": 79,
+      "both": 135,
+      "one": 135
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 45,
+      "start": 60,
+      "both": 101,
+      "one": 101
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 3,
+      "start": 12,
+      "both": 15,
+      "one": 15
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 1,
+      "start": 3,
+      "both": 4,
+      "one": 4
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 644,
+      "start": 719,
+      "both": 1100,
+      "one": 1100
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 177,
+      "start": 191,
+      "both": 350,
+      "one": 350
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 129,
+      "start": 131,
+      "both": 226,
+      "one": 226
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 25,
+      "start": 37,
+      "both": 57,
+      "one": 57
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 5,
+      "start": 7,
+      "both": 11,
+      "one": 11
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "AAPL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.38,
+     "p90": 0.94,
+     "max": 4.15
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 309,
+      "start": 339,
+      "both": 631,
+      "one": 631
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 195,
+      "start": 171,
+      "both": 321,
+      "one": 321
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 74,
+      "start": 74,
+      "both": 151,
+      "one": 151
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 17,
+      "start": 19,
+      "both": 36,
+      "one": 36
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 7,
+      "start": 5,
+      "both": 10,
+      "one": 10
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 1124,
+      "start": 1143,
+      "both": 1810,
+      "one": 1810
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 578,
+      "start": 625,
+      "both": 1131,
+      "one": 1131
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 220,
+      "start": 251,
+      "both": 435,
+      "one": 435
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 68,
+      "start": 96,
+      "both": 172,
+      "one": 172
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 26,
+      "start": 32,
+      "both": 48,
+      "one": 48
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "GOOGL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.52,
+     "p90": 1.18,
+     "max": 5.91
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 280,
+      "start": 295,
+      "both": 533,
+      "one": 533
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 114,
+      "start": 105,
+      "both": 195,
+      "one": 195
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 58,
+      "start": 50,
+      "both": 99,
+      "one": 99
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 5,
+      "start": 2,
+      "both": 9,
+      "one": 9
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 4,
+      "start": 3,
+      "both": 7,
+      "one": 7
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 639,
+      "start": 667,
+      "both": 1110,
+      "one": 1110
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 277,
+      "start": 236,
+      "both": 471,
+      "one": 471
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 154,
+      "start": 117,
+      "both": 247,
+      "one": 247
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 7,
+      "start": 4,
+      "both": 15,
+      "one": 15
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 9,
+      "both": 17,
+      "one": 17
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "AMZN",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.65,
+     "p90": 1.72,
+     "max": 5.45
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 562,
+      "start": 622,
+      "both": 1100,
+      "one": 1100
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 233,
+      "start": 259,
+      "both": 471,
+      "one": 471
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 130,
+      "start": 114,
+      "both": 249,
+      "one": 249
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 15,
+      "start": 43,
+      "both": 62,
+      "one": 62
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 39,
+      "start": 26,
+      "both": 67,
+      "one": 67
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 1020,
+      "start": 1006,
+      "both": 1717,
+      "one": 1717
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 488,
+      "start": 509,
+      "both": 979,
+      "one": 979
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 269,
+      "start": 234,
+      "both": 495,
+      "one": 495
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 110,
+      "start": 94,
+      "both": 208,
+      "one": 208
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 68,
+      "start": 94,
+      "both": 172,
+      "one": 172
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 36
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "META",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.62,
+     "p90": 1.4,
+     "max": 6.99
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 377,
+      "start": 448,
+      "both": 777,
+      "one": 777
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 127,
+      "start": 115,
+      "both": 253,
+      "one": 253
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 73,
+      "start": 53,
+      "both": 139,
+      "one": 139
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 18,
+      "start": 13,
+      "both": 32,
+      "one": 32
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 18,
+      "start": 15,
+      "both": 31,
+      "one": 31
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 733,
+      "start": 798,
+      "both": 1342,
+      "one": 1342
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 284,
+      "start": 287,
+      "both": 558,
+      "one": 558
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 155,
+      "start": 168,
+      "both": 324,
+      "one": 324
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 30,
+      "start": 46,
+      "both": 73,
+      "one": 73
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 25,
+      "start": 48,
+      "both": 84,
+      "one": 84
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 21
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MSTR",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.58,
+     "p90": 1.25,
+     "max": 4.22
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 164,
+      "start": 165,
+      "both": 300,
+      "one": 300
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 88,
+      "start": 79,
+      "both": 154,
+      "one": 154
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 27,
+      "start": 38,
+      "both": 65,
+      "one": 65
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 10,
+      "start": 9,
+      "both": 15,
+      "one": 15
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 5,
+      "both": 9,
+      "one": 9
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 464,
+      "start": 462,
+      "both": 874,
+      "one": 874
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 258,
+      "start": 233,
+      "both": 469,
+      "one": 469
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 94,
+      "start": 112,
+      "both": 203,
+      "one": 203
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 23,
+      "start": 33,
+      "both": 57,
+      "one": 57
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 16,
+      "start": 15,
+      "both": 29,
+      "one": 29
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "COIN",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.86,
+     "p90": 1.94,
+     "max": 7.24
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 381,
+      "start": 382,
+      "both": 738,
+      "one": 738
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 174,
+      "start": 184,
+      "both": 323,
+      "one": 323
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 71,
+      "start": 76,
+      "both": 153,
+      "one": 153
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 4,
+      "start": 7,
+      "both": 14,
+      "one": 14
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 45,
+      "start": 46,
+      "both": 75,
+      "one": 75
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 837,
+      "start": 819,
+      "both": 1423,
+      "one": 1423
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 348,
+      "start": 378,
+      "both": 672,
+      "one": 672
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 136,
+      "start": 152,
+      "both": 283,
+      "one": 283
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 16,
+      "start": 18,
+      "both": 34,
+      "one": 34
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 101,
+      "start": 92,
+      "both": 166,
+      "one": 166
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 10
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "HOOD",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.91,
+     "p90": 2.29,
+     "max": 11.2
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 317,
+      "start": 295,
+      "both": 581,
+      "one": 581
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 170,
+      "start": 136,
+      "both": 269,
+      "one": 269
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 55,
+      "start": 46,
+      "both": 100,
+      "one": 100
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 20,
+      "start": 25,
+      "both": 48,
+      "one": 48
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 1,
+      "start": 1,
+      "both": 2,
+      "one": 2
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 609,
+      "start": 594,
+      "both": 1052,
+      "one": 1052
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 304,
+      "start": 298,
+      "both": 584,
+      "one": 584
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 110,
+      "start": 94,
+      "both": 212,
+      "one": 212
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 55,
+      "start": 72,
+      "both": 106,
+      "one": 106
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 3,
+      "both": 9,
+      "one": 9
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 7
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "CRCL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.66,
+     "p90": 1.27,
+     "max": 6.65
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 172,
+      "start": 174,
+      "both": 338,
+      "one": 338
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 56,
+      "start": 61,
+      "both": 112,
+      "one": 112
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 20,
+      "start": 22,
+      "both": 45,
+      "one": 45
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 6,
+      "start": 9,
+      "both": 11,
+      "one": 11
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 2,
+      "start": 2,
+      "both": 5,
+      "one": 5
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 327,
+      "start": 317,
+      "both": 566,
+      "one": 566
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 94,
+      "start": 99,
+      "both": 175,
+      "one": 175
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 35,
+      "start": 41,
+      "both": 63,
+      "one": 63
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 9,
+      "start": 7,
+      "both": 14,
+      "one": 14
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 9,
+      "both": 13,
+      "one": 13
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MU",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.36,
+     "p90": 0.93,
+     "max": 4.6
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 130,
+      "start": 118,
+      "both": 238,
+      "one": 238
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 39,
+      "start": 38,
+      "both": 82,
+      "one": 82
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 28,
+      "start": 30,
+      "both": 55,
+      "one": 55
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 9,
+      "start": 8,
+      "both": 15,
+      "one": 15
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 393,
+      "start": 384,
+      "both": 723,
+      "one": 723
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 131,
+      "start": 156,
+      "both": 249,
+      "one": 249
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 78,
+      "start": 82,
+      "both": 157,
+      "one": 157
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 26,
+      "start": 32,
+      "both": 53,
+      "one": 53
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MSFT",
+    "starts": 2880,
+    "pricedStarts": 2879,
+    "pushBps": {
+     "median": 0.46,
+     "p90": 1.12,
+     "max": 3.68
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2878,
+      "end": 461,
+      "start": 548,
+      "both": 898,
+      "one": 898
+     },
+     "60m": {
+      "rounds": 2877,
+      "end": 170,
+      "start": 167,
+      "both": 336,
+      "one": 336
+     },
+     "4h": {
+      "rounds": 2697,
+      "end": 78,
+      "start": 87,
+      "both": 168,
+      "one": 168
+     },
+     "12h": {
+      "rounds": 2217,
+      "end": 12,
+      "start": 14,
+      "both": 19,
+      "one": 19
+     },
+     "24h": {
+      "rounds": 1498,
+      "end": 0,
+      "start": 1,
+      "both": 1,
+      "one": 1
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2878,
+      "end": 977,
+      "start": 925,
+      "both": 1574,
+      "one": 1574
+     },
+     "60m": {
+      "rounds": 2877,
+      "end": 450,
+      "start": 412,
+      "both": 810,
+      "one": 810
+     },
+     "4h": {
+      "rounds": 2697,
+      "end": 203,
+      "start": 240,
+      "both": 439,
+      "one": 439
+     },
+     "12h": {
+      "rounds": 2217,
+      "end": 74,
+      "start": 79,
+      "both": 153,
+      "one": 153
+     },
+     "24h": {
+      "rounds": 1498,
+      "end": 15,
+      "start": 36,
+      "both": 54,
+      "one": 54
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2879,
+     "knocked": 32
+    },
+    "checked": 0
+   }
+  ],
+  "3": [
+   {
+    "ticker": "TSLA",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.34,
+     "p90": 0.83,
+     "max": 3.92
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 204,
+      "start": 211,
+      "both": 399,
+      "one": 262
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 115,
+      "start": 118,
+      "both": 199,
+      "one": 140
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 35,
+      "start": 29,
+      "both": 46,
+      "one": 37
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 10,
+      "start": 10,
+      "both": 26,
+      "one": 16
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 4,
+      "start": 3,
+      "both": 5,
+      "one": 5
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 688,
+      "start": 677,
+      "both": 1200,
+      "one": 1200
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 335,
+      "start": 325,
+      "both": 592,
+      "one": 592
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 94,
+      "start": 93,
+      "both": 153,
+      "one": 153
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 43,
+      "start": 42,
+      "both": 76,
+      "one": 76
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 11,
+      "start": 7,
+      "both": 16,
+      "one": 16
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "NVDA",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.45,
+     "p90": 0.91,
+     "max": 2.36
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 237,
+      "start": 277,
+      "both": 449,
+      "one": 326
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 75,
+      "start": 69,
+      "both": 130,
+      "one": 92
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 59,
+      "start": 79,
+      "both": 109,
+      "one": 85
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 4,
+      "start": 13,
+      "both": 17,
+      "one": 5
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 0,
+      "start": 2,
+      "both": 2,
+      "one": 2
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 644,
+      "start": 719,
+      "both": 1100,
+      "one": 1100
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 177,
+      "start": 191,
+      "both": 350,
+      "one": 350
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 129,
+      "start": 131,
+      "both": 226,
+      "one": 226
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 25,
+      "start": 37,
+      "both": 57,
+      "one": 57
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 5,
+      "start": 7,
+      "both": 11,
+      "one": 11
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "AAPL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.39,
+     "p90": 0.91,
+     "max": 4.15
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 278,
+      "start": 321,
+      "both": 589,
+      "one": 364
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 179,
+      "start": 180,
+      "both": 316,
+      "one": 215
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 75,
+      "start": 73,
+      "both": 139,
+      "one": 97
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 24,
+      "start": 26,
+      "both": 40,
+      "one": 31
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 6,
+      "start": 5,
+      "both": 13,
+      "one": 10
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 1124,
+      "start": 1143,
+      "both": 1810,
+      "one": 1810
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 578,
+      "start": 625,
+      "both": 1131,
+      "one": 1131
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 220,
+      "start": 251,
+      "both": 435,
+      "one": 435
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 68,
+      "start": 96,
+      "both": 172,
+      "one": 172
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 26,
+      "start": 32,
+      "both": 48,
+      "one": 48
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "GOOGL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.55,
+     "p90": 1.18,
+     "max": 5.31
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 271,
+      "start": 298,
+      "both": 496,
+      "one": 302
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 99,
+      "start": 98,
+      "both": 175,
+      "one": 116
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 58,
+      "start": 50,
+      "both": 84,
+      "one": 71
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 11,
+      "start": 4,
+      "both": 14,
+      "one": 14
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 2,
+      "start": 1,
+      "both": 4,
+      "one": 3
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 639,
+      "start": 667,
+      "both": 1110,
+      "one": 1110
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 277,
+      "start": 236,
+      "both": 471,
+      "one": 471
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 154,
+      "start": 117,
+      "both": 247,
+      "one": 247
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 7,
+      "start": 4,
+      "both": 15,
+      "one": 15
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 9,
+      "both": 17,
+      "one": 17
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "AMZN",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.68,
+     "p90": 1.67,
+     "max": 5.45
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 508,
+      "start": 590,
+      "both": 1021,
+      "one": 488
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 249,
+      "start": 250,
+      "both": 472,
+      "one": 213
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 128,
+      "start": 115,
+      "both": 247,
+      "one": 115
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 16,
+      "start": 43,
+      "both": 57,
+      "one": 14
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 46,
+      "start": 31,
+      "both": 71,
+      "one": 26
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 1020,
+      "start": 1006,
+      "both": 1717,
+      "one": 1717
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 488,
+      "start": 509,
+      "both": 979,
+      "one": 979
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 269,
+      "start": 234,
+      "both": 495,
+      "one": 495
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 110,
+      "start": 94,
+      "both": 208,
+      "one": 208
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 68,
+      "start": 94,
+      "both": 172,
+      "one": 172
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 36
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "META",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.61,
+     "p90": 1.39,
+     "max": 6.91
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 379,
+      "start": 404,
+      "both": 720,
+      "one": 364
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 137,
+      "start": 106,
+      "both": 258,
+      "one": 127
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 96,
+      "start": 64,
+      "both": 145,
+      "one": 74
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 22,
+      "start": 19,
+      "both": 32,
+      "one": 21
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 18,
+      "start": 12,
+      "both": 28,
+      "one": 12
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 733,
+      "start": 798,
+      "both": 1342,
+      "one": 1342
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 284,
+      "start": 287,
+      "both": 558,
+      "one": 558
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 155,
+      "start": 168,
+      "both": 324,
+      "one": 324
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 30,
+      "start": 46,
+      "both": 73,
+      "one": 73
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 25,
+      "start": 48,
+      "both": 84,
+      "one": 84
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 21
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "MSTR",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.58,
+     "p90": 1.25,
+     "max": 4.22
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 153,
+      "start": 159,
+      "both": 302,
+      "one": 249
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 86,
+      "start": 87,
+      "both": 170,
+      "one": 138
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 38,
+      "start": 40,
+      "both": 64,
+      "one": 55
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 3,
+      "start": 3,
+      "both": 9,
+      "one": 8
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 3,
+      "start": 2,
+      "both": 5,
+      "one": 5
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 464,
+      "start": 462,
+      "both": 874,
+      "one": 874
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 258,
+      "start": 233,
+      "both": 469,
+      "one": 469
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 94,
+      "start": 112,
+      "both": 203,
+      "one": 203
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 23,
+      "start": 33,
+      "both": 57,
+      "one": 57
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 16,
+      "start": 15,
+      "both": 29,
+      "one": 29
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "COIN",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.86,
+     "p90": 1.87,
+     "max": 7.07
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 367,
+      "start": 360,
+      "both": 685,
+      "one": 424
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 175,
+      "start": 181,
+      "both": 317,
+      "one": 200
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 81,
+      "start": 69,
+      "both": 141,
+      "one": 83
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 2,
+      "start": 3,
+      "both": 7,
+      "one": 4
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 44,
+      "start": 55,
+      "both": 77,
+      "one": 51
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 837,
+      "start": 819,
+      "both": 1423,
+      "one": 1423
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 348,
+      "start": 378,
+      "both": 672,
+      "one": 672
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 136,
+      "start": 152,
+      "both": 283,
+      "one": 283
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 16,
+      "start": 18,
+      "both": 34,
+      "one": 34
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 101,
+      "start": 92,
+      "both": 166,
+      "one": 166
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 10
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "HOOD",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.9,
+     "p90": 2.22,
+     "max": 11.2
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 283,
+      "start": 280,
+      "both": 549,
+      "one": 373
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 152,
+      "start": 131,
+      "both": 259,
+      "one": 180
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 50,
+      "start": 50,
+      "both": 86,
+      "one": 59
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 32,
+      "start": 29,
+      "both": 51,
+      "one": 30
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 0,
+      "start": 0,
+      "both": 2,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 609,
+      "start": 594,
+      "both": 1052,
+      "one": 1052
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 304,
+      "start": 298,
+      "both": 584,
+      "one": 584
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 110,
+      "start": 94,
+      "both": 212,
+      "one": 212
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 55,
+      "start": 72,
+      "both": 106,
+      "one": 106
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 3,
+      "both": 9,
+      "one": 9
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 7
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "CRCL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.66,
+     "p90": 1.19,
+     "max": 6.65
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 178,
+      "start": 190,
+      "both": 343,
+      "one": 265
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 71,
+      "start": 63,
+      "both": 117,
+      "one": 91
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 29,
+      "start": 28,
+      "both": 47,
+      "one": 37
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 4,
+      "start": 7,
+      "both": 11,
+      "one": 10
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 2,
+      "start": 4,
+      "both": 6,
+      "one": 6
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 327,
+      "start": 317,
+      "both": 566,
+      "one": 566
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 94,
+      "start": 99,
+      "both": 175,
+      "one": 175
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 35,
+      "start": 41,
+      "both": 63,
+      "one": 63
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 9,
+      "start": 7,
+      "both": 14,
+      "one": 14
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 9,
+      "both": 13,
+      "one": 13
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "MU",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.36,
+     "p90": 0.91,
+     "max": 4.6
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 104,
+      "start": 100,
+      "both": 212,
+      "one": 171
+     },
+     "60m": {
+      "rounds": 2875,
+      "end": 38,
+      "start": 45,
+      "both": 80,
+      "one": 65
+     },
+     "4h": {
+      "rounds": 2695,
+      "end": 22,
+      "start": 20,
+      "both": 45,
+      "one": 28
+     },
+     "12h": {
+      "rounds": 2215,
+      "end": 14,
+      "start": 10,
+      "both": 19,
+      "one": 13
+     },
+     "24h": {
+      "rounds": 1495,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 393,
+      "start": 384,
+      "both": 723,
+      "one": 723
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 131,
+      "start": 156,
+      "both": 249,
+      "one": 249
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 78,
+      "start": 82,
+      "both": 157,
+      "one": 157
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 26,
+      "start": 32,
+      "both": 53,
+      "one": 53
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 30
+   },
+   {
+    "ticker": "MSFT",
+    "starts": 2880,
+    "pricedStarts": 2879,
+    "pushBps": {
+     "median": 0.46,
+     "p90": 1.12,
+     "max": 3.86
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2878,
+      "end": 426,
+      "start": 509,
+      "both": 846,
+      "one": 423
+     },
+     "60m": {
+      "rounds": 2873,
+      "end": 180,
+      "start": 183,
+      "both": 346,
+      "one": 157
+     },
+     "4h": {
+      "rounds": 2693,
+      "end": 82,
+      "start": 91,
+      "both": 167,
+      "one": 89
+     },
+     "12h": {
+      "rounds": 2213,
+      "end": 11,
+      "start": 13,
+      "both": 15,
+      "one": 12
+     },
+     "24h": {
+      "rounds": 1494,
+      "end": 0,
+      "start": 3,
+      "both": 3,
+      "one": 1
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2878,
+      "end": 977,
+      "start": 925,
+      "both": 1574,
+      "one": 1574
+     },
+     "60m": {
+      "rounds": 2877,
+      "end": 450,
+      "start": 412,
+      "both": 810,
+      "one": 810
+     },
+     "4h": {
+      "rounds": 2697,
+      "end": 203,
+      "start": 240,
+      "both": 439,
+      "one": 439
+     },
+     "12h": {
+      "rounds": 2217,
+      "end": 74,
+      "start": 79,
+      "both": 153,
+      "one": 153
+     },
+     "24h": {
+      "rounds": 1498,
+      "end": 15,
+      "start": 36,
+      "both": 54,
+      "one": 54
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2879,
+     "knocked": 32
+    },
+    "checked": 30
+   }
+  ],
+  "5": [
+   {
+    "ticker": "TSLA",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.34,
+     "p90": 0.83,
+     "max": 3.65
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 205,
+      "start": 226,
+      "both": 407,
+      "one": 256
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 105,
+      "start": 113,
+      "both": 206,
+      "one": 117
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 23,
+      "start": 34,
+      "both": 44,
+      "one": 35
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 17,
+      "start": 10,
+      "both": 25,
+      "one": 20
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 4,
+      "start": 0,
+      "both": 4,
+      "one": 4
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 688,
+      "start": 677,
+      "both": 1200,
+      "one": 1200
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 335,
+      "start": 325,
+      "both": 592,
+      "one": 592
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 94,
+      "start": 93,
+      "both": 153,
+      "one": 153
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 43,
+      "start": 42,
+      "both": 76,
+      "one": 76
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 11,
+      "start": 7,
+      "both": 16,
+      "one": 16
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "NVDA",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.45,
+     "p90": 0.9,
+     "max": 2.36
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 223,
+      "start": 263,
+      "both": 411,
+      "one": 266
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 57,
+      "start": 56,
+      "both": 111,
+      "one": 65
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 50,
+      "start": 64,
+      "both": 90,
+      "one": 67
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 4,
+      "start": 16,
+      "both": 19,
+      "one": 7
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 0,
+      "start": 2,
+      "both": 3,
+      "one": 2
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 644,
+      "start": 719,
+      "both": 1100,
+      "one": 1100
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 177,
+      "start": 191,
+      "both": 350,
+      "one": 350
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 129,
+      "start": 131,
+      "both": 226,
+      "one": 226
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 25,
+      "start": 37,
+      "both": 57,
+      "one": 57
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 5,
+      "start": 7,
+      "both": 11,
+      "one": 11
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "AAPL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.39,
+     "p90": 0.9,
+     "max": 4.15
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 298,
+      "start": 302,
+      "both": 577,
+      "one": 338
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 167,
+      "start": 163,
+      "both": 312,
+      "one": 174
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 71,
+      "start": 67,
+      "both": 147,
+      "one": 83
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 19,
+      "start": 21,
+      "both": 41,
+      "one": 23
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 6,
+      "start": 5,
+      "both": 11,
+      "one": 7
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 1124,
+      "start": 1143,
+      "both": 1810,
+      "one": 1810
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 578,
+      "start": 625,
+      "both": 1131,
+      "one": 1131
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 220,
+      "start": 251,
+      "both": 435,
+      "one": 435
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 68,
+      "start": 96,
+      "both": 172,
+      "one": 172
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 26,
+      "start": 32,
+      "both": 48,
+      "one": 48
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "GOOGL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.55,
+     "p90": 1.18,
+     "max": 5.31
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 242,
+      "start": 267,
+      "both": 465,
+      "one": 246
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 84,
+      "start": 77,
+      "both": 158,
+      "one": 77
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 53,
+      "start": 41,
+      "both": 79,
+      "one": 57
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 5,
+      "start": 4,
+      "both": 12,
+      "one": 5
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 2,
+      "start": 2,
+      "both": 4,
+      "one": 3
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 639,
+      "start": 667,
+      "both": 1110,
+      "one": 1110
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 277,
+      "start": 236,
+      "both": 471,
+      "one": 471
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 154,
+      "start": 117,
+      "both": 247,
+      "one": 247
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 7,
+      "start": 4,
+      "both": 15,
+      "one": 15
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 9,
+      "both": 17,
+      "one": 17
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "AMZN",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.67,
+     "p90": 1.65,
+     "max": 5.45
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 454,
+      "start": 514,
+      "both": 933,
+      "one": 354
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 247,
+      "start": 230,
+      "both": 455,
+      "one": 183
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 146,
+      "start": 107,
+      "both": 245,
+      "one": 108
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 15,
+      "start": 42,
+      "both": 58,
+      "one": 16
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 57,
+      "start": 35,
+      "both": 77,
+      "one": 32
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 1020,
+      "start": 1006,
+      "both": 1717,
+      "one": 1717
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 488,
+      "start": 509,
+      "both": 979,
+      "one": 979
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 269,
+      "start": 234,
+      "both": 495,
+      "one": 495
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 110,
+      "start": 94,
+      "both": 208,
+      "one": 208
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 68,
+      "start": 94,
+      "both": 172,
+      "one": 172
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 36
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "META",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.61,
+     "p90": 1.39,
+     "max": 6.91
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 356,
+      "start": 367,
+      "both": 690,
+      "one": 289
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 143,
+      "start": 101,
+      "both": 266,
+      "one": 111
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 94,
+      "start": 61,
+      "both": 159,
+      "one": 72
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 22,
+      "start": 19,
+      "both": 32,
+      "one": 18
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 17,
+      "start": 12,
+      "both": 21,
+      "one": 12
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 733,
+      "start": 798,
+      "both": 1342,
+      "one": 1342
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 284,
+      "start": 287,
+      "both": 558,
+      "one": 558
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 155,
+      "start": 168,
+      "both": 324,
+      "one": 324
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 30,
+      "start": 46,
+      "both": 73,
+      "one": 73
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 25,
+      "start": 48,
+      "both": 84,
+      "one": 84
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 21
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MSTR",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.58,
+     "p90": 1.16,
+     "max": 4.22
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 124,
+      "start": 133,
+      "both": 263,
+      "one": 203
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 79,
+      "start": 88,
+      "both": 167,
+      "one": 124
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 52,
+      "start": 55,
+      "both": 89,
+      "one": 66
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 5,
+      "start": 5,
+      "both": 12,
+      "one": 12
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 2,
+      "start": 1,
+      "both": 4,
+      "one": 2
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 464,
+      "start": 462,
+      "both": 874,
+      "one": 874
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 258,
+      "start": 233,
+      "both": 469,
+      "one": 469
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 94,
+      "start": 112,
+      "both": 203,
+      "one": 203
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 23,
+      "start": 33,
+      "both": 57,
+      "one": 57
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 16,
+      "start": 15,
+      "both": 29,
+      "one": 29
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "COIN",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.86,
+     "p90": 1.85,
+     "max": 7.07
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 348,
+      "start": 361,
+      "both": 673,
+      "one": 345
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 172,
+      "start": 181,
+      "both": 315,
+      "one": 165
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 68,
+      "start": 73,
+      "both": 149,
+      "one": 69
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 1,
+      "start": 1,
+      "both": 3,
+      "one": 2
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 39,
+      "start": 52,
+      "both": 77,
+      "one": 38
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 837,
+      "start": 819,
+      "both": 1423,
+      "one": 1423
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 348,
+      "start": 378,
+      "both": 672,
+      "one": 672
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 136,
+      "start": 152,
+      "both": 283,
+      "one": 283
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 16,
+      "start": 18,
+      "both": 34,
+      "one": 34
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 101,
+      "start": 92,
+      "both": 166,
+      "one": 166
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 10
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "HOOD",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.9,
+     "p90": 2.09,
+     "max": 11.2
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 253,
+      "start": 236,
+      "both": 477,
+      "one": 280
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 163,
+      "start": 145,
+      "both": 249,
+      "one": 152
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 55,
+      "start": 49,
+      "both": 96,
+      "one": 54
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 28,
+      "start": 25,
+      "both": 48,
+      "one": 26
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 0,
+      "start": 1,
+      "both": 1,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 609,
+      "start": 594,
+      "both": 1052,
+      "one": 1052
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 304,
+      "start": 298,
+      "both": 584,
+      "one": 584
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 110,
+      "start": 94,
+      "both": 212,
+      "one": 212
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 55,
+      "start": 72,
+      "both": 106,
+      "one": 106
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 3,
+      "both": 9,
+      "one": 9
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 7
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "CRCL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.66,
+     "p90": 1.12,
+     "max": 6.65
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 190,
+      "start": 195,
+      "both": 337,
+      "one": 248
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 65,
+      "start": 56,
+      "both": 104,
+      "one": 81
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 26,
+      "start": 32,
+      "both": 52,
+      "one": 37
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 6,
+      "start": 6,
+      "both": 11,
+      "one": 10
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 1,
+      "start": 3,
+      "both": 7,
+      "one": 5
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 327,
+      "start": 317,
+      "both": 566,
+      "one": 566
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 94,
+      "start": 99,
+      "both": 175,
+      "one": 175
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 35,
+      "start": 41,
+      "both": 63,
+      "one": 63
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 9,
+      "start": 7,
+      "both": 14,
+      "one": 14
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 9,
+      "both": 13,
+      "one": 13
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MU",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.36,
+     "p90": 0.88,
+     "max": 4.6
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 114,
+      "start": 118,
+      "both": 221,
+      "one": 159
+     },
+     "60m": {
+      "rounds": 2871,
+      "end": 43,
+      "start": 46,
+      "both": 78,
+      "one": 60
+     },
+     "4h": {
+      "rounds": 2691,
+      "end": 23,
+      "start": 21,
+      "both": 48,
+      "one": 23
+     },
+     "12h": {
+      "rounds": 2211,
+      "end": 14,
+      "start": 6,
+      "both": 18,
+      "one": 12
+     },
+     "24h": {
+      "rounds": 1491,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 393,
+      "start": 384,
+      "both": 723,
+      "one": 723
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 131,
+      "start": 156,
+      "both": 249,
+      "one": 249
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 78,
+      "start": 82,
+      "both": 157,
+      "one": 157
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 26,
+      "start": 32,
+      "both": 53,
+      "one": 53
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MSFT",
+    "starts": 2880,
+    "pricedStarts": 2879,
+    "pushBps": {
+     "median": 0.46,
+     "p90": 1.12,
+     "max": 3.68
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2878,
+      "end": 377,
+      "start": 470,
+      "both": 770,
+      "one": 307
+     },
+     "60m": {
+      "rounds": 2869,
+      "end": 172,
+      "start": 170,
+      "both": 346,
+      "one": 134
+     },
+     "4h": {
+      "rounds": 2689,
+      "end": 86,
+      "start": 83,
+      "both": 173,
+      "one": 79
+     },
+     "12h": {
+      "rounds": 2209,
+      "end": 4,
+      "start": 4,
+      "both": 9,
+      "one": 5
+     },
+     "24h": {
+      "rounds": 1490,
+      "end": 2,
+      "start": 4,
+      "both": 5,
+      "one": 3
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2878,
+      "end": 977,
+      "start": 925,
+      "both": 1574,
+      "one": 1574
+     },
+     "60m": {
+      "rounds": 2877,
+      "end": 450,
+      "start": 412,
+      "both": 810,
+      "one": 810
+     },
+     "4h": {
+      "rounds": 2697,
+      "end": 203,
+      "start": 240,
+      "both": 439,
+      "one": 439
+     },
+     "12h": {
+      "rounds": 2217,
+      "end": 74,
+      "start": 79,
+      "both": 153,
+      "one": 153
+     },
+     "24h": {
+      "rounds": 1498,
+      "end": 15,
+      "start": 36,
+      "both": 54,
+      "one": 54
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2879,
+     "knocked": 32
+    },
+    "checked": 0
+   }
+  ],
+  "9": [
+   {
+    "ticker": "TSLA",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.34,
+     "p90": 0.82,
+     "max": 3.65
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 181,
+      "start": 207,
+      "both": 368,
+      "one": 189
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 110,
+      "start": 117,
+      "both": 207,
+      "one": 117
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 33,
+      "start": 39,
+      "both": 49,
+      "one": 38
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 9,
+      "start": 11,
+      "both": 27,
+      "one": 10
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 1,
+      "start": 0,
+      "both": 1,
+      "one": 1
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 688,
+      "start": 677,
+      "both": 1200,
+      "one": 1200
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 335,
+      "start": 325,
+      "both": 592,
+      "one": 592
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 94,
+      "start": 93,
+      "both": 153,
+      "one": 153
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 43,
+      "start": 42,
+      "both": 76,
+      "one": 76
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 11,
+      "start": 7,
+      "both": 16,
+      "one": 16
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "NVDA",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.46,
+     "p90": 0.87,
+     "max": 2.36
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 169,
+      "start": 200,
+      "both": 315,
+      "one": 185
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 64,
+      "start": 61,
+      "both": 122,
+      "one": 72
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 38,
+      "start": 62,
+      "both": 84,
+      "one": 48
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 10,
+      "start": 23,
+      "both": 30,
+      "one": 12
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 0,
+      "start": 1,
+      "both": 1,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 644,
+      "start": 719,
+      "both": 1100,
+      "one": 1100
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 177,
+      "start": 191,
+      "both": 350,
+      "one": 350
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 129,
+      "start": 131,
+      "both": 226,
+      "one": 226
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 25,
+      "start": 37,
+      "both": 57,
+      "one": 57
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 5,
+      "start": 7,
+      "both": 11,
+      "one": 11
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "AAPL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.38,
+     "p90": 0.9,
+     "max": 4.15
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 268,
+      "start": 278,
+      "both": 511,
+      "one": 231
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 180,
+      "start": 149,
+      "both": 309,
+      "one": 130
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 61,
+      "start": 54,
+      "both": 128,
+      "one": 63
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 23,
+      "start": 32,
+      "both": 44,
+      "one": 27
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 6,
+      "start": 7,
+      "both": 11,
+      "one": 6
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 1124,
+      "start": 1143,
+      "both": 1810,
+      "one": 1810
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 578,
+      "start": 625,
+      "both": 1131,
+      "one": 1131
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 220,
+      "start": 251,
+      "both": 435,
+      "one": 435
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 68,
+      "start": 96,
+      "both": 172,
+      "one": 172
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 26,
+      "start": 32,
+      "both": 48,
+      "one": 48
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "GOOGL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.54,
+     "p90": 1.04,
+     "max": 3.99
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 200,
+      "start": 246,
+      "both": 432,
+      "one": 210
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 68,
+      "start": 70,
+      "both": 138,
+      "one": 52
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 41,
+      "start": 45,
+      "both": 81,
+      "one": 38
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 6,
+      "start": 4,
+      "both": 10,
+      "one": 6
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 0,
+      "start": 1,
+      "both": 2,
+      "one": 2
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 639,
+      "start": 667,
+      "both": 1110,
+      "one": 1110
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 277,
+      "start": 236,
+      "both": 471,
+      "one": 471
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 154,
+      "start": 117,
+      "both": 247,
+      "one": 247
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 7,
+      "start": 4,
+      "both": 15,
+      "one": 15
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 9,
+      "both": 17,
+      "one": 17
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "AMZN",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.68,
+     "p90": 1.56,
+     "max": 5.45
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 385,
+      "start": 474,
+      "both": 826,
+      "one": 265
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 235,
+      "start": 192,
+      "both": 436,
+      "one": 144
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 153,
+      "start": 130,
+      "both": 256,
+      "one": 88
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 16,
+      "start": 41,
+      "both": 53,
+      "one": 8
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 45,
+      "start": 31,
+      "both": 69,
+      "one": 20
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 1020,
+      "start": 1006,
+      "both": 1717,
+      "one": 1717
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 488,
+      "start": 509,
+      "both": 979,
+      "one": 979
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 269,
+      "start": 234,
+      "both": 495,
+      "one": 495
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 110,
+      "start": 94,
+      "both": 208,
+      "one": 208
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 68,
+      "start": 94,
+      "both": 172,
+      "one": 172
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 36
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "META",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.62,
+     "p90": 1.32,
+     "max": 6.91
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 297,
+      "start": 303,
+      "both": 599,
+      "one": 198
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 145,
+      "start": 119,
+      "both": 291,
+      "one": 89
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 98,
+      "start": 77,
+      "both": 173,
+      "one": 68
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 14,
+      "start": 13,
+      "both": 26,
+      "one": 16
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 11,
+      "start": 9,
+      "both": 21,
+      "one": 8
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 733,
+      "start": 798,
+      "both": 1342,
+      "one": 1342
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 284,
+      "start": 287,
+      "both": 558,
+      "one": 558
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 155,
+      "start": 168,
+      "both": 324,
+      "one": 324
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 30,
+      "start": 46,
+      "both": 73,
+      "one": 73
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 25,
+      "start": 48,
+      "both": 84,
+      "one": 84
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 21
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MSTR",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.58,
+     "p90": 1.15,
+     "max": 4.19
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 119,
+      "start": 123,
+      "both": 218,
+      "one": 158
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 77,
+      "start": 81,
+      "both": 131,
+      "one": 96
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 52,
+      "start": 52,
+      "both": 95,
+      "one": 63
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 15,
+      "start": 14,
+      "both": 23,
+      "one": 18
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 8,
+      "start": 3,
+      "both": 11,
+      "one": 9
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 464,
+      "start": 462,
+      "both": 874,
+      "one": 874
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 258,
+      "start": 233,
+      "both": 469,
+      "one": 469
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 94,
+      "start": 112,
+      "both": 203,
+      "one": 203
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 23,
+      "start": 33,
+      "both": 57,
+      "one": 57
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 16,
+      "start": 15,
+      "both": 29,
+      "one": 29
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "COIN",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.85,
+     "p90": 1.79,
+     "max": 6.32
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 313,
+      "start": 300,
+      "both": 594,
+      "one": 231
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 150,
+      "start": 192,
+      "both": 310,
+      "one": 125
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 73,
+      "start": 78,
+      "both": 157,
+      "one": 64
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 4,
+      "start": 2,
+      "both": 7,
+      "one": 4
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 33,
+      "start": 42,
+      "both": 71,
+      "one": 32
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 837,
+      "start": 819,
+      "both": 1423,
+      "one": 1423
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 348,
+      "start": 378,
+      "both": 672,
+      "one": 672
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 136,
+      "start": 152,
+      "both": 283,
+      "one": 283
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 16,
+      "start": 18,
+      "both": 34,
+      "one": 34
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 101,
+      "start": 92,
+      "both": 166,
+      "one": 166
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 10
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "HOOD",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.91,
+     "p90": 1.9,
+     "max": 11.2
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 261,
+      "start": 259,
+      "both": 485,
+      "one": 242
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 159,
+      "start": 112,
+      "both": 246,
+      "one": 122
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 45,
+      "start": 38,
+      "both": 82,
+      "one": 40
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 20,
+      "start": 26,
+      "both": 54,
+      "one": 21
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 609,
+      "start": 594,
+      "both": 1052,
+      "one": 1052
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 304,
+      "start": 298,
+      "both": 584,
+      "one": 584
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 110,
+      "start": 94,
+      "both": 212,
+      "one": 212
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 55,
+      "start": 72,
+      "both": 106,
+      "one": 106
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 3,
+      "both": 9,
+      "one": 9
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 7
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "CRCL",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.66,
+     "p90": 1.11,
+     "max": 6.65
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 170,
+      "start": 183,
+      "both": 301,
+      "one": 191
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 55,
+      "start": 51,
+      "both": 99,
+      "one": 63
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 34,
+      "start": 31,
+      "both": 52,
+      "one": 39
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 2,
+      "start": 5,
+      "both": 6,
+      "one": 4
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 0,
+      "start": 2,
+      "both": 2,
+      "one": 1
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 327,
+      "start": 317,
+      "both": 566,
+      "one": 566
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 94,
+      "start": 99,
+      "both": 175,
+      "one": 175
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 35,
+      "start": 41,
+      "both": 63,
+      "one": 63
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 9,
+      "start": 7,
+      "both": 14,
+      "one": 14
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 6,
+      "start": 9,
+      "both": 13,
+      "one": 13
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MU",
+    "starts": 2880,
+    "pricedStarts": 2880,
+    "pushBps": {
+     "median": 0.36,
+     "p90": 0.86,
+     "max": 5.67
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2880,
+      "end": 133,
+      "start": 123,
+      "both": 246,
+      "one": 164
+     },
+     "60m": {
+      "rounds": 2863,
+      "end": 36,
+      "start": 40,
+      "both": 66,
+      "one": 50
+     },
+     "4h": {
+      "rounds": 2683,
+      "end": 19,
+      "start": 21,
+      "both": 41,
+      "one": 24
+     },
+     "12h": {
+      "rounds": 2203,
+      "end": 13,
+      "start": 19,
+      "both": 32,
+      "one": 22
+     },
+     "24h": {
+      "rounds": 1483,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2880,
+      "end": 393,
+      "start": 384,
+      "both": 723,
+      "one": 723
+     },
+     "60m": {
+      "rounds": 2879,
+      "end": 131,
+      "start": 156,
+      "both": 249,
+      "one": 249
+     },
+     "4h": {
+      "rounds": 2699,
+      "end": 78,
+      "start": 82,
+      "both": 157,
+      "one": 157
+     },
+     "12h": {
+      "rounds": 2219,
+      "end": 26,
+      "start": 32,
+      "both": 53,
+      "one": 53
+     },
+     "24h": {
+      "rounds": 1499,
+      "end": 0,
+      "start": 0,
+      "both": 0,
+      "one": 0
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2880,
+     "knocked": 0
+    },
+    "checked": 0
+   },
+   {
+    "ticker": "MSFT",
+    "starts": 2880,
+    "pricedStarts": 2879,
+    "pushBps": {
+     "median": 0.48,
+     "p90": 1.12,
+     "max": 3.68
+    },
+    "v2": {
+     "15m": {
+      "rounds": 2878,
+      "end": 329,
+      "start": 407,
+      "both": 684,
+      "one": 214
+     },
+     "60m": {
+      "rounds": 2861,
+      "end": 134,
+      "start": 154,
+      "both": 291,
+      "one": 89
+     },
+     "4h": {
+      "rounds": 2681,
+      "end": 85,
+      "start": 91,
+      "both": 184,
+      "one": 57
+     },
+     "12h": {
+      "rounds": 2201,
+      "end": 0,
+      "start": 2,
+      "both": 4,
+      "one": 2
+     },
+     "24h": {
+      "rounds": 1482,
+      "end": 0,
+      "start": 3,
+      "both": 7,
+      "one": 0
+     }
+    },
+    "v1": {
+     "15m": {
+      "rounds": 2878,
+      "end": 977,
+      "start": 925,
+      "both": 1574,
+      "one": 1574
+     },
+     "60m": {
+      "rounds": 2877,
+      "end": 450,
+      "start": 412,
+      "both": 810,
+      "one": 810
+     },
+     "4h": {
+      "rounds": 2697,
+      "end": 203,
+      "start": 240,
+      "both": 439,
+      "one": 439
+     },
+     "12h": {
+      "rounds": 2217,
+      "end": 74,
+      "start": 79,
+      "both": 153,
+      "one": 153
+     },
+     "24h": {
+      "rounds": 1498,
+      "end": 15,
+      "start": 36,
+      "both": 54,
+      "one": 54
+     }
+    },
+    "v1KnockOut": {
+     "minutes": 2879,
+     "knocked": 32
+    },
+    "checked": 0
+   }
+  ]
+ }
+}

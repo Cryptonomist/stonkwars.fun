@@ -13,10 +13,12 @@
  * There is nothing for a settler to shop between.
  *
  * While the exchange is shut, from COMPOSITE_FROM, a stock pinned in
- * src/data/venues247.json is priced by composite-v1 instead (composite.ts):
- * the median of the one-minute closes of the markets that trade it around the
- * clock, with a proof anyone can recompute. answerAt returns that proof beside
- * the quote.
+ * src/data/venues247.json is priced by composite-v2 instead (composite.ts):
+ * the median, over a few minutes from the boundary, of the de-biased
+ * one-minute closes of the markets that trade it around the clock, with a
+ * proof anyone can recompute. answerAt returns that proof beside the quote.
+ * composite-v1 never priced a boundary here: COMPOSITE_FROM came after it was
+ * replaced, and it stays in composite.ts as v2's reference and for tests.
  *
  * WHAT THIS KEY IS TRUSTED WITH. A duel with a signed side believes this key
  * about the market. Every quote it signs is public in the transaction that
@@ -33,10 +35,13 @@ import { Ed25519Program, type Keypair, type TransactionInstruction } from "@sola
 import {
   closeText,
   COMPOSITE_FROM,
-  compositeAt,
+  COMPOSITE_V2_RULE,
   compositeGate,
+  compositeV2At,
   minuteOf,
+  V2_WINDOW_SECS,
   type CompositeProof,
+  type CompositeV2Proof,
   type Reference,
   type Tier,
 } from "./composite";
@@ -512,7 +517,7 @@ export type Answer = {
   retryAt: number | null;
   parkedUntil: number | null;
   tier: Tier;
-  proof: CompositeProof | null;
+  proof: CompositeProof | CompositeV2Proof | null;
   sha256: string | null;
 };
 
@@ -548,10 +553,11 @@ export async function answerAt(opts: QuoteOptions): Promise<Answer> {
   };
 }
 
-/* THE COMPOSITE, ASKED ONCE ITS MINUTE IS FINAL.
+/* THE COMPOSITE, ASKED ONCE ITS WINDOW IS FINAL.
  *
- * Nothing is fetched before m + 60 + BAR_SETTLE_SECS. Then every pinned venue
- * is asked in parallel (Bitget in turn, venues247.ts), and so is the
+ * Nothing is fetched before the window's end plus BAR_SETTLE_SECS
+ * (composite.ts, compositePublishTime). Then every pinned venue is asked in
+ * parallel for its whole span (Bitget in turn, venues247.ts), and so is the
  * exchange's last close for the breaker, and composite.ts decides.
  *
  * A VERDICT IS KEPT. A priced minute, or one that fell back to the exchange,
@@ -559,7 +565,9 @@ export async function answerAt(opts: QuoteOptions): Promise<Answer> {
  * retrying a Saturday fight all weekend asks the venues once, not every pass,
  * and crank.ts reads compositeParkedUntil to wait for Monday instead of five
  * seconds. A wait is not kept; it is the one answer that changes. */
-type Verdict = { quote: Quote; tier: "two-anchor" | null; proof: CompositeProof; sha256: string } | { parkedUntil: number; reason: string; proof: CompositeProof; sha256: string };
+type Verdict =
+  | { quote: Quote; tier: "two-anchor" | null; proof: CompositeV2Proof; sha256: string }
+  | { parkedUntil: number; reason: string; proof: CompositeV2Proof; sha256: string };
 const verdicts = new Map<string, Verdict>();
 const MAX_VERDICTS = 5_000;
 
@@ -577,21 +585,21 @@ async function compositeAnswerAt(opts: QuoteOptions, now: number): Promise<Answe
   const base = { source: "composite" as const, quote: null, retryAt: null, parkedUntil: null, tier: null, proof: null, sha256: null };
   const inputs = inputsAt(ticker, boundary, opts.venues);
 
-  const gate = compositeGate({ boundary, now, settleSecs: BAR_SETTLE_SECS, venues: [] });
+  const gate = compositeGate({ boundary, now, settleSecs: BAR_SETTLE_SECS, venues: [], windowSecs: V2_WINDOW_SECS });
   if (gate && "wait" in gate) return { ...base, wait: gate.wait, retryAt: gate.retryAt };
 
   const key = `${ticker}:${boundary}`;
   let verdict = verdicts.get(key);
   if (!verdict) {
-    const tooLate = compositeGate({ boundary, now, settleSecs: BAR_SETTLE_SECS, venues: inputs.map((i) => i.venue) });
+    const tooLate = compositeGate({ boundary, now, settleSecs: BAR_SETTLE_SECS, venues: inputs.map((i) => i.venue), windowSecs: V2_WINDOW_SECS });
     if (tooLate && "refused" in tooLate) throw new TooOld(`${opts.symbol}: ${tooLate.refused}`);
 
-    const fetchOpts = { now, timeoutMs: FETCH_TIMEOUT_MS, settleSecs: BAR_SETTLE_SECS };
+    const fetchOpts = { now, timeoutMs: FETCH_TIMEOUT_MS, settleSecs: BAR_SETTLE_SECS, rule: COMPOSITE_V2_RULE } as const;
     const [windows, reference] = await Promise.all([
       Promise.all(inputs.map((i) => fetchVenueWindow(i, m, fetchOpts))),
       exchangeCloseBefore(opts.symbol, boundary),
     ]);
-    const result = compositeAt({
+    const result = compositeV2At({
       boundary,
       now,
       settleSecs: BAR_SETTLE_SECS,

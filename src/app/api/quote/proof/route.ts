@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { COMPOSITE_RULE } from "@/lib/composite";
+import { COMPOSITE_V2_RULE } from "@/lib/composite";
 import { clientIp } from "@/lib/nudgeGate.server";
 import { answerAt, sourceAt, TooOld, type Answer } from "@/lib/oracle";
 import { answerReuseMs, Busy, QuoteGate } from "@/lib/quoteGate.server";
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
   }
 
   const body = {
-    rule: COMPOSITE_RULE,
+    rule: answer.proof?.rule ?? COMPOSITE_V2_RULE,
     feed,
     ticker: stock.ticker,
     boundary,

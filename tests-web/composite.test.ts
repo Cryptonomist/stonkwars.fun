@@ -24,14 +24,19 @@ import {
   closeText,
   COMPOSITE_FROM,
   compositeAt,
+  compositePublishTime,
+  compositeV2At,
   medianTicks,
   proofHash,
   sha256Hex,
   toTicks,
+  V2_LOOKBACK_SECS,
+  V2_WINDOW_SECS,
   VENUES,
   type Candle,
   type CompositePriced,
   type CompositeResult,
+  type CompositeV2Proof,
   type Reference,
   type VenueId,
   type VenueWindow,
@@ -61,6 +66,7 @@ import {
   parseVenues247,
   VENUES247,
   venueRequest,
+  venueRequestV2,
   windowFinished,
   type PinnedInput,
 } from "../src/lib/venues247";
@@ -641,7 +647,26 @@ describe("composite-v1", () => {
     });
 
     const bytes = (a: Answer) => JSON.stringify(a, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
-    const weekendPrice = priced(weekendComposite("TSLA", SAT16, windowsAt(weekendSeries("TSLA"), "TSLA", SAT16)));
+    /* What the oracle signs is composite-v2's price: the same weekend rows,
+     * cut to a v2 span, priced by compositeV2At directly. */
+    const FINAL = M + V2_WINDOW_SECS + BAR_SETTLE_SECS;
+    const weekendPrice = (() => {
+      const r = compositeV2At({
+        boundary: SAT16,
+        now: SAT16 + V2_WINDOW_SECS + BAR_SETTLE_SECS,
+        settleSecs: BAR_SETTLE_SECS,
+        windows: weekendSeries("TSLA").map((s) => ({
+          venue: s.venue,
+          instrument: "TSLA",
+          request: { method: "GET" as const, url: "fixture" },
+          rows: s.rows.filter((r) => r.t >= SAT16 - V2_LOOKBACK_SECS && r.t <= SAT16 + V2_WINDOW_SECS - 60),
+        })),
+        reference: fridayClose("TSLA"),
+        exchangeFinal: exchangeBarFinal(SAT16),
+      });
+      if (!("price" in r)) throw new Error(JSON.stringify(r));
+      return r;
+    })();
 
     it("chooses the composite only for a pinned stock, with the exchange shut, from the cutover", () => {
       const pinned = { market: "US", perp: "xyz:TSLA", pool: "somepool", composite: "TSLA" };
@@ -657,38 +682,40 @@ describe("composite-v1", () => {
       expect(sourceAt(B, { market: "US", perp: "xyz:TSLA" })).to.equal("perp");
     });
 
-    it("asks no venue before the minute can be final", async () => {
+    it("asks no venue before the window can be final", async () => {
       serve();
-      for (let now = B; now < M + 80; now += 9) expect(await quoteAt({ ...side("TSLA"), now })).to.equal(null);
+      for (let now = B; now < FINAL; now += 9) expect(await quoteAt({ ...side("TSLA"), now })).to.equal(null);
       expect(calls).to.deep.equal([]);
-      const a = await answerAt({ ...side("TSLA"), now: M + 79 });
-      expect([a.wait, a.retryAt]).to.deep.equal([`the minute is not final until ${M + 80}`, M + 80]);
+      const a = await answerAt({ ...side("TSLA"), now: FINAL - 1 });
+      expect([a.wait, a.retryAt]).to.deep.equal([`the minute is not final until ${FINAL}`, FINAL]);
     });
 
-    it("signs last weekend's median through the live request and body shapes, with the proof", async () => {
+    it("signs last weekend's composite-v2 price through the live request and body shapes, with the proof", async () => {
       serve();
-      const a = await answerAt({ ...side("TSLA"), now: M + 80 });
+      const a = await answerAt({ ...side("TSLA"), now: FINAL });
       expect(a.source).to.equal("composite");
-      expect(a.quote).to.deep.equal({ feed, boundary: B, price: weekendPrice.price, expo: -4, publishTime: M + 60 });
+      expect(a.quote).to.deep.equal({ feed, boundary: B, price: weekendPrice.price, expo: -4, publishTime: M + V2_WINDOW_SECS });
       expect(a.tier).to.equal(null);
-      expect(a.proof!.venues.map((v) => [v.venue, v.close, v.lastTraded === null ? null : v.lastTraded - WEEK, v.why])).to.deep.equal(
-        weekendPrice.proof.venues.map((v) => [v.venue, v.close, v.lastTraded, v.why]),
-      );
-      expect(a.sha256).to.equal(proofHash(a.proof!));
+      const proof = a.proof as CompositeV2Proof;
+      expect(proof.rule).to.equal("composite-v2");
+      const shape = (p: CompositeV2Proof, shift: number) =>
+        p.venues.map((v) => [v.venue, v.lastTraded === null ? null : v.lastTraded - shift, v.why, v.minutes.map((x) => [x.close, x.premium, x.calibrated, x.kept])]);
+      expect(shape(proof, WEEK)).to.deep.equal(shape(weekendPrice.proof, 0));
+      expect(a.sha256).to.equal(proofHash(proof));
       // Nine venues and the exchange's last close, each asked once.
       expect(calls).to.have.length(10);
-      expect(a.proof!.venues.map((v) => v.request)).to.deep.equal(TSLA_PINS.map((p) => venueRequest(p as PinnedInput, M)));
+      expect(proof.venues.map((v) => v.request)).to.deep.equal(TSLA_PINS.map((p) => venueRequestV2(p as PinnedInput, M)));
     });
 
     it("answers byte for byte the same five minutes later, and the same again worked out from scratch", async () => {
       serve();
-      const first = await answerAt({ ...side("TSLA"), now: M + 80 });
-      const later = await answerAt({ ...side("TSLA"), now: M + 380 });
+      const first = await answerAt({ ...side("TSLA"), now: FINAL });
+      const later = await answerAt({ ...side("TSLA"), now: FINAL + 300 });
       expect(bytes(later)).to.equal(bytes(first));
 
       forgetVenueWindows();
       serve();
-      const fresh = await answerAt({ ...side("TSLAB"), now: M + 380 });
+      const fresh = await answerAt({ ...side("TSLAB"), now: FINAL + 300 });
       // All nine venues again; the exchange's last close for the minute is kept from before.
       expect(calls).to.have.length(9);
       expect(fresh.sha256).to.equal(first.sha256);
@@ -697,23 +724,26 @@ describe("composite-v1", () => {
 
     it("waits while a venue answers 429, and prices the same once it answers", async () => {
       serve((host) => (host === "api.bitget.com" ? 429 : null));
-      const limited = await answerAt({ ...side("TSLAC"), now: M + 80 });
+      const limited = await answerAt({ ...side("TSLAC"), now: FINAL });
       expect(limited.quote).to.equal(null);
       expect(limited.wait).to.equal("waiting on Bitget TSLAUSDT: HTTP 429");
       expect(compositeParkedUntil("TSLAC", B)).to.equal(undefined);
 
       serve();
-      const ok = await answerAt({ ...side("TSLAC"), now: M + 95 });
+      const ok = await answerAt({ ...side("TSLAC"), now: FINAL + 15 });
       expect(ok.quote?.price).to.equal(weekendPrice.price);
     });
 
     it("parks a thin side until the exchange can price it, asks nobody again meanwhile, then signs the exchange's bar", async () => {
       serve();
       const monday = Math.floor(nyToMs(2026, 9, 21, 4, 1, 20) / 1000);
-      // THIN pins Hyperliquid and the three non-anchors, so a quorum needs a second anchor it does not have.
-      const a = await answerAt({ ...side("THIN"), now: M + 80 });
+      /* THIN pins Hyperliquid and the three non-anchors. With one anchor there
+       * is never a v1 median to calibrate against, so nothing is counted. */
+      const a = await answerAt({ ...side("THIN"), now: FINAL });
       expect([a.quote, a.tier, a.parkedUntil, a.retryAt]).to.deep.equal([null, "exchange", monday, monday]);
-      expect([a.proof!.fresh, a.proof!.freshAnchors]).to.deep.equal([4, 1]);
+      const proof = a.proof as CompositeV2Proof;
+      expect([proof.counted, proof.countedAnchors]).to.deep.equal([0, 0]);
+      expect(proof.venues.map((v) => v.why)).to.deep.equal(["uncalibrated", "uncalibrated", "uncalibrated", "uncalibrated"]);
       expect(compositeParkedUntil("THIN", B)).to.equal(monday);
 
       calls = [];
@@ -758,8 +788,9 @@ describe("composite-v1", () => {
     });
     const duel = (boundary: number) => clockDuel(boundary) as DuelView;
 
-    it("makes a composite side ready when its minute closes and settles, like a perp", () => {
-      expect(readyAt(clockDuel(B), "start", B, lookup)).to.deep.equal({ at: firstBarEnd(B) + BAR_SETTLE_SECS, why: "minute-close" });
+    it("makes a composite side ready when its window closes and settles", () => {
+      expect(readyAt(clockDuel(B), "start", B, lookup)).to.deep.equal({ at: compositePublishTime(B) + BAR_SETTLE_SECS, why: "composite-window" });
+      expect(compositePublishTime(B)).to.equal(firstBarEnd(B) + V2_WINDOW_SECS - 60);
       // Before the cutover the same pins keep the perp, and a pool-only side its pool window.
       const before = B - 7 * 86_400;
       expect(readyAt(clockDuel(before), "start", before, lookup)).to.deep.equal({ at: firstBarEnd(before) + BAR_SETTLE_SECS, why: "minute-close" });
@@ -768,14 +799,14 @@ describe("composite-v1", () => {
       // A stock with only the composite waits for the exchange before the cutover, and is ready after it.
       const bare: MarketLookup = () => ({ symbol: "TSLA", market: "US", composite: "PARKED" });
       expect(readyAt(clockDuel(before), "start", before, bare)).to.deep.equal({ shut: ["TSLA"] });
-      expect(readyAt(clockDuel(B), "start", B, bare)).to.deep.equal({ at: firstBarEnd(B) + BAR_SETTLE_SECS, why: "minute-close" });
+      expect(readyAt(clockDuel(B), "start", B, bare)).to.deep.equal({ at: compositePublishTime(B) + BAR_SETTLE_SECS, why: "composite-window" });
     });
 
     it("asks a late composite side again in five seconds, then every fifteen", () => {
       // A ticker nothing has parked, so the answer is the late-perp schedule.
       const late = { ...pinned, composite: "NEVERPARKED" };
       const d = duel(B);
-      const due = firstBarEnd(B) + BAR_SETTLE_SECS;
+      const due = compositePublishTime(B) + BAR_SETTLE_SECS;
       expect(retryAt(d, "start", due - 30, () => late, late)).to.equal(due);
       expect(retryAt(d, "start", due + 1, () => late, late)).to.equal(due + 6);
       const slow = due + PERP_FAST_RETRY_WINDOW_SECS;
@@ -785,24 +816,26 @@ describe("composite-v1", () => {
     it("parks a side that fell back to the exchange until the exchange's bar can be final", async () => {
       const realFetch = globalThis.fetch;
       const M = Math.floor(B / 60) * 60;
-      /* PARKED pins two non-anchors, answering with their live 14 Sep rows
-       * for the minute made quiet (volume 0): no quorum, no two anchors. */
+      /* PARKED pins two non-anchors, answering with their live 14 Sep closes
+       * for every minute of the span, made quiet (volume 0): nothing counted. */
       const venues = parseVenues247({
         rule: "composite-v1",
         tickers: { PARKED: [{ venue: "gate", instrument: "TSLA_USDT", from: COMPOSITE_FROM }, { venue: "mexc", instrument: "TESLA_USDT", from: COMPOSITE_FROM }] },
       });
       const [ft, fc] = YAHOO.rows.TSLA.friday;
+      const span = Array.from({ length: (V2_LOOKBACK_SECS + V2_WINDOW_SECS) / 60 }, (_, i) => M - V2_LOOKBACK_SECS + 60 * i);
       globalThis.fetch = (async (url: string) => {
         if (url.includes("yahoo")) return new Response(JSON.stringify({ chart: { result: [{ timestamp: [ft + 7 * 86_400], indicators: { quote: [{ close: [fc] }] } }] } }));
-        if (url.includes("gateio")) return new Response(JSON.stringify([{ t: M, c: "359.88", v: 0 }]));
-        return new Response(JSON.stringify({ success: true, code: 0, data: { time: [M], close: [359.99], vol: [0] } }));
+        if (url.includes("gateio")) return new Response(JSON.stringify(span.map((t) => ({ t, c: "359.88", v: 0 }))));
+        return new Response(JSON.stringify({ success: true, code: 0, data: { time: span, close: span.map(() => 359.99), vol: span.map(() => 0) } }));
       }) as typeof fetch;
       try {
-        const a = await answerAt({ feed: "d1".repeat(32), ...pinned, boundary: B, now: M + 80, venues });
+        const final = M + V2_WINDOW_SECS + BAR_SETTLE_SECS;
+        const a = await answerAt({ feed: "d1".repeat(32), ...pinned, boundary: B, now: final, venues });
         const monday = Math.floor(nyToMs(2026, 9, 21, 4, 1, 20) / 1000);
         expect(a.parkedUntil).to.equal(monday);
         const d = duel(B);
-        expect(retryAt(d, "start", M + 81, lookup, pinned)).to.equal(monday);
+        expect(retryAt(d, "start", final + 1, lookup, pinned)).to.equal(monday);
         expect(retryAt(d, "start", M + 86_400, lookup, pinned)).to.equal(monday);
         // Once the exchange runs, at its next minute close, as a thin pool does.
         const later = monday + 45;

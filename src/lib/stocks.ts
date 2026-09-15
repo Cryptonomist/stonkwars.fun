@@ -32,7 +32,7 @@ import {
   pythReopeningsBetween,
   session,
 } from "@/lib/market";
-import { COMPOSITE_FROM } from "@/lib/composite";
+import { COMPOSITE_FROM, compositePublishTime } from "@/lib/composite";
 import { firstBarEnd, sourceAt } from "@/lib/oracle";
 import { listed247 } from "@/lib/venues247";
 
@@ -247,9 +247,9 @@ export function priceTimeAt(ticker: string, boundary: number): number | null {
   if (s.market !== "US") return s.source === "pyth" ? boundary : firstBarEnd(boundary);
   if (s.source === "pyth") return firstPriceAt(ticker, boundary);
   const composite = compositeFrom(s, boundary) ? ticker : undefined;
-  if (sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin, composite }) === "pool") {
-    return boundary;
-  }
+  const source = sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin, composite });
+  if (source === "pool") return boundary;
+  if (source === "composite") return compositePublishTime(boundary);
   const from = firstPriceAt(ticker, boundary);
   return from === null ? null : firstBarEnd(from);
 }

@@ -1,11 +1,16 @@
-/* The nine venues composite-v1 reads, and which of their markets each stock is
+/* The nine venues the composite reads, and which of their markets each stock is
  * pinned to.
  *
  * composite.ts is the rule; this is where its rows come from. Three parts:
  *
- *   the pins      src/data/venues247.json, read and checked by parseVenues247
+ *   the pins      src/data/venues247.json, read and checked by parseVenues247.
+ *                 Its "rule" field names the format the builder wrote,
+ *                 "composite-v1", which v2 reads unchanged: the pins are the
+ *                 same markets whichever rule prices them.
  *   the requests  one fixed request per venue per minute, the same bytes for
- *                 every caller, so a proof's URL can be fetched again by anyone
+ *                 every caller, so a proof's URL can be fetched again by anyone;
+ *                 an hour for v1 (venueRequest), and for v2 the 90 minutes
+ *                 before the boundary's minute and the window (venueRequestV2)
  *   the fetcher   five seconds per request, finished windows kept, Bitget one
  *                 at a time, and every failure turned into a wait
  *
@@ -42,7 +47,19 @@
 
 import venuesJson from "@/data/venues247.json";
 
-import { COMPOSITE_RULE, closeText, VENUES, WINDOW_SECS, type Candle, type VenueId, type VenueRequest, type VenueWindow } from "./composite";
+import {
+  COMPOSITE_RULE,
+  COMPOSITE_V2_RULE,
+  closeText,
+  V2_LOOKBACK_SECS,
+  v2LastMinute,
+  VENUES,
+  WINDOW_SECS,
+  type Candle,
+  type VenueId,
+  type VenueRequest,
+  type VenueWindow,
+} from "./composite";
 
 export type PinnedInput = { venue: VenueId; instrument: string; from: number; until?: number };
 export type Venues247 = { rule: typeof COMPOSITE_RULE; tickers: Record<string, PinnedInput[]> };
@@ -187,8 +204,26 @@ export function inputsAt(ticker: string, boundary: number, file: Venues247 = VEN
  *                ending m-60, m+60 gave 61 ending m. Newest first. Rows
  *                {time ms, close text, volume text}. */
 export function venueRequest(input: Pick<PinnedInput, "venue" | "instrument">, m: number): VenueRequest {
+  return spanRequest(input, m - WINDOW_SECS, m);
+}
+
+/* THE REQUEST FOR A V2 WINDOW.
+ *
+ * The same requests over a longer span: from m - V2_LOOKBACK_SECS, for the
+ * calibration minutes, to the window's last minute, for the window. Every
+ * window semantics above holds, because the span is all that changes. Two
+ * venues cap how long a span one request can carry, which caps the window:
+ * OKX's history-candles returns at most 100 rows, and the span is 90 + W
+ * minutes, so W can be at most 10; Lighter's count_back is set to the span's
+ * own row count, as v1 sets it to 61. */
+export function venueRequestV2(input: Pick<PinnedInput, "venue" | "instrument">, m: number): VenueRequest {
+  return spanRequest(input, m - V2_LOOKBACK_SECS, v2LastMinute(m));
+}
+
+function spanRequest(input: Pick<PinnedInput, "venue" | "instrument">, start: number, m: number): VenueRequest {
   const i = input.instrument;
-  const start = m - WINDOW_SECS;
+  const rows = (m - start) / 60 + 1;
+  if (rows > 100) throw new Error(`a span of ${rows} minutes is more than OKX returns in one request`);
   switch (input.venue) {
     case "hyperliquid":
       return {
@@ -211,7 +246,7 @@ export function venueRequest(input: Pick<PinnedInput, "venue" | "instrument">, m
     case "lighter":
       return {
         method: "GET",
-        url: `https://mainnet.zklighter.elliot.ai/api/v1/candles?market_id=${i}&resolution=1m&start_timestamp=${start * 1_000}&end_timestamp=${(m + 60) * 1_000}&count_back=61`,
+        url: `https://mainnet.zklighter.elliot.ai/api/v1/candles?market_id=${i}&resolution=1m&start_timestamp=${start * 1_000}&end_timestamp=${(m + 60) * 1_000}&count_back=${rows}`,
       };
     case "backpack":
       return { method: "GET", url: `https://api.backpack.exchange/api/v1/klines?symbol=${i}&interval=1m&startTime=${start}&endTime=${m + 60}` };
@@ -356,9 +391,12 @@ export function forgetVenueWindows(): void {
 export async function fetchVenueWindow(
   input: Pick<PinnedInput, "venue" | "instrument">,
   m: number,
-  opts: { now: number; timeoutMs: number; settleSecs: number },
+  opts: { now: number; timeoutMs: number; settleSecs: number; rule?: typeof COMPOSITE_RULE | typeof COMPOSITE_V2_RULE },
 ): Promise<VenueWindow> {
-  const request = venueRequest(input, m);
+  const v2 = opts.rule === COMPOSITE_V2_RULE;
+  const request = v2 ? venueRequestV2(input, m) : venueRequest(input, m);
+  // The window is finished once its own last minute is.
+  const lastMinute = v2 ? v2LastMinute(m) : m;
   const key = `${request.url} ${"body" in request ? request.body : ""}`;
   const had = finished.get(key);
   if (had) return had;
@@ -384,7 +422,7 @@ export async function fetchVenueWindow(
     }
   };
   const window = input.venue === "bitget" ? await serialBitget(ask) : await ask();
-  if ("rows" in window && windowFinished(window.rows, m, opts.now, opts.settleSecs)) {
+  if ("rows" in window && windowFinished(window.rows, lastMinute, opts.now, opts.settleSecs)) {
     if (finished.size >= MAX_FINISHED) finished.clear();
     finished.set(key, window);
   }
