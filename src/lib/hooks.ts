@@ -16,6 +16,8 @@ import {
 import {
   allProfiles,
   allXClaims,
+  assetPda,
+  assetSource,
   decodeDuel,
   decodeProfile,
   decodeXClaim,
@@ -114,6 +116,42 @@ export function useProfiles() {
     },
     refetchInterval: 60_000,
     staleTime: 30_000,
+  });
+}
+
+/* THE SOURCES A FIGHT MADE NOW WOULD RECORD.
+ *
+ * create_duel copies each side's source from the registry's Asset account, not
+ * from the roster, and the two disagree between a roster change and the admin
+ * set_asset that matches it: TSLA and QQQ are the oracle's in roster.json from
+ * this release, and Pyth's in the registry until set_asset runs. A create
+ * judged by the roster in that window let a Saturday TSLA challenge through
+ * that every take gate then refused by the Pyth source the duel recorded. So
+ * /new reads both mints' Asset accounts and judges the challenge by what the
+ * chain will copy. Each entry is SOURCE_PYTH or SOURCE_SIGNED, or undefined
+ * until read, or for a mint the registry does not have (the roster then
+ * stands in). A minute old is fresh enough: the registry changes by an admin
+ * transaction. */
+export function useRegistrySources(mints: (PublicKey | null)[]) {
+  const { connection } = useConnection();
+  return useQuery<(number | undefined)[]>({
+    queryKey: ["registry-sources", ...mints.map((m) => m?.toBase58() ?? "")],
+    enabled: mints.some((m) => m !== null),
+    queryFn: async () => {
+      const wanted = mints.flatMap((m, i) => (m ? [{ i, pda: assetPda(m) }] : []));
+      const infos = await connection.getMultipleAccountsInfo(
+        wanted.map((w) => w.pda),
+        "confirmed",
+      );
+      const out: (number | undefined)[] = mints.map(() => undefined);
+      wanted.forEach((w, k) => {
+        const info = infos[k];
+        if (info && info.owner.equals(PROGRAM_ID)) out[w.i] = assetSource(info.data) ?? undefined;
+      });
+      return out;
+    },
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 }
 

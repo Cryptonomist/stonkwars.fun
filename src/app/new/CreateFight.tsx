@@ -19,7 +19,8 @@
  * link leaves out starts from the default pair, which fights around the clock,
  * so a weekend visitor never opens on a warning.
  *
- * THE HOURS GATES ARE THE ROSTER'S. A challenge that cannot be taken fairly
+ * THE HOURS GATES JUDGE THE SOURCES THE CHAIN WILL RECORD: the registry's for
+ * each side once read, the roster's until then. A challenge that cannot be taken fairly
  * now but can be later is queued, not refused (stocks.ts, queueAt): it can be
  * made, and the ticket says from when it can be taken. Only a pair nobody could
  * take fairly before it expires is refused, with mixedHoursAt's sentence. A
@@ -42,7 +43,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { TxButton } from "@/components/ui/TxButton";
 import { cx } from "@/components/ui/cx";
 import { requestConnect } from "@/components/ui/intents";
-import { useSend, useTokenBalance } from "@/lib/hooks";
+import { useRegistrySources, useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, randomSeed } from "@/lib/duel";
 import { FAUCET_TARGET_USD, faucetWouldTopUp } from "@/lib/faucet";
 import { etShort, etTime, hm, shares, span, usd } from "@/lib/format";
@@ -56,12 +57,14 @@ import {
   openingWords,
   pricedAt,
   queueAt,
+  sourceFromChain,
   STAKE_DECIMALS,
   stakeAssetFor,
   tokenSymbol,
   tooShortOffHours,
   type EndRule,
   type Queue,
+  type SideSource,
 } from "@/lib/stocks";
 import { MIN_OFFHOURS_ROUND_SECS } from "@/lib/composite";
 import {
@@ -83,12 +86,15 @@ import { FightTicket } from "./FightTicket";
 const expiryFor = (fixedEnd: number, nowSecs: number) =>
   fixedEnd ? Math.min(fixedEnd - 5 * 60, nowSecs + 7 * 86_400) : nowSecs + 7 * 86_400;
 
-/** A challenge's end rule as the gates read it, made at `at`: its round, and
- *  the expiry it will carry, which a queue must end before. */
-const roundOf = (secs: number | undefined, fixedEnd: number, at: number): EndRule => ({
+/** A challenge's end rule as the gates read it, made at `at`: its round, the
+ *  expiry it will carry, which a queue must end before, and the sources the
+ *  registry would record for its two sides (useRegistrySources), where read. */
+const roundOf = (secs: number | undefined, fixedEnd: number, at: number, sources?: (number | undefined)[]): EndRule => ({
   durationSecs: secs ?? 0,
   endTs: fixedEnd,
   expiresTs: expiryFor(fixedEnd, at),
+  creatorSource: sources?.[0],
+  opponentSource: sources?.[1],
 });
 
 const MIN_ROUND_HOURS = MIN_OFFHOURS_ROUND_SECS / 3_600;
@@ -147,6 +153,15 @@ export function CreateFight() {
 
   const asset1 = p1 ? stakeAssetFor(p1) : null;
   const asset2 = p2 ? stakeAssetFor(p2) : null;
+  /* THE GATES JUDGE WHAT THE CHAIN WILL RECORD. A fight copies each side's
+   * source from the registry, which can still say Pyth for a stock the roster
+   * has moved to the oracle, until the admin's set_asset (lib/hooks.ts,
+   * useRegistrySources). Until the registry has been read, the roster's. */
+  const registry = useRegistrySources([asset1?.mint ?? null, asset2?.mint ?? null]).data;
+  const recordedFor = (t: string): SideSource | undefined => {
+    const n = t === p1 ? registry?.[0] : t === p2 ? registry?.[1] : undefined;
+    return n === undefined ? undefined : sourceFromChain(n);
+  };
   const myAta = publicKey && asset1 ? ataFor(publicKey, asset1.mint, asset1.tokenProgram) : null;
   const balance = useTokenBalance(myAta);
 
@@ -164,15 +179,15 @@ export function CreateFight() {
    * stakes is the whole point of working it out here. */
   const endsAt = endTs || (now ? now + (secs ?? 0) : 0);
   const sides = [p1, p2].filter((t): t is string => !!t);
-  const waiting = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "waits") : [];
+  const waiting = endsAt ? sides.filter((t) => pricedAt(t, endsAt, recordedFor(t)) === "waits") : [];
   /* Both sources that keep going once the exchange shuts, kept apart because
    * they are not the same claim and telling somebody the wrong one, next to
    * the button that takes their shares, is the worst place in the app to be
    * vague. Most round-the-clock fights settle on a perpetual futures market,
    * not on a Solana pool. */
-  const onPerp = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "perp") : [];
-  const onPoolOnly = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "pool") : [];
-  const onComposite = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "composite") : [];
+  const onPerp = endsAt ? sides.filter((t) => pricedAt(t, endsAt, recordedFor(t)) === "perp") : [];
+  const onPoolOnly = endsAt ? sides.filter((t) => pricedAt(t, endsAt, recordedFor(t)) === "pool") : [];
+  const onComposite = endsAt ? sides.filter((t) => pricedAt(t, endsAt, recordedFor(t)) === "composite") : [];
   const roundTheClock = [...onPerp, ...onPoolOnly, ...onComposite];
   /* QUEUE, DO NOT REFUSE, WHERE IT IS FAIR.
    *
@@ -186,7 +201,7 @@ export function CreateFight() {
    * fairly before the challenge expires is refused. */
   const fixedEnd = secs ? 0 : endTs;
   const blockedAt = (at: number, a: string, b: string) => {
-    const q = queueAt(a, b, at, roundOf(secs, fixedEnd, at));
+    const q = queueAt(a, b, at, roundOf(secs, fixedEnd, at, registry));
     return { mixed: q && "refused" in q ? q.refused : null, queued: q && "queued" in q ? q : null };
   };
   const gate = p1 && p2 && now ? blockedAt(now, p1, p2) : { mixed: null, queued: null };
@@ -208,11 +223,11 @@ export function CreateFight() {
     const at = chipMinute * 60;
     for (const r of rounds) {
       const fixed = r.secs ? 0 : (r.endTs ?? 0);
-      const q = queueAt(p1, p2, at, roundOf(r.secs, fixed, at));
-      if (q) out[r.id] = { queue: q, short: tooShortOffHours(p1, p2, at, roundOf(r.secs, fixed, at)) };
+      const q = queueAt(p1, p2, at, roundOf(r.secs, fixed, at, registry));
+      if (q) out[r.id] = { queue: q, short: tooShortOffHours(p1, p2, at, roundOf(r.secs, fixed, at, registry)) };
     }
     return out;
-  }, [p1, p2, chipMinute, rounds]);
+  }, [p1, p2, chipMinute, rounds, registry]);
   const chipNotes = useMemo(() => {
     const notes: Partial<Record<RoundId, { sub?: string; title: string; off?: boolean }>> = {};
     for (const [id, c] of Object.entries(chips) as [RoundId, { queue: Queue; short: boolean }][]) {
@@ -232,7 +247,7 @@ export function CreateFight() {
   /* Why a side waits. Only a signed stock waits, because its exchange is
    * shut: a Pyth stock prices at once or never, and mixedHoursAt refuses the
    * never. */
-  const reopens = endsAt ? Math.max(0, ...waiting.map((t) => firstPriceAt(t, endsAt) ?? 0)) : 0;
+  const reopens = endsAt ? Math.max(0, ...waiting.map((t) => firstPriceAt(t, endsAt, recordedFor(t)) ?? 0)) : 0;
   const waitingWhy = waiting.length
     ? `${andList(waiting)} ${waiting.length === 1 ? "is priced by its exchange" : "are priced by their exchanges"}, which will be shut when this round ends`
     : "";
@@ -610,7 +625,7 @@ export function CreateFight() {
             chipNotes={chipNotes}
             roundWhy={
               shortQueued
-                ? `Rounds under ${MIN_ROUND_HOURS} hours wait for the open while the exchange is shut, so no single venue can swing a result.`
+                ? `Rounds under ${MIN_ROUND_HOURS} hours wait for the open while the exchange is shut: over a shorter round one market could tip the result far more often.`
                 : undefined
             }
             roundNote={roundNote}

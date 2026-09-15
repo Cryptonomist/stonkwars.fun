@@ -72,6 +72,17 @@ export function assetPda(mint: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync([enc.encode("asset"), mint.toBytes()], PROGRAM_ID)[0];
 }
 
+/** The price source the registry records for a stake mint's Asset account
+ *  (SOURCE_PYTH or SOURCE_SIGNED): the one create_duel copies onto a fight
+ *  made now. Null for bytes that are not an Asset. */
+export function assetSource(data: Uint8Array): number | null {
+  try {
+    return Number((coder.accounts.decode("Asset", Buffer.from(data)) as { source: number }).source);
+  } catch {
+    return null;
+  }
+}
+
 export function duelPda(creator: PublicKey, seed: bigint): PublicKey {
   const le = new Uint8Array(8);
   new DataView(le.buffer).setBigUint64(0, seed, true);
