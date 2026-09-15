@@ -25,9 +25,8 @@ const MONDAY_9PM = ny(2026, 9, 14, 21, 0);
 const MONDAY_6AM = ny(2026, 9, 14, 6, 0);
 
 /* A roster with the usual pair missing, so the fallback has something to do:
- * TSLA is priced by Pyth and keeps the regular session, the rest trade around
- * the clock. */
-const NO_AAPL = ["TSLA", "NVDA", "SPY", "MSFT"];
+ * VOO is priced by Pyth and never fights around the clock, the rest do. */
+const NO_AAPL = ["VOO", "NVDA", "SPY", "MSFT"];
 
 describe("the pair /new opens on", () => {
   it("is two stocks that trade around the clock when the exchange is shut", () => {
@@ -58,18 +57,24 @@ describe("the pair /new opens on", () => {
 
   it("falls back to the first two around-the-clock stocks when shut, and the first two otherwise", () => {
     expect(defaultPair(SATURDAY_NOON, NO_AAPL)).to.deep.equal(["NVDA", "SPY"]);
-    expect(defaultPair(MONDAY_2PM, NO_AAPL)).to.deep.equal(["TSLA", "NVDA"]);
+    expect(defaultPair(MONDAY_2PM, NO_AAPL)).to.deep.equal(["VOO", "NVDA"]);
   });
 });
 
 describe("use two 24/7 stocks", () => {
   it("keeps a side that already trades around the clock and replaces the one that waits", () => {
-    expect(allDayPair(["MSFT", "TSLA"])).to.deep.equal(["MSFT", "AAPL"]);
-    expect(allDayPair(["TSLA", "AAPL"])).to.deep.equal(["NVDA", "AAPL"]);
+    expect(allDayPair(["MSFT", "VOO"])).to.deep.equal(["MSFT", "AAPL"]);
+    expect(allDayPair(["VOO", "AAPL"])).to.deep.equal(["NVDA", "AAPL"]);
+    // TSLA is the oracle's for a new fight and pinned in venues247.json, so it stays.
+    expect(allDayPair(["TSLA", "VOO"])).to.deep.equal(["TSLA", "AAPL"]);
+    // Asked about a moment before the cutover, a pool-priced stock still counts; from it, it does not.
+    const saturdayAfter = ny(2026, 9, 19, 12, 0);
+    expect(allDayPair(["KO", "VOO"], SATURDAY_NOON)).to.deep.equal(["KO", "AAPL"]);
+    expect(allDayPair(["KO", "VOO"], saturdayAfter)).to.deep.equal(["AAPL", "NVDA"]);
   });
 
   it("never puts one stock in both corners", () => {
-    const [a, b] = allDayPair(["QQQ", "TSLA"]);
+    const [a, b] = allDayPair(["NVDA", "NVDA"]);
     expect(a).to.not.equal(b);
     expect(tradesAroundTheClock(a) && tradesAroundTheClock(b)).to.equal(true);
   });

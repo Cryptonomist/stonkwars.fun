@@ -20,9 +20,21 @@
  *   - src/data/stocks.mainnet-beta.json: every stakeable issuer token.
  *
  * PYTH_TICKERS (default TSLA,QQQ,VOO: what Pyth's free plan grants) are priced
- * by Pyth; every other stock by the oracle's signed quotes. A stock Pyth does
- * not list gets a feed id of sha256("Equity.<market>.<ticker>/<currency>"),
- * which names it the same way without claiming a Pyth feed exists.
+ * by Pyth, less ON_COMPOSITE; every other stock by the oracle's signed quotes.
+ * A stock Pyth does not list gets a feed id of
+ * sha256("Equity.<market>.<ticker>/<currency>"), which names it the same way
+ * without claiming a Pyth feed exists.
+ *
+ * TSLA AND QQQ ARE THE ORACLE'S, THOUGH PYTH GRANTS THEM.
+ *
+ * Pyth's equity feeds are dark from Friday 8 PM to Sunday 8 PM New York and on
+ * holidays, so a Pyth stock can never fight at a weekend. Both are pinned in
+ * src/data/venues247.json with three anchors or more, so the oracle prices
+ * them around the clock (docs/247-pricing.md, section 4, Option B). The
+ * registry must say the same: the release runs set_asset(feed, enabled,
+ * SOURCE_SIGNED) for each. A duel records its sources when it is created, so a
+ * fight made on Pyth before that stays a Pyth fight (lib/stocks.ts). VOO has
+ * no weekend market anywhere and stays on Pyth.
  */
 
 import crypto from "crypto";
@@ -34,6 +46,8 @@ const ROOT = path.resolve(__dirname, "..");
 loadEnvLocal();
 
 const PYTH_TICKERS = new Set((process.env.PYTH_TICKERS ?? "TSLA,QQQ,VOO").split(",").map((t) => t.trim()));
+/** Pyth grants these, but the composite prices them around the clock (see above). */
+const ON_COMPOSITE = new Set(["TSLA", "QQQ"]);
 const ISSUER_ORDER = ["xStocks", "Ondo", "Backpack", "Superstate", "Securitize", "Bullish", "Remora"];
 
 /** Shown first, in this order. Everything else follows alphabetically. */
@@ -250,7 +264,7 @@ async function main() {
       currency,
       feed: pythId?.replace(/^0x/, "") ?? sha256hex(`Equity.${g.market}.${ticker}/${currency}`),
       pyth: !!pythId,
-      source: pythId && PYTH_TICKERS.has(ticker) ? "pyth" : "signed",
+      source: pythId && PYTH_TICKERS.has(ticker) && !ON_COMPOSITE.has(ticker) ? "pyth" : "signed",
       quote: g.quote,
       color: colorFor(ticker),
       issuers: [...new Set(tokens.map((t) => t.issuer))],

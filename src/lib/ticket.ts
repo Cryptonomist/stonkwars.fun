@@ -16,11 +16,12 @@ import { STAKE_DECIMALS, STAKEABLE, tokenSymbol, tradesAroundTheClock } from "@/
 
 /* THE PAIR THE PAGE OPENS ON.
  *
- * AAPL against NVDA: two names everybody knows, and both settle on a perpetual
- * futures market when the exchange is shut, so the default fight runs at any
+ * AAPL against NVDA: two names everybody knows, and both are priced while the
+ * exchange is shut (by the median of their 24/7 markets from COMPOSITE_FROM,
+ * by their perpetual futures before it), so the default fight runs at any
  * hour. Somebody who opens the page on a Saturday and presses the button gets a
- * fight that starts now, with no warning above the button, rather than one that
- * sits until Monday.
+ * fight that starts now rather than one that sits until Monday. After the
+ * cutover such a round must run 12 hours, which the page's round chips see to.
  *
  * If a cluster cannot stake that pair, the first two stakeable stocks that
  * trade around the clock stand in while the exchange is shut, and the first two
@@ -34,17 +35,19 @@ const STAKEABLE_TICKERS = STAKEABLE.map((s) => s.ticker);
 /** Two different stocks that trade around the clock, keeping any side of
  *  `keep` that already does. The page's "Use two 24/7 stocks" applies it, so a
  *  fighter somebody chose is only replaced when it is the one that waits.
- *  Falls back to the first two of `roster` if too few trade around the clock. */
+ *  Falls back to the first two of `roster` if too few trade around the clock.
+ *  `at` is the moment asked about (stocks.ts, tradesAroundTheClock). */
 export function allDayPair(
   keep: readonly (string | null)[] = [],
+  at?: number,
   roster: readonly string[] = STAKEABLE_TICKERS,
 ): [string, string] {
-  const allDay = roster.filter(tradesAroundTheClock);
+  const allDay = roster.filter((t) => tradesAroundTheClock(t, at));
   const listed = new Set(roster);
-  const pool = [...PREFERRED_PAIR.filter((t) => listed.has(t) && tradesAroundTheClock(t)), ...allDay];
+  const pool = [...PREFERRED_PAIR.filter((t) => listed.has(t) && tradesAroundTheClock(t, at)), ...allDay];
   const out: (string | null)[] = [0, 1].map((i) => {
     const t = keep[i];
-    return t && listed.has(t) && tradesAroundTheClock(t) ? t : null;
+    return t && listed.has(t) && tradesAroundTheClock(t, at) ? t : null;
   });
   if (out[0] && out[0] === out[1]) out[1] = null;
   for (let i = 0; i < 2; i++) {
@@ -58,10 +61,10 @@ export function allDayPair(
 export function defaultPair(nowSec: number, roster: readonly string[] = STAKEABLE_TICKERS): [string, string] {
   const shut = session(nowSec * 1_000) === "closed";
   const listed = new Set(roster);
-  const fits = (t: string) => listed.has(t) && (!shut || tradesAroundTheClock(t));
+  const fits = (t: string) => listed.has(t) && (!shut || tradesAroundTheClock(t, nowSec));
   if (PREFERRED_PAIR.every(fits)) return [PREFERRED_PAIR[0], PREFERRED_PAIR[1]];
   if (shut) {
-    const allDay = roster.filter(tradesAroundTheClock);
+    const allDay = roster.filter((t) => tradesAroundTheClock(t, nowSec));
     if (allDay.length >= 2) return [allDay[0], allDay[1]];
   }
   return [roster[0], roster[1]];

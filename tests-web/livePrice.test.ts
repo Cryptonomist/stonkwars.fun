@@ -25,10 +25,10 @@ const TUESDAY_OPEN = et(2026, 9, 15, 11, 0); // regular session
 
 describe("live price sources", () => {
   it("keeps a Pyth-priced stock on Pyth in every session", () => {
-    const tsla = stock("TSLA");
-    expect(tsla.source).to.equal("pyth");
+    const voo = stock("VOO");
+    expect(voo.source).to.equal("pyth");
     for (const t of [SUNDAY_NIGHT, TUESDAY_PRE, TUESDAY_OPEN, TUESDAY_AFTER]) {
-      expect(liveSourceFor(tsla, t)).to.equal("pyth");
+      expect(liveSourceFor(voo, t)).to.equal("pyth");
     }
   });
 

@@ -37,7 +37,7 @@ import {
 } from "@/lib/market";
 import { COMPOSITE_FROM, compositePublishTime, MIN_OFFHOURS_ROUND_SECS, V2_WINDOW_MINUTES } from "@/lib/composite";
 import { firstBarEnd, sourceAt } from "@/lib/oracle";
-import { listed247 } from "@/lib/venues247";
+import { inputsAt, listed247 } from "@/lib/venues247";
 
 export type Stock = {
   ticker: string;
@@ -173,14 +173,46 @@ export const sourceFromChain = (n: number): SideSource => (n === SOURCE_PYTH ? "
 
 const sourceOf = (s: Stock, source?: SideSource): SideSource => source ?? s.source;
 
-/** Whether a stock can settle a fight whenever it is taken. Pyth's equity
- *  feeds go dark from Friday 8 PM to Sunday 8 PM New York and on holidays
- *  (market.ts, pythSpanAt), so a Pyth-priced stock is not one of them however
- *  busy its weekend markets are. */
-export const tradesAroundTheClock = (ticker: string) => {
+/* WHICH STOCKS FIGHT AROUND THE CLOCK, AT A MOMENT.
+ *
+ * A stock whose shut exchange still leaves it a price, by the rules for a
+ * boundary at `at`: from COMPOSITE_FROM, a stock pinned in venues247.json (45
+ * with three fresh anchors, docs/247-hardening.md section 8), and before it a
+ * stock with a perp or a pool, as it always was. A Pyth-priced stock is never
+ * one: Pyth's equity feeds go dark from Friday 8 PM to Sunday 8 PM New York and
+ * on holidays (market.ts, pythSpanAt), however busy its weekend markets are.
+ *
+ * It is the badge's answer, so it asks the roster's source, which is the
+ * source a new fight records. A fight that exists is judged by its own
+ * (pricedAt and mixedHoursAt take them).
+ *
+ * WHEN A PAGE HAS NO CLOCK YET. A server render, the first render in the
+ * browser (useNow starts at 0) and the static pages ask about COMPOSITE_FROM
+ * itself. The release sets it to the moment it deploys, so that is the set
+ * every visitor from then on sees, and a server render and the render that
+ * hydrates it always agree. A page with a clock passes it and, before the
+ * cutover, sees the perps and pools. */
+export const tradesAroundTheClock = (ticker: string, at?: number) => {
   const s = byTicker(ticker);
-  return !!s && s.source !== "pyth" && (!!PERPS[ticker] || !!POOLS[ticker]);
+  return !!s && s.source !== "pyth" && shutPricedFrom(s, at || COMPOSITE_FROM);
 };
+
+/* HOW A 24/7 STOCK IS PRICED WHILE ITS EXCHANGE IS SHUT, IN WORDS.
+ *
+ * "the median of up to 9 markets that trade it around the clock" from the
+ * cutover: the markets pinned for it in venues247.json at that moment, of which
+ * the composite counts those that traded in the 15 minutes before its window
+ * (composite.ts, compositeV2At), so "up to". Before the cutover, its perpetual
+ * future or its Solana pool. Null for a stock that waits. */
+export function offHoursWords(ticker: string, at?: number): string | null {
+  if (!tradesAroundTheClock(ticker, at)) return null;
+  const when = at || COMPOSITE_FROM;
+  if (when >= COMPOSITE_FROM) return `the median of up to ${compositeMarkets(ticker, when)} markets that trade it around the clock`;
+  return PERPS[ticker] ? "its perpetual future" : "its Solana pool";
+}
+
+/** How many markets are pinned for `ticker` at `at` (the cutover without one). */
+export const compositeMarkets = (ticker: string, at?: number) => inputsAt(ticker, Math.max(at || 0, COMPOSITE_FROM)).length;
 
 /* WHEN A SIDE'S PRICE AT `boundary` CAN BEGIN TO EXIST.
  *
@@ -560,7 +592,19 @@ function darkWords(d: Dark, round?: EndRule): string {
  *
  * Checked where apartIfTakenAt checks, and across the take window the same way:
  * the hours the composite prices are hours long, and a later accept only moves
- * both boundaries later. */
+ * both boundaries later.
+ *
+ * IT IS ALSO THE EDGE RULE. The plan refused a round under EDGE_ROUND_SECS
+ * whose start and end fall either side of an edge between the exchange and the
+ * composite (8 PM or 4 AM New York, an early close, a holiday), because the two
+ * sat a median 5.4 bps apart at Friday's close and 13.8 bps at Monday's open
+ * (docs/247-pricing.md, section 3), about a weekend's 15-minute move. Such a
+ * round has one end the composite prices, so this minimum, three times as
+ * long, refuses every one of them, with the sentence below; and a bell round
+ * that starts on the composite runs at least nine hours. A test walks each kind
+ * of edge to hold that (tests-web/stocks.test.ts). */
+export const EDGE_ROUND_SECS = 4 * 3_600;
+
 type Short = { at: "start" | "end"; boundary: number; tickers: string[]; secs: number };
 
 function shortIfTakenAt(a: string, b: string, acceptedTs: number, round?: EndRule): Short | null {
@@ -706,8 +750,13 @@ export function mixedHoursAt(
   return `${reason} ${advice}`;
 }
 
-/** How many of the roster can, for the pages that say so. */
-export const AROUND_THE_CLOCK = ROSTER.filter((s) => tradesAroundTheClock(s.ticker)).length;
+/** How many of the roster fight around the clock at `at`, for the pages that
+ *  say so; without a moment, from the cutover (see tradesAroundTheClock). */
+export const aroundTheClockAt = (at?: number) => ROSTER.filter((s) => tradesAroundTheClock(s.ticker, at)).length;
+
+/** The count from the cutover: every stock pinned in venues247.json that the
+ *  roster prices by the oracle. The static pages and the docs say this one. */
+export const AROUND_THE_CLOCK = aroundTheClockAt();
 
 export const tokensFor = (ticker: string) => tokensByTicker.get(ticker) ?? [];
 
@@ -743,6 +792,7 @@ export function isListedDuel(d: Pick<DuelView, "creatorMint" | "opponentMint">):
 /** "NVDAx": the symbol of the token a stock is staked as here. */
 export const tokenSymbol = (ticker: string) => tokensFor(ticker)[0]?.symbol ?? `${ticker}x`;
 
-/** How a stock is priced, in the words the page uses. */
-export const sourceLabel = (s: Pick<Stock, "source">) =>
-  s.source === "pyth" ? "Pyth" : "Stonk Wars oracle";
+/** How a stock is priced, in the words the page uses: by the roster for a new
+ *  fight, or by the source a fight recorded when it has one. */
+export const sourceLabel = (s: Pick<Stock, "source">, recorded?: SideSource) =>
+  (recorded ?? s.source) === "pyth" ? "Pyth" : "Stonk Wars oracle";

@@ -29,9 +29,6 @@ export const metadata: Metadata = { title: "How it works" };
 
 const PYTH = ROSTER.filter((s) => s.source === "pyth").map((s) => s.ticker);
 
-const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-const countWords = (n: number) => COUNT_WORDS[n] ?? n.toLocaleString("en-US");
-
 /** "TSLA, QQQ and VOO". */
 const listWords = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
 
@@ -139,7 +136,7 @@ const RULES: Rule[] = [
     id: "why-not-pyth",
     label: "Why not all Pyth",
     q: "Why not Pyth for everything?",
-    a: `This deployment's Pyth plan covers only ${countWords(PYTH.length)} equity feeds. Rather than lock out the rest of the market, the program takes a second source for the others and says so on every fight. When a stock gets a Pyth feed, one admin call switches it for new fights; fights already running keep the source they started with.`,
+    a: `This deployment's Pyth plan covers only three equity feeds, and Pyth's equity feeds are dark from 8pm Friday to 8pm Sunday New York time. So TSLA and QQQ, which markets trade all weekend, are priced by the Stonk Wars oracle for new fights, and ${listWords(PYTH)}, which no weekend market trades well enough, ${PYTH.length === 1 ? "stays" : "stay"} on Pyth. Rather than lock out the rest of the market, the program takes a second source for the others and says so on every fight. One admin call switches a stock's source for new fights; fights already running keep the source they started with.`,
   },
   {
     id: "why-not-the-token",
