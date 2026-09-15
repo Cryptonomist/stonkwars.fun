@@ -17,6 +17,7 @@ import { HermesClient } from "@pythnetwork/hermes-client";
 
 import { crankOnce } from "../src/lib/crank";
 import { quoteSymbolFor } from "../src/lib/stocks";
+import { failingVenues, VENUE_ALERT_SECS } from "../src/lib/venues247";
 
 loadEnvLocal();
 
@@ -92,6 +93,11 @@ async function main() {
       }
     } catch (e) {
       log("pass failed:", e instanceof Error ? e.message : e);
+    }
+    // A 24/7 venue that keeps failing holds every price that pins it; say so (docs/247-hardening.md, the runbook).
+    const now = Math.floor(Date.now() / 1000);
+    for (const v of failingVenues().filter((f) => now - f.since >= VENUE_ALERT_SECS)) {
+      log(`venue  ${v.name} failing for ${Math.round((now - v.since) / 60)} min (${v.failures} requests): ${v.last}`);
     }
     await new Promise((r) => setTimeout(r, INTERVAL_MS));
   }

@@ -4,6 +4,7 @@ import { crankOnce, CRON_PYTH_YIELD_SECS, CRON_YIELD_SECS, listJobs, type JobLis
 import { authorise } from "@/lib/crankAuth.server";
 import { crankKeypair, settlerConnection, settlerHermes, settlerOracle } from "@/lib/settler.server";
 import { quoteSymbolFor } from "@/lib/stocks";
+import { failingVenues, VENUE_ALERT_SECS } from "@/lib/venues247";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -73,14 +74,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, at: now, error: e instanceof Error ? e.message : "listing failed" });
   }
 
+  /* A 24/7 VENUE THAT KEEPS FAILING IS NAMED HERE, AND LOGGED AS AN ALERT.
+   *
+   * The composite waits on a venue that does not answer rather than leaving it
+   * out, so a venue that has stopped answering holds every price that pins it
+   * (lib/venues247.ts, failingVenues). The summary names each venue whose
+   * requests on this instance have all failed, and once one has failed for
+   * VENUE_ALERT_SECS the function log gets a line a person can alert on. The
+   * fix is the runbook's: end the pin, redeploy (docs/247-hardening.md). */
+  const venues = failingVenues();
+  const alertVenues = () => {
+    const long = failingVenues().filter((v) => now - v.since >= VENUE_ALERT_SECS);
+    if (long.length) console.error(JSON.stringify({ crank: "venue failing", at: now, venues: long }));
+  };
   const summary = {
     ok: true,
     at: now,
     due: listing.due.map((j) => ({ duel: j.duel.address.toBase58(), kind: j.kind, readyAt: j.readyAt, why: j.why })),
     parked: listing.parked,
+    ...(venues.length ? { failingVenues: venues } : {}),
     ...(listing.errors.length ? { errors: listing.errors } : {}),
   };
-  if (!listing.due.length) return NextResponse.json(summary);
+  if (!listing.due.length) {
+    alertVenues();
+    return NextResponse.json(summary);
+  }
 
   const pass = () =>
     crankOnce({
@@ -101,7 +119,10 @@ export async function GET(req: NextRequest) {
 
   if (req.nextUrl.searchParams.get("wait") === "1") {
     try {
-      return NextResponse.json({ ...summary, results: await pass() });
+      const results = await pass();
+      alertVenues();
+      const still = failingVenues();
+      return NextResponse.json({ ...summary, failingVenues: still.length ? still : undefined, results });
     } catch (e) {
       return NextResponse.json({ ...summary, ok: false, error: e instanceof Error ? e.message : "crank failed" });
     }
@@ -114,6 +135,7 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       console.error(JSON.stringify({ crank: "pass failed", at: now, error: e instanceof Error ? e.message : String(e) }));
     }
+    alertVenues();
   });
   return NextResponse.json(summary);
 }

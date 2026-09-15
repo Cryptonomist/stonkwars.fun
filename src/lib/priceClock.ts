@@ -23,6 +23,7 @@ import { compositePublishTime } from "./composite";
 import { abroadOpeningAfter, openingAfter, pythPricesAt, session } from "./market";
 import { BAR_SETTLE_SECS, exchangeBarFinal, firstBarEnd, sourceAt } from "./oracle";
 import { byFeed, quoteSymbolFor } from "./stocks";
+import type { Venues247 } from "./venues247";
 
 /* The end of the first one-minute bar that ends after a boundary, whose close
  * is a bar-priced side's price. It lives in oracle.ts beside the rule it
@@ -56,7 +57,7 @@ export type Never = { never: string[]; refundAt: number };
  *  and so does crank.ts's QuoteSymbol; tests pass their own. */
 export type MarketLookup = (
   feed: string,
-) => { symbol?: string; market?: string; pool?: string; perp?: string; composite?: string } | undefined;
+) => { symbol?: string; market?: string; pool?: string; perp?: string; composite?: string; venues?: Venues247 } | undefined;
 
 export type ClockDuel = Pick<
   DuelView,

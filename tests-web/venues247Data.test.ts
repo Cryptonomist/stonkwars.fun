@@ -10,7 +10,8 @@
  *   roster      every stock is a US roster stock quoted in dollars
  *   the flip    TSLA and QQQ are listed, VOO is not (section 4 of the plan)
  *   quorum      every listed stock has 3 anchors pinned, at the cutover and
- *               at every boundary its set changes after it
+ *               at every boundary its set changes after it, or none at all
+ *               once every one of its pins has ended
  *   denied      no pinned id is one the reader refuses, and the reader does
  *               refuse them
  *   evidence    the pins are exactly the markets the build measured as the
@@ -101,6 +102,8 @@ describe("venues247.json, the round-the-clock roster", () => {
         const set = inputsAt(t, b);
         const venues = new Set(set.map((i) => i.venue));
         expect(venues.size, `${t} markets at ${b}`).to.equal(set.length);
+        // A stock whose every pin has ended is priced as one with none (oracle.ts, sourceAt).
+        if (set.length === 0 && b > COMPOSITE_FROM) continue;
         expect(set.length, `${t} markets at ${b}`).to.be.at.least(3);
         expect(set.filter((i) => VENUES[i.venue].anchor).length, `${t} anchors at ${b}`).to.be.at.least(BADGE_ANCHORS);
       }

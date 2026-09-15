@@ -40,10 +40,13 @@ export const COMPOSITE_RULE = "composite-v1";
  *
  * A boundary at or after this moment, while the exchange is shut, is priced by
  * the composite for a stock listed in src/data/venues247.json. Every boundary
- * before it keeps the perp and pool rules it was priced by, so a fight already
- * running when this ships ends the way it started. Unix seconds. 1,789,600,000
- * is Wednesday 16 Sep 2026, 7:06:40 PM New York: a placeholder in the future.
- * The release sets the real value at deploy (docs/247-pricing.md, step 7). */
+ * before it keeps the perp and pool rules it was priced by. The rule goes by
+ * boundary, not by fight (a quote names no duel), so a fight taken before the
+ * cutover whose end falls after it ends on the new rule: the release picks a
+ * moment no open fight crosses, and scripts/cutover-check.ts lists any that
+ * would. Unix seconds. 1,789,600,000 is Wednesday 16 Sep 2026, 7:06:40 PM New
+ * York: a placeholder in the future. The release sets the real value at deploy
+ * (docs/247-pricing.md, step 7). */
 export const COMPOSITE_FROM = 1_789_600_000;
 
 /** A candle traded this recently (m - 840 to m) makes its venue fresh. */
@@ -262,7 +265,7 @@ export function compositeGate(opts: {
   /* TOO LATE TO SIGN. A proof has to be recomputable from the venues' own
    * history, and the shortest history in the set sets how long that is: three
    * days whenever Hyperliquid is pinned. */
-  const retention = Math.min(...opts.venues.map((v) => VENUES[v].retentionSecs));
+  const retention = historySecs(opts.venues);
   if (opts.venues.length && opts.now - opts.boundary > retention) {
     return { refused: `the boundary is older than the ${Math.round(retention / DAY)} days its venues keep minutes for` };
   }
@@ -494,6 +497,18 @@ export const PREMIUM_SCALE = 100_000_000n;
  *  the 14 before its first sample that say whether a venue was fresh then. */
 export const V2_LOOKBACK_SECS = 5_400;
 
+/* HOW FAR PAST THE WINDOW EACH REQUEST REACHES.
+ *
+ * A venue that prints every minute and has no row for the window's last minute
+ * is late, and the rule waits for it. That wait has to be able to end from
+ * history: if the venue skipped the minute (maintenance, a halt), a later row
+ * proves it, and the minute counts as no trade. A request that stopped at the
+ * window's last minute could never return that later row, so a skipped minute
+ * waited until the venues' history ran out. Each v2 request therefore reaches
+ * V2_TAIL_MINUTES past it. The rule reads nothing from those rows but the fact
+ * that one exists; OKX's 100-row cap still holds the span (90 + 3 + 5 = 98). */
+export const V2_TAIL_MINUTES = 5;
+
 /* THE SHORTEST ROUND THE COMPOSITE MAY PRICE.
  *
  * A round is only as hard to change as its move is large against what one
@@ -512,6 +527,51 @@ export const MIN_OFFHOURS_ROUND_SECS = 12 * 3_600;
 export const compositePublishTime = (boundary: number) => minuteOf(boundary) + V2_WINDOW_SECS;
 /** The start of the last minute in the window for minute m. */
 export const v2LastMinute = (m: number) => m + V2_WINDOW_SECS - 60;
+
+/* A FALLBACK THE PROOF WOULD NOT OUTLIVE.
+ *
+ * A side whose markets were too thin waits for the exchange's first bar after
+ * the boundary (step 8b). Nothing remembers that verdict but the instance that
+ * worked it out, so when that bar is final a fresh instance has to work it out
+ * again from the venues' history, and nothing is signed once the shortest
+ * history in the set has run out (compositeGate). On a normal weekend the bar
+ * comes 56 hours after Friday's close, inside Hyperliquid's three days. After
+ * a holiday next to a weekend it can come 80 to 83 hours after the first hours
+ * of the closure (Christmas, New Year, Good Friday, the Monday holidays), and
+ * a fight whose side fell back there could never be priced: it would sit until
+ * the stall refund. So a boundary whose fallback would land later than the
+ * shortest retention, less FALLBACK_MARGIN_SECS for a crank that runs late, is
+ * one the pages refuse to let a composite side start or end on
+ * (stocks.ts, strandedWithin). Only a stock with Hyperliquid pinned is ever
+ * affected; every other set keeps six days. */
+export const FALLBACK_MARGIN_SECS = 3_600;
+
+export function fallbackOutlivesHistory(boundary: number, exchangeFinal: number | null, venues: VenueId[]): boolean {
+  if (exchangeFinal === null || !venues.length) return false;
+  return exchangeFinal - boundary > historySecs(venues) - FALLBACK_MARGIN_SECS;
+}
+
+/** The shortest one-minute history among these venues, in seconds. */
+export const historySecs = (venues: VenueId[]) => Math.min(...venues.map((v) => VENUES[v].retentionSecs));
+
+/* A QUIET MINUTE AT A FORWARD-FILLING VENUE ARRIVES LATE, SO IT IS NOT READ.
+ *
+ * Hyperliquid prints no row for a minute nobody traded until the next trade,
+ * then fills it in flat behind itself; Backpack's quiet rows repeat the close
+ * the same way. So the rows after such a venue's last trade in a span are
+ * there or not depending on whether anyone has traded since, which is a fact
+ * about when the span was asked for, not about the span. Read as they came,
+ * they changed nothing in any price but moved the proof's candle stamps, and
+ * so its sha256 (1,108 of last weekend's boundaries, fetched at the moment the
+ * rule asks, against the same boundaries fetched later). Cut back to the last
+ * traded row, forward-filled from it, every fetch reads the same rows. A span
+ * with no trade at all reads as no rows, for the same reason. */
+export function settledRows(venue: VenueId, rows: Candle[], last: number): Candle[] {
+  if (!VENUES[venue].forwardFill) return rows;
+  let lastTrade = -Infinity;
+  for (const r of rows) if (r.traded && r.t <= last && r.t > lastTrade) lastTrade = r.t;
+  return rows.filter((r) => r.t <= lastTrade);
+}
 
 /** A positive ratio a / b rounded half up, in integers. */
 const divRound = (a: bigint, b: bigint) => (2n * a + b) / (2n * b);
@@ -668,8 +728,11 @@ export type CompositeV2Result = CompositeResult<CompositeV2Proof>;
 /* THE RULE, V2.
  *
  * `windows` holds one entry per pinned venue, each reaching from
- * m - V2_LOOKBACK_SECS to the window's last minute (venues247.ts,
- * venueRequestV2); anything outside that is ignored. The rest is as v1. */
+ * m - V2_LOOKBACK_SECS to V2_TAIL_MINUTES past the window's last minute
+ * (venues247.ts, venueRequestV2); rows after the window's last minute only
+ * prove a skipped minute, and anything outside the span is ignored. A
+ * forward-filling venue is read up to its last trade (settledRows). The rest
+ * is as v1. */
 export function compositeV2At(opts: {
   boundary: number;
   now: number;
@@ -698,7 +761,7 @@ export function compositeV2At(opts: {
     return { wait: `no candle for ${last} yet at ${late.map((w) => `${VENUES[w.venue].name} ${w.instrument}`).join(", ")}`, retryAt: null };
   }
 
-  const series = windows.map((w) => venueSeries(w.venue, w.rows, from, last));
+  const series = windows.map((w) => venueSeries(w.venue, settledRows(w.venue, w.rows, last), from, last));
   const before = (m - 60 - from) / 60; // the minute before the window
   const first = (m - from) / 60;
   const refs: (bigint | null)[] = series[0]?.ticks.map(() => null) ?? [];

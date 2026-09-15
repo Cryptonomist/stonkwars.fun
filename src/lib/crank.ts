@@ -51,6 +51,7 @@ import {
   type DuelView,
 } from "./duel";
 import {
+  answerAt,
   BAR_SETTLE_SECS,
   compositeParkedUntil,
   exchangeBarFinal,
@@ -62,6 +63,7 @@ import {
 } from "./oracle";
 import { readyAt as clockReadyAt, PYTH_GRACE_SECS, type MarketLookup, type ReadyWhy } from "./priceClock";
 import { quoteSymbolFor } from "./stocks";
+import type { Venues247 } from "./venues247";
 
 export { boundaryOf, crankTransactions, pythFeedsOf, type SignedTx } from "./crankTx";
 
@@ -70,7 +72,9 @@ export { boundaryOf, crankTransactions, pythFeedsOf, type SignedTx } from "./cra
  * Solana pool and perpetual market that price it while its exchange is shut. */
 export type QuoteSymbol = (
   feed: string,
-) => { symbol: string; currency: string; market?: string; pool?: string; perp?: string; composite?: string } | undefined;
+) =>
+  | { symbol: string; currency: string; market?: string; pool?: string; perp?: string; composite?: string; venues?: Venues247 }
+  | undefined;
 
 /** A job that cannot run yet and should be retried, not reported as broken.
  *  `readyAt` (unix seconds), when known, is the earliest worth trying again. */
@@ -282,7 +286,7 @@ export function retryAt(
   which: "start" | "settle",
   now: number,
   lookup: MarketLookup,
-  side?: { market?: string; pool?: string; perp?: string; composite?: string },
+  side?: { market?: string; pool?: string; perp?: string; composite?: string; venues?: Venues247 },
 ): number | undefined {
   const boundary = boundaryOf(d, which);
   const src = side ? sourceAt(boundary, side) : undefined;
@@ -326,18 +330,27 @@ export async function signedQuotes(opts: {
   if (!oracle.publicKey.equals(d.oracle)) {
     throw new Error(`This fight trusts oracle ${d.oracle.toBase58()}; this crank holds ${oracle.publicKey.toBase58()}`);
   }
-  const quote = opts.quoteAt ?? quoteAt;
+  /* THE ORACLE'S OWN WORDS FOR A WAIT. With no stub, the answer's wait is kept,
+   * so a side held up by one venue says which ("waiting on OKX
+   * TSLA-USDT-SWAP: HTTP 400") in the crank's results, the nudge and the logs,
+   * instead of a sentence that fits every wait and names nothing. */
+  const ask = opts.quoteAt
+    ? async (o: Parameters<typeof quoteAt>[0]) => ({ quote: await opts.quoteAt!(o), wait: null as string | null })
+    : async (o: Parameters<typeof quoteAt>[0]) => {
+        const a = await answerAt(o);
+        return { quote: a.quote, wait: a.wait };
+      };
   const which = opts.which ?? (boundary === d.endTs ? "settle" : "start");
   // Both sides at once: they are different sources, and neither waits on the other.
   const settled = await Promise.allSettled(
     feeds.map(async (feed) => {
       const market = opts.quoteSymbol(feed);
       if (!market) throw new Error(`No market symbol for feed ${feed.slice(0, 8)}`);
-      const q = await quote({ feed, ...market, boundary });
+      const { quote: q, wait } = await ask({ feed, ...market, boundary });
       if (!q) {
         const now = nowSecs();
         throw new NotYet(
-          `${market.symbol}: waiting for the price at ${boundary} to be final`,
+          `${market.symbol}: ${wait ?? `waiting for the price at ${boundary} to be final`}`,
           retryAt(d, which, now, opts.quoteSymbol, market),
         );
       }

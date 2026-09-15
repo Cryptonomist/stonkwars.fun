@@ -127,7 +127,10 @@ export const byFeed = (feed: string) =>
  * the Solana pool it was pinned to (scripts/build-perps.ts, build-pools.ts),
  * and, from COMPOSITE_FROM, its ticker in venues247.json when the composite
  * prices it (lib/composite.ts). Only a US stock quoted in dollars is ever
- * given the composite. A stock with none of these keeps exchange hours. */
+ * given the composite. The ticker is given for a stock pinned at any time;
+ * which boundaries its pins cover (their from and until) is decided per
+ * boundary by oracle.ts sourceAt. A stock with none of these keeps exchange
+ * hours. */
 export function quoteSymbolFor(feed: string) {
   const s = byFeed(feed);
   if (!s) return undefined;
@@ -142,9 +145,10 @@ export function quoteSymbolFor(feed: string) {
 }
 
 /** Whether the composite prices `ticker` at `boundary` when its exchange is
- *  shut: pinned in venues247.json, and at or after the cutover. */
+ *  shut: with markets pinned in venues247.json at that boundary (a pin's
+ *  `until` counts, as it does for the oracle), and at or after the cutover. */
 const compositeFrom = (s: Stock, boundary: number) =>
-  s.market === "US" && s.currency === "USD" && boundary >= COMPOSITE_FROM && listed247(s.ticker);
+  s.market === "US" && s.currency === "USD" && boundary >= COMPOSITE_FROM && inputsAt(s.ticker, boundary).length > 0;
 
 /* WHAT PRICES A SHUT US STOCK, IF ANYTHING.
  *
@@ -153,7 +157,9 @@ const compositeFrom = (s: Stock, boundary: number) =>
  * KO, MCD, MRNA, STRC among them) no longer prices a boundary after it, and
  * such a stock waits for its exchange like every stock with neither
  * (oracle.ts, sourceAt). Before the cutover, the perp or pool as they always
- * did, so a fight running across it ends on the rules it started under. */
+ * did. The rule is per boundary, as the oracle's is: a fight taken before the
+ * cutover whose end falls after it ends on the new rule, so the release picks
+ * a cutover no open fight crosses (scripts/cutover-check.ts). */
 const shutPricedFrom = (s: Stock, boundary: number) =>
   compositeFrom(s, boundary) || (boundary < COMPOSITE_FROM && (!!PERPS[s.ticker] || !!POOLS[s.ticker]));
 

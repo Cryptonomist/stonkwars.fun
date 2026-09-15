@@ -23,11 +23,15 @@ import {
   compositeAt,
   compositePublishTime,
   compositeV2At,
+  medianTicks,
   MIN_OFFHOURS_ROUND_SECS,
   PREMIUM_SCALE,
   proofHash,
+  referenceAt,
   toTicks,
+  venueSeries,
   V2_LOOKBACK_SECS,
+  V2_TAIL_MINUTES,
   V2_WINDOW_MINUTES,
   V2_WINDOW_SECS,
   VENUES,
@@ -70,13 +74,15 @@ function weekendSeries(ticker: string) {
   });
 }
 
-/** Each venue's rows for a v2 window at m: m - 90 minutes to its last minute. */
+/** Each venue's rows for a v2 window at m, as its request returns them once
+ *  history is complete: m - 90 minutes to V2_TAIL_MINUTES past the window's
+ *  last minute. */
 const windowsV2At = (series: ReturnType<typeof weekendSeries>, ticker: string, m: number): (VenueWindow & { rows: Candle[] })[] =>
   series.map((s) => ({
     venue: s.venue,
     instrument: ticker,
     request: { method: "GET" as const, url: `fixture:${s.venue}/${ticker}/${m}` },
-    rows: s.rows.filter((r) => r.t >= m - V2_LOOKBACK_SECS && r.t <= m + V2_WINDOW_SECS - 60),
+    rows: s.rows.filter((r) => r.t >= m - V2_LOOKBACK_SECS && r.t <= m + V2_WINDOW_SECS - 60 + V2_TAIL_MINUTES * 60),
   }));
 
 const FINAL = (m: number) => m + V2_WINDOW_SECS + BAR_SETTLE_SECS;
@@ -193,12 +199,48 @@ describe("composite-v2", () => {
       expect(priced(v2("TSLA", SAT16, more)).sha256).to.equal(base.sha256);
     });
 
-    it("waits when a venue that prints every minute has nothing for the window's last minute yet", () => {
+    /* Only rows a real request returns. At the moment the rule first asks, a
+     * venue that has not printed the window's last minute has nothing at or
+     * after it: a wait. If the venue skipped that minute, its request, which
+     * reaches V2_TAIL_MINUTES past the window, returns the minutes after it
+     * once they print, and the skipped minute counts as no trade. */
+    it("waits when a venue that prints every minute has nothing for the window's last minute yet, and prices once a later minute proves it skipped", () => {
       const last = SAT16 + 120;
-      const missing = windows.map((w) => (w.venue === "okx" ? { ...w, rows: w.rows.filter((r) => r.t !== last) } : w));
-      expect(v2("TSLA", SAT16, missing)).to.deep.equal({ wait: `no candle for ${last} yet at OKX TSLA`, retryAt: null });
-      const skipped = missing.map((w) => (w.venue === "okx" ? { ...w, rows: [...w.rows, { t: last + 60, close: w.rows.at(-1)!.close, traded: false }] } : w));
+      const cutAt = (t: number) => windows.map((w) => (w.venue === "okx" ? { ...w, rows: w.rows.filter((r) => r.t < t) } : w));
+      expect(v2("TSLA", SAT16, cutAt(last))).to.deep.equal({ wait: `no candle for ${last} yet at OKX TSLA`, retryAt: null });
+      const skipped = windows.map((w) => (w.venue === "okx" ? { ...w, rows: w.rows.filter((r) => r.t !== last) } : w));
+      expect(skipped.find((w) => w.venue === "okx")!.rows.some((r) => r.t > last)).to.equal(true);
       expect("price" in v2("TSLA", SAT16, skipped)).to.equal(true);
+      // The rows the request returns past the window are the ones venueRequestV2 asks for, and no further.
+      const okx = new URL(venueRequestV2({ venue: "okx", instrument: "TSLA-USDT-SWAP" }, SAT16).url);
+      expect(Number(okx.searchParams.get("after")) / 1_000 - 60).to.equal(last + V2_TAIL_MINUTES * 60);
+    });
+
+    /* Hyperliquid prints a quiet minute only once somebody trades after it, so
+     * asked at the moment the rule first can, it may not have the window's
+     * trailing quiet minutes yet, and asked later it does. Both must be the
+     * same proof, byte for byte. */
+    it("hashes the same proof whether Hyperliquid's trailing quiet minutes have printed yet or not", () => {
+      let checked = 0;
+      for (const ticker of WEEKEND_TICKERS) {
+        const s = weekendSeries(ticker);
+        if (!s.some((x) => x.venue === "hyperliquid")) continue;
+        for (let m = WEEKEND_SAT; m < WEEKEND_MON && checked < 40; m += 900) {
+          const later = windowsV2At(s, ticker, m);
+          const hl = later.find((w) => w.venue === "hyperliquid")!;
+          const last = m + V2_WINDOW_SECS - 60;
+          const lastTrade = Math.max(...hl.rows.filter((r) => r.traded && r.t <= last).map((r) => r.t));
+          // Only windows whose last minutes were quiet at Hyperliquid.
+          if (!(lastTrade < last)) continue;
+          const atFetch = later.map((w) => (w.venue === "hyperliquid" ? { ...w, rows: w.rows.filter((r) => r.t <= lastTrade) } : w));
+          const a = v2(ticker, m, later);
+          const b = v2(ticker, m, atFetch);
+          if (!("price" in a) || !("price" in b)) throw new Error(`${ticker} at ${m}: ${JSON.stringify(a)}`);
+          expect(b.sha256, `${ticker} at ${m}`).to.equal(a.sha256);
+          checked++;
+        }
+      }
+      expect(checked).to.be.at.least(20);
     });
 
     it("waits on a 429, never leaving the venue out", () => {
@@ -219,15 +261,16 @@ describe("composite-v2", () => {
       expect(proofHash(base.proof)).to.equal(base.sha256);
     });
 
-    it("asks each venue for the span the rule reads, and no more than OKX answers in one request", () => {
+    it("asks each venue for the span the rule reads and five minutes past it, and no more than OKX answers in one request", () => {
+      expect(V2_TAIL_MINUTES).to.equal(5);
       const r = venueRequestV2({ venue: "okx", instrument: "TSLA-USDT-SWAP" }, SAT16);
-      expect(r.url).to.equal(`https://www.okx.com/api/v5/market/history-candles?instId=TSLA-USDT-SWAP&bar=1m&after=${(SAT16 + 180) * 1_000}&limit=100`);
+      expect(r.url).to.equal(`https://www.okx.com/api/v5/market/history-candles?instId=TSLA-USDT-SWAP&bar=1m&after=${(SAT16 + 480) * 1_000}&limit=100`);
       const lighter = venueRequestV2({ venue: "lighter", instrument: "112" }, SAT16);
       expect(lighter.url).to.equal(
-        `https://mainnet.zklighter.elliot.ai/api/v1/candles?market_id=112&resolution=1m&start_timestamp=${(SAT16 - 5_400) * 1_000}&end_timestamp=${(SAT16 + 180) * 1_000}&count_back=93`,
+        `https://mainnet.zklighter.elliot.ai/api/v1/candles?market_id=112&resolution=1m&start_timestamp=${(SAT16 - 5_400) * 1_000}&end_timestamp=${(SAT16 + 480) * 1_000}&count_back=98`,
       );
       const gate = venueRequestV2({ venue: "gate", instrument: "TSLA_USDT" }, SAT16);
-      expect(gate.url).to.equal(`https://api.gateio.ws/api/v4/futures/usdt/candlesticks?contract=TSLA_USDT&interval=1m&from=${SAT16 - 5_400}&to=${SAT16 + 120}`);
+      expect(gate.url).to.equal(`https://api.gateio.ws/api/v4/futures/usdt/candlesticks?contract=TSLA_USDT&interval=1m&from=${SAT16 - 5_400}&to=${SAT16 + 420}`);
     });
   });
 
@@ -321,6 +364,112 @@ describe("composite-v2", () => {
       const r = priced(v2("TSLA", SAT16, moved));
       const premiums = (p: CompositeV2Proof) => p.venues.map((v) => v.minutes.map((x) => x.premium));
       expect(premiums(r.proof)).to.deep.equal(premiums(base.proof));
+    });
+  });
+
+  /* ─── The tiers, each one on its edge ────────────────────────────────────── */
+
+  /* On last weekend's fixtures every priced minute had five or more counted
+   * venues, the guard never fell back and nothing was uncalibrated, so the
+   * rule's quorum, its guard, its calibration minimum and its breaker were each
+   * asserted nowhere: deleting any of them passed. These put each one on its
+   * edge, from the same real rows made thinner. */
+  describe("each tier, on its edge", () => {
+    const series = weekendSeries("TSLA");
+    const windows = windowsV2At(series, "TSLA", SAT16);
+    const base = priced(v2("TSLA", SAT16, windows));
+    const OTHERS: VenueId[] = ["hyperliquid", "okx", "bitget", "binance", "lighter", "backpack", "gate", "mexc", "bingx"];
+    const quietBut = (keep: VenueId[], from?: number) => quietFrom(windows, OTHERS.filter((v) => !keep.includes(v)), from);
+
+    it("prices nothing from three counted markets with one anchor among them", () => {
+      const one = quietBut(["binance", "gate", "mexc"], SAT16 - 900);
+      const r = v2("TSLA", SAT16, one);
+      if (!("waitUntil" in r)) throw new Error(JSON.stringify(r));
+      expect([r.proof.counted, r.proof.countedAnchors]).to.deep.equal([3, 1]);
+      expect(r.reason).to.match(/^3 markets \(1 anchors\) had traded in the 15 minutes before/);
+    });
+
+    /* HL, OKX and Gate count; OKX prints 100 bps up through the window. The
+     * guard sets it aside and keeps 2, under the quorum, so each minute is the
+     * median of all three. */
+    it("takes the median of every counted close in a minute whose guard keeps fewer than three", () => {
+      const thin = quietBut(["hyperliquid", "okx", "gate"]);
+      const r = priced(v2("TSLA", SAT16, pushed(thin, "okx", SAT16, SAT16 + 120, 100)));
+      expect([r.proof.counted, r.proof.countedAnchors]).to.deep.equal([3, 2]);
+      for (const x of r.proof.minutes) {
+        expect([x.guard, x.kept, x.keptAnchors], `minute ${x.t}`).to.deep.equal(["all", 3, 2]);
+        const closes = r.proof.venues.filter((v) => v.counted).map((v) => BigInt(v.minutes.find((y) => y.t === x.t)!.calibrated!));
+        expect(x.value).to.equal(medianTicks(closes).toString());
+      }
+    });
+
+    /* HL, OKX, Gate and MEXC count; OKX prints 100 bps up. The guard keeps
+     * HL, Gate and MEXC: three markets but one anchor, which is not a quorum
+     * either, so every close counts. */
+    it("takes every counted close when the guard keeps three markets but only one anchor", () => {
+      const four = quietBut(["hyperliquid", "okx", "gate", "mexc"]);
+      const honest = priced(v2("TSLA", SAT16, four));
+      expect([honest.proof.counted, honest.proof.countedAnchors]).to.deep.equal([4, 2]);
+      expect(honest.proof.minutes.map((x) => x.guard)).to.deep.equal(["held", "held", "held"]);
+      const r = priced(v2("TSLA", SAT16, pushed(four, "okx", SAT16, SAT16 + 120, 100)));
+      for (const x of r.proof.minutes) expect([x.guard, x.kept, x.keptAnchors], `minute ${x.t}`).to.deep.equal(["all", 4, 2]);
+    });
+
+    /* Bitget made to trade only in the first minutes of the span, and in the
+     * minute before the window so it is fresh. Its premium at window minute k
+     * is read from minutes k - 75 to k - 6 where it was fresh, and each later
+     * minute's reach starts a minute later, so its samples fall by one a
+     * minute: with trades in the span's first n minutes (fresh through the
+     * fourteen after) they are n - 1, n - 2 and n - 3 across the window. */
+    it("counts a market only with 10 calibration minutes at every minute of the window", () => {
+      const tradedFirst = (minutes: number) =>
+        windows.map((w) =>
+          w.venue === "bitget"
+            ? { ...w, rows: w.rows.map((r) => ({ ...r, traded: (r.t >= SAT16 - V2_LOOKBACK_SECS && r.t < SAT16 - V2_LOOKBACK_SECS + minutes * 60) || r.t === SAT16 - 60 })) }
+            : w,
+        );
+      const bitget = (n: number) => priced(v2("TSLA", SAT16, tradedFirst(n))).proof.venues.find((v) => v.venue === "bitget")!;
+      const read = (n: number) => [bitget(n).why, bitget(n).minutes.map((x) => x.samples)];
+      expect(read(13)).to.deep.equal(["counted", [12, 11, 10]]);
+      // Calibrated at the first two minutes, 9 samples at the last: not counted.
+      expect(read(12)).to.deep.equal(["uncalibrated", [11, 10, 9]]);
+      expect(read(11)).to.deep.equal(["uncalibrated", [10, 9, 8]]);
+      expect(read(10)).to.deep.equal(["uncalibrated", [9, 8, 7]]);
+      expect(bitget(12).fresh).to.equal(true);
+    });
+
+    /* v1's median at a calibration minute, from four markets one of which is
+     * 10% off: the guard drops it, and the reference is the median of the
+     * rest. With the outlier an anchor, what is left has one anchor, and there
+     * is no reference at that minute. */
+    it("measures premiums against a reference that has had its own outlier removed", () => {
+      const t = SAT16;
+      const one = (venue: VenueId, close: string) => venueSeries(venue, [{ t, close, traded: true }], t, t);
+      const honest = [one("hyperliquid", "100.0000"), one("okx", "100.0100"), one("gate", "100.0200"), one("mexc", "110.0000")];
+      expect(referenceAt(honest, 0)).to.equal(1_000_100n);
+      const anchorOff = [one("hyperliquid", "100.0000"), one("okx", "110.0000"), one("gate", "100.0100"), one("mexc", "100.0200")];
+      expect(referenceAt(anchorOff, 0)).to.equal(null);
+    });
+
+    /* The breaker's edge, from TSLA's real price: a reference 14.99% away
+     * either side prices it, 15.01% sends the side to the exchange. */
+    it("trips the breaker past 1,500 bps from the exchange's last close and not before", () => {
+      const P = base.price;
+      const text = (ticks: bigint) => `${ticks / 10_000n}.${(ticks % 10_000n).toString().padStart(4, "0")}`;
+      const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b;
+      const cases: [string, bigint, boolean][] = [
+        ["14.99% below the price", ceilDiv(P * 10_000n, 11_499n), true],
+        ["15.01% below the price", (P * 10_000n) / 11_501n, false],
+        ["14.99% above the price", (P * 10_000n) / 8_501n, true],
+        ["15.01% above the price", ceilDiv(P * 10_000n, 8_499n), false],
+      ];
+      for (const [where, R, prices] of cases) {
+        const gap = ((P > R ? P - R : R - P) * 10_000n) / R;
+        expect(Number(gap), where).to.be.within(prices ? 1_490 : 1_501, prices ? 1_499 : 1_510);
+        const r = v2("TSLA", SAT16, windows, { t: SAT16 - 86_400, close: text(R) });
+        if (prices) expect(priced(r).price, where).to.equal(P);
+        else expect(r, where).to.have.property("reason").that.matches(/beyond the 1,500 bps breaker$/);
+      }
     });
   });
 

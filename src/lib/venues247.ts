@@ -52,6 +52,7 @@ import {
   COMPOSITE_V2_RULE,
   closeText,
   V2_LOOKBACK_SECS,
+  V2_TAIL_MINUTES,
   v2LastMinute,
   VENUES,
   WINDOW_SECS,
@@ -210,14 +211,17 @@ export function venueRequest(input: Pick<PinnedInput, "venue" | "instrument">, m
 /* THE REQUEST FOR A V2 WINDOW.
  *
  * The same requests over a longer span: from m - V2_LOOKBACK_SECS, for the
- * calibration minutes, to the window's last minute, for the window. Every
- * window semantics above holds, because the span is all that changes. Two
- * venues cap how long a span one request can carry, which caps the window:
- * OKX's history-candles returns at most 100 rows, and the span is 90 + W
- * minutes, so W can be at most 10; Lighter's count_back is set to the span's
- * own row count, as v1 sets it to 61. */
+ * calibration minutes, to V2_TAIL_MINUTES past the window's last minute, so a
+ * minute a venue skipped can be told from one it has not printed yet
+ * (composite.ts). Every window semantics above holds, because the span is all
+ * that changes. Its end is in the future when the rule first asks, which each
+ * venue answers with the rows it has. Two venues cap how long a span one
+ * request can carry, which caps the window: OKX's history-candles returns at
+ * most 100 rows, and the span is 90 + W + 5 minutes, so W can be at most 5;
+ * Lighter's count_back is set to the span's own row count, as v1 sets it to
+ * 61. */
 export function venueRequestV2(input: Pick<PinnedInput, "venue" | "instrument">, m: number): VenueRequest {
-  return spanRequest(input, m - V2_LOOKBACK_SECS, v2LastMinute(m));
+  return spanRequest(input, m - V2_LOOKBACK_SECS, v2LastMinute(m) + V2_TAIL_MINUTES * 60);
 }
 
 function spanRequest(input: Pick<PinnedInput, "venue" | "instrument">, start: number, m: number): VenueRequest {
@@ -350,36 +354,99 @@ export function parseVenueBody(venue: VenueId, body: unknown): Candle[] {
   }
 }
 
+/* A FULL CACHE FORGETS ITS OLDEST ENTRIES, NOT ALL OF THEM.
+ *
+ * These caches used to be emptied outright when full, so one burst of new
+ * boundaries (a proof page, a busy pass) made every fight still waiting on a
+ * venue ask all its other venues again on its next retry. A Map keeps the
+ * order things were put in, so the oldest go first and everything recent
+ * stays. */
+export function makeRoom<K, V>(map: Map<K, V>, max: number): void {
+  for (const k of map.keys()) {
+    if (map.size < max) return;
+    map.delete(k);
+  }
+}
+
 /* A FINISHED WINDOW NEVER CHANGES, SO IT IS ASKED FOR ONCE.
  *
  * Kept only when its minute m closed more than a minute and the settle time
  * ago AND its rows reach m. The second half matters for Hyperliquid, which has
  * no row for a quiet minute until the next trade: a window without m may yet
- * gain it, and the venue's answer about m is only settled once it has. Until
- * then it is asked again, which is also what fetchPerpBars does. */
+ * gain it, and v1's answer about m is only settled once it has. Until then it
+ * is asked again, which is also what fetchPerpBars does.
+ *
+ * v2 reads a forward-filling venue only up to its last trade (composite.ts,
+ * settledRows), so for Hyperliquid and Backpack rows that arrive later change
+ * nothing it reads, and their window is finished as soon as its last minute
+ * has closed and settled. Before this, a Hyperliquid market quiet in the
+ * window's last minute was asked again on every retry and every proof request
+ * for as long as it stayed quiet. */
 const finished = new Map<string, VenueWindow>();
 const MAX_FINISHED = 2_000;
 
-export function windowFinished(rows: Candle[], m: number, now: number, settleSecs: number): boolean {
-  return now >= m + 60 + settleSecs && rows.some((r) => r.t >= m);
+export function windowFinished(rows: Candle[], m: number, now: number, settleSecs: number, forwardFill = false): boolean {
+  return now >= m + 60 + settleSecs && (forwardFill || rows.some((r) => r.t >= m));
 }
 
-/* BITGET ONE AT A TIME.
+/* BITGET ONE AT A TIME, AND NEVER MORE THAN A FEW WAITING.
  *
  * Its public market endpoints allow a handful of requests a second per IP, and
  * a crank pass pricing several stocks at one boundary asks for all of them at
  * once. So Bitget requests queue behind each other; every other venue is asked
- * in parallel. */
+ * in parallel.
+ *
+ * The queue used to have no end, and each request's five seconds started only
+ * when it reached the front, so behind a Bitget that had stopped answering the
+ * twelfth caller waited sixty seconds, a route's whole time limit, holding a
+ * slot other callers were refused for. Now a request's time runs from the
+ * moment it is made, one whose time ran out while it queued is never sent,
+ * and a caller that finds MAX_BITGET_WAITING ahead of it is told Bitget is busy
+ * at once. All three are answers with an error, which the rule waits on, never
+ * a venue left out. */
+export const MAX_BITGET_WAITING = 12;
 let bitgetQueue: Promise<unknown> = Promise.resolve();
-function serialBitget<T>(work: () => Promise<T>): Promise<T> {
-  const run = bitgetQueue.then(work, work);
+let bitgetWaiting = 0;
+function serialBitget<T>(work: () => Promise<T>, busy: () => T): Promise<T> {
+  if (bitgetWaiting >= MAX_BITGET_WAITING) return Promise.resolve(busy());
+  bitgetWaiting++;
+  const run = bitgetQueue.then(work, work).finally(() => bitgetWaiting--);
   bitgetQueue = run.catch(() => undefined);
   return run;
 }
 
-/** Forget every kept window. For tests. */
+/* A VENUE THAT KEEPS FAILING IS SAID OUT LOUD.
+ *
+ * The rule never leaves a venue out, so one that stops answering (a delisted
+ * market, a region it refuses, a changed body) holds every 24/7 price that pins
+ * it, and after the shortest history in the set runs out those fights can only
+ * be refunded. That cannot be fixed at runtime without making a price depend
+ * on when it was asked; it is fixed by ending the pin (an `until` at the first
+ * boundary that went unpriced, then a redeploy: docs/247-hardening.md, the
+ * runbook). What runtime can do is notice. Each venue's run of failed requests
+ * is counted here, from the first failure, and cleared by its next answer; the
+ * crank route puts it in its summary and logs an alert once a venue has failed
+ * for VENUE_ALERT_SECS. Per warm instance, like every other count here. */
+export const VENUE_ALERT_SECS = 300;
+export type VenueFailure = { venue: VenueId; name: string; since: number; failures: number; last: string };
+const failures = new Map<VenueId, VenueFailure>();
+
+/** The venues whose latest requests on this instance have all failed, oldest first. */
+export const failingVenues = (): VenueFailure[] => [...failures.values()].sort((a, b) => a.since - b.since);
+
+function noteAnswer(venue: VenueId, error: string | null, now: number): void {
+  if (error === null) {
+    failures.delete(venue);
+    return;
+  }
+  const had = failures.get(venue);
+  failures.set(venue, { venue, name: VENUES[venue].name, since: had?.since ?? now, failures: (had?.failures ?? 0) + 1, last: error });
+}
+
+/** Forget every kept window, and every venue's failures. For tests. */
 export function forgetVenueWindows(): void {
   finished.clear();
+  failures.clear();
 }
 
 /* ONE VENUE'S WINDOW FOR MINUTE m.
@@ -402,28 +469,35 @@ export async function fetchVenueWindow(
   if (had) return had;
 
   const base = { venue: input.venue, instrument: input.instrument, request };
-  const ask = async (): Promise<VenueWindow> => {
+  const late = { ...base, error: `no answer in ${opts.timeoutMs / 1_000}s` };
+  // Elapsed time by the monotonic clock: the wall clock can step.
+  const asked = performance.now();
+  const ask = async (): Promise<{ window: VenueWindow; sent: boolean }> => {
+    const left = opts.timeoutMs - (performance.now() - asked);
+    if (left <= 0) return { window: late, sent: false };
     try {
       const r = await fetch(request.url, {
         method: request.method,
         headers: { accept: "application/json", ...("body" in request ? { "content-type": "application/json" } : {}) },
         ...("body" in request ? { body: request.body } : {}),
         cache: "no-store",
-        signal: AbortSignal.timeout(opts.timeoutMs),
+        signal: AbortSignal.timeout(Math.ceil(left)),
       });
-      if (!r.ok) return { ...base, error: `HTTP ${r.status}` };
+      if (!r.ok) return { window: { ...base, error: `HTTP ${r.status}` }, sent: true };
       const rows = parseVenueBody(input.venue, await r.json());
-      return { ...base, rows };
+      return { window: { ...base, rows }, sent: true };
     } catch (e) {
       const name = e instanceof Error ? e.name : "";
-      if (name === "TimeoutError" || name === "AbortError") return { ...base, error: `no answer in ${opts.timeoutMs / 1_000}s` };
-      if (e instanceof BadBody) return { ...base, error: `unexpected answer (${e.message})` };
-      return { ...base, error: e instanceof SyntaxError ? "unexpected answer (not JSON)" : "could not be reached" };
+      if (name === "TimeoutError" || name === "AbortError") return { window: late, sent: true };
+      if (e instanceof BadBody) return { window: { ...base, error: `unexpected answer (${e.message})` }, sent: true };
+      return { window: { ...base, error: e instanceof SyntaxError ? "unexpected answer (not JSON)" : "could not be reached" }, sent: true };
     }
   };
-  const window = input.venue === "bitget" ? await serialBitget(ask) : await ask();
-  if ("rows" in window && windowFinished(window.rows, lastMinute, opts.now, opts.settleSecs)) {
-    if (finished.size >= MAX_FINISHED) finished.clear();
+  const busy = () => ({ window: { ...base, error: `Bitget is busy: ${MAX_BITGET_WAITING} requests already waiting` }, sent: false });
+  const { window, sent } = input.venue === "bitget" ? await serialBitget(ask, busy) : await ask();
+  if (sent) noteAnswer(input.venue, "error" in window ? window.error : null, opts.now);
+  if ("rows" in window && windowFinished(window.rows, lastMinute, opts.now, opts.settleSecs, v2 && VENUES[input.venue].forwardFill)) {
+    makeRoom(finished, MAX_FINISHED);
     finished.set(key, window);
   }
   return window;
