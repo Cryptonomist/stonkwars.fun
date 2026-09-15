@@ -1,7 +1,10 @@
 import { expect } from "chai";
 
 import {
+  abroadOpeningAfter,
+  abroadOpeningsBetween,
   isTradingDay,
+  sessionsModelled,
   nextBell,
   nyToMs,
   PYTH_EDGE_SECS,
@@ -21,6 +24,51 @@ const ny = (y: number, m: number, d: number, hh: number, mm: number, ss = 0) => 
 const sep = (d: number, hh: number, mm: number, ss = 0) => ny(2026, 9, d, hh, mm, ss);
 
 describe("market clock", () => {
+  /* HKEX and the LSE, as market.ts models them (its comment cites the
+   * calendars). Unix seconds from UTC wall time, so these do not lean on the
+   * code under test for time zones. */
+  describe("Hong Kong and London sessions", () => {
+    const utc = (y: number, m: number, d: number, hh: number, mm: number) => Math.floor(Date.UTC(y, m - 1, d, hh, mm) / 1000);
+
+    it("opens HKEX at 01:30 and 05:00 UTC and closes it at 04:00 and 08:10 UTC, with no daylight saving", () => {
+      for (const [y, m, d] of [[2026, 9, 15], [2027, 1, 12]]) {
+        expect(abroadOpeningAfter("HK", utc(y, m, d, 1, 29))).to.equal(utc(y, m, d, 1, 30));
+        expect(abroadOpeningAfter("HK", utc(y, m, d, 3, 59))).to.equal(utc(y, m, d, 3, 59));
+        expect(abroadOpeningAfter("HK", utc(y, m, d, 4, 0))).to.equal(utc(y, m, d, 5, 0));
+        expect(abroadOpeningAfter("HK", utc(y, m, d, 8, 9))).to.equal(utc(y, m, d, 8, 9));
+        expect(abroadOpeningAfter("HK", utc(y, m, d, 8, 10))).to.equal(utc(y, m, d + 1, 1, 30));
+      }
+      expect(sessionsModelled("HK") && sessionsModelled("GB") && !sessionsModelled("US") && !sessionsModelled("SOMEWHERE")).to.equal(true);
+      expect(abroadOpeningAfter("SOMEWHERE", 12_345)).to.equal(12_345);
+    });
+
+    it("skips Hong Kong's weekday general holidays, including the Lunar New Year of 2027", () => {
+      // Friday 5 Feb 2027 is a half day (to 04:10 UTC); Monday 8 and Tuesday 9 Feb are holidays.
+      expect(abroadOpeningAfter("HK", utc(2027, 2, 5, 4, 5))).to.equal(utc(2027, 2, 5, 4, 5));
+      expect(abroadOpeningAfter("HK", utc(2027, 2, 5, 4, 10))).to.equal(utc(2027, 2, 10, 1, 30));
+    });
+
+    it("opens the LSE at 08:00 London time, which moves an hour in UTC with British Summer Time", () => {
+      expect(abroadOpeningAfter("GB", utc(2026, 9, 14, 6, 59))).to.equal(utc(2026, 9, 14, 7, 0));
+      expect(abroadOpeningAfter("GB", utc(2026, 11, 2, 7, 59))).to.equal(utc(2026, 11, 2, 8, 0));
+      expect(abroadOpeningAfter("GB", utc(2026, 11, 2, 16, 34))).to.equal(utc(2026, 11, 2, 16, 34));
+      expect(abroadOpeningAfter("GB", utc(2026, 11, 2, 16, 35))).to.equal(utc(2026, 11, 3, 8, 0));
+      // Good Friday and Easter Monday 2027.
+      expect(abroadOpeningAfter("GB", utc(2027, 3, 25, 17, 0))).to.equal(utc(2027, 3, 30, 7, 0));
+    });
+
+    it("lists each session start in between, in order", () => {
+      expect(abroadOpeningsBetween("HK", utc(2026, 9, 12, 0, 0), utc(2026, 9, 15, 6, 0))).to.deep.equal([
+        utc(2026, 9, 14, 1, 30),
+        utc(2026, 9, 14, 5, 0),
+        utc(2026, 9, 15, 1, 30),
+        utc(2026, 9, 15, 5, 0),
+      ]);
+      expect(abroadOpeningsBetween("GB", utc(2026, 12, 24, 0, 0), utc(2026, 12, 30, 0, 0))).to.deep.equal([utc(2026, 12, 24, 8, 0), utc(2026, 12, 29, 8, 0)]);
+      expect(abroadOpeningsBetween("US", 0, 100)).to.deep.equal([]);
+    });
+  });
+
   it("converts New York wall time to UTC across daylight saving", () => {
     // EDT, UTC-4
     expect(new Date(nyToMs(2026, 9, 11, 15, 59, 30)).toISOString()).to.equal("2026-09-11T19:59:30.000Z");

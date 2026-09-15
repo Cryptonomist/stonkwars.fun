@@ -59,6 +59,8 @@ const FEED = {
   hk: "04".repeat(32),
   crypto: "05".repeat(32),
   unlisted: "06".repeat(32),
+  elsewhere: "07".repeat(32),
+  london: "08".repeat(32),
 };
 const markets: MarketLookup = (feed) =>
   ({
@@ -66,6 +68,8 @@ const markets: MarketLookup = (feed) =>
     [FEED.pool]: { symbol: "POOL", market: "US", pool: "somepool" },
     [FEED.exchange]: { symbol: "EXCH", market: "US" },
     [FEED.hk]: { symbol: "0700.HK", market: "HK" },
+    [FEED.london]: { symbol: "NWG.L", market: "GB" },
+    [FEED.elsewhere]: { symbol: "ELSE", market: "SOMEWHERE" },
   })[feed];
 
 const signed = (feed: string): Side => ({ feed, source: SOURCE_SIGNED });
@@ -150,8 +154,34 @@ describe("price clock", () => {
 
     it("never parks a listing whose sessions it does not model, or a feed off the roster", () => {
       const b = ny(12, 14, 0);
-      const d = starting(signed(FEED.hk), signed(FEED.unlisted), b);
+      const d = starting(signed(FEED.elsewhere), signed(FEED.unlisted), b);
       expect(readyAt(d, "start", b, markets)).to.deep.equal({ at: firstBarEnd(b) + BAR_SETTLE_SECS, why: "minute-close" });
+    });
+
+    /* HKEX trades 9:30 to 12:00 and 13:00 to 16:10 Hong Kong time, which is
+     * 9:30 PM to midnight and 1:00 to 4:10 AM New York in September. */
+    it("calls a Hong Kong side shut outside HKEX's sessions, and due at its first bar once one runs", () => {
+      const saturday = ny(12, 14, 0);
+      const d = starting(signed(FEED.hk), signed(FEED.unlisted), saturday);
+      expect(readyAt(d, "start", saturday, markets)).to.deep.equal({ shut: ["0700.HK"] });
+      expect(readyAt(d, "start", ny(13, 21, 29, 59), markets)).to.deep.equal({ shut: ["0700.HK"] });
+      expect(readyAt(d, "start", ny(13, 21, 30), markets)).to.deep.equal({ at: ny(13, 21, 31, 20), why: "minute-close" });
+      // In session, the plain bar; at lunch, 1 PM Hong Kong.
+      const tuesdayMorning = ny(14, 22, 0, 30);
+      expect(readyAt(starting(signed(FEED.hk), signed(FEED.unlisted), tuesdayMorning), "start", tuesdayMorning, markets)).to.deep.equal({
+        at: firstBarEnd(tuesdayMorning) + BAR_SETTLE_SECS,
+        why: "minute-close",
+      });
+      const lunch = ny(15, 0, 30);
+      expect(readyAt(starting(signed(FEED.hk), signed(FEED.unlisted), lunch), "start", ny(15, 1, 5), markets)).to.deep.equal({ at: ny(15, 1, 1, 20), why: "minute-close" });
+    });
+
+    it("calls a London side shut outside the LSE's session", () => {
+      // Saturday 2 PM New York is 7 PM in London; the LSE opens Monday 8 AM, 3 AM New York.
+      const b = ny(12, 14, 0);
+      const d = starting(signed(FEED.london), signed(FEED.unlisted), b);
+      expect(readyAt(d, "start", b, markets)).to.deep.equal({ shut: ["NWG.L"] });
+      expect(readyAt(d, "start", ny(14, 3, 0), markets)).to.deep.equal({ at: ny(14, 3, 1, 20), why: "minute-close" });
     });
   });
 

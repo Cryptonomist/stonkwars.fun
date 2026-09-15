@@ -20,7 +20,7 @@
 import { boundaryOf } from "./crankTx";
 import { SOURCE_PYTH, STALL_REFUND_SECS, STATUS_ACCEPTED, STATUS_LIVE, STATUS_VOID, type DuelView } from "./duel";
 import { compositePublishTime } from "./composite";
-import { openingAfter, pythPricesAt, session } from "./market";
+import { abroadOpeningAfter, openingAfter, pythPricesAt, session } from "./market";
 import { BAR_SETTLE_SECS, exchangeBarFinal, firstBarEnd, sourceAt } from "./oracle";
 import { byFeed, quoteSymbolFor } from "./stocks";
 
@@ -88,8 +88,8 @@ function sideReady(
   if (source === SOURCE_PYTH) {
     /* A feed off the roster is not a stock: on a local ring or in the test
      * fights it is crypto, which Pyth prints around the clock. Session hours
-     * mean nothing for it, and neither do they for a listing outside the US,
-     * whose sessions market.ts does not model. */
+     * mean nothing for it, and neither do they for a Pyth feed of a listing
+     * outside the US, whose Pyth hours market.ts does not model. */
     if (!market || !us) return { at: boundary + PYTH_GRACE_SECS, why: "pyth" };
 
     /* A US equity feed prints five days a week, Sunday 8 PM to Friday 8 PM New
@@ -121,9 +121,16 @@ function sideReady(
   /* The exchange. Shut at the boundary with nothing else to read means the
    * price is its first bar after it reopens: final a bar and the settle time
    * after the opening, and shut only until the opening. oracle.ts's
-   * exchangeBarFinal is the same rule, and the oracle asks nothing before it. */
-  if (us && session(boundary * 1_000) === "closed") {
-    const opening = openingAfter(boundary, "extended");
+   * exchangeBarFinal is the same rule, and the oracle asks nothing before it.
+   * A listing in Hong Kong or London waits for its own exchange's session
+   * (market.ts, abroadOpeningAfter); one whose sessions are not modelled is
+   * never shut. */
+  const opening = us
+    ? session(boundary * 1_000) === "closed"
+      ? openingAfter(boundary, "extended")
+      : boundary
+    : abroadOpeningAfter(market.market!, boundary);
+  if (opening !== boundary) {
     if (opening === null || opening > now) return { shut: name };
     return { at: exchangeBarFinal(boundary, market.market) ?? firstBarEnd(opening) + BAR_SETTLE_SECS, why: "minute-close" };
   }

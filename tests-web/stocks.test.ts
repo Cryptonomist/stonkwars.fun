@@ -136,7 +136,10 @@ describe("fights across trading hours", () => {
       expect(pricedAt("SPY", SATURDAY)).to.equal("pool");
       expect(pricedAt("NFLX", sep(11, 19, 0))).to.equal("exchange");
       expect(pricedAt("NFLX", SATURDAY)).to.equal("waits");
-      expect(pricedAt("BYDCO", SATURDAY)).to.equal("exchange");
+      // BYDCO trades in Hong Kong, shut on a Saturday; Monday 9:29 PM ET is Tuesday 9:29 AM there, before HKEX opens.
+      expect(pricedAt("BYDCO", SATURDAY)).to.equal("waits");
+      expect(pricedAt("BYDCO", sep(14, 21, 29))).to.equal("waits");
+      expect(pricedAt("BYDCO", sep(14, 21, 30))).to.equal("exchange");
     });
 
     it("dates each side's first price to the opening it waits for, and a Pyth side to none", () => {
@@ -146,7 +149,8 @@ describe("fights across trading hours", () => {
       expect(firstPriceAt("NFLX", SATURDAY)).to.equal(sep(14, 4, 0));
       expect(firstPriceAt("NFLX", sep(11, 19, 0))).to.equal(sep(11, 19, 0));
       expect(firstPriceAt("NVDA", SATURDAY)).to.equal(SATURDAY);
-      expect(firstPriceAt("BYDCO", SATURDAY)).to.equal(SATURDAY);
+      // Monday 9:30 AM in Hong Kong is Sunday 9:30 PM in New York.
+      expect(firstPriceAt("BYDCO", SATURDAY)).to.equal(sep(13, 21, 30));
       expect(firstPriceAt("?", SATURDAY)).to.equal(null);
     });
   });
@@ -289,9 +293,26 @@ describe("fights across trading hours", () => {
       expect(mixedHoursAt("TSLA", "QQQ", sep(14, 22, 0), { durationSecs: 3_600, endTs: 0 })).to.equal(null);
     });
 
-    it("allows two stocks with neither perp nor pool on a Saturday, and a stock abroad against a perp", () => {
+    it("allows two stocks with neither perp nor pool on a Saturday, and two Hong Kong stocks", () => {
       expect(mixedHoursAt("NFLX", "JPM", SATURDAY)).to.equal(null);
-      expect(mixedHoursAt("BYDCO", "NVDA", SATURDAY)).to.equal(null);
+      expect(mixedHoursAt("BYDCO", "AIAGR", SATURDAY)).to.equal(null);
+    });
+
+    /* The bug the adversarial study found by reading this code: every non-US
+     * boundary was called priced at once, so a Hong Kong stock taken against a
+     * US one while HKEX was shut started its side at the next Hong Kong
+     * session. Now it waits for HKEX, and the take is refused. */
+    it("refuses a Hong Kong stock against a US stock while HKEX is shut", () => {
+      expect(mixedHoursAt("BYDCO", "NVDA", SATURDAY)).to.equal(
+        "BYDCO waits for its exchange to open but NVDA trades now, so their start prices would be days apart. Pick two that both trade now, or two that both wait.",
+      );
+      // Monday 10 AM New York is 10 PM in Hong Kong.
+      expect(mixedHoursAt("NVDA", "BYDCO", sep(14, 10, 0))).to.equal(
+        "BYDCO waits for its exchange to open but NVDA trades now, so their start prices would be hours apart. Pick two that both trade now, or two that both wait.",
+      );
+      expect(mixedHoursAt("BYDCO", "NVDA", sep(14, 10, 0), { durationSecs: 900, endTs: 0, expiresTs: sep(16, 12, 0) }, "taker")).to.match(
+        / You can take it from Monday's 9:30 PM ET\.$/,
+      );
     });
 
     /* The tolerance is on the times the program records, not on boundaries.
@@ -328,19 +349,40 @@ describe("fights across trading hours", () => {
       expect(apartIfTakenAt("SPY", "NFLX", sep(3, 3, 59, 58))).to.equal(null);
     });
 
-    /* BYDCO trades in Hong Kong, whose hours nothing here models. It is still
-     * never called a wait, so these pairs are refused as before, but nobody is
-     * told that BYDCO trades now when Hong Kong is shut. */
-    it("never says a listing abroad trades now", () => {
+    /* BYDCO trades in Hong Kong: in session from 9:30 PM New York in
+     * September, shut at 7:30 PM. */
+    it("says a Hong Kong stock trades now only in HKEX's session", () => {
       expect(mixedHoursAt("BYDCO", "NFLX", sep(14, 22, 0))).to.equal(
-        "NFLX waits for its exchange to open but BYDCO is priced on its own exchange's hours, so the two would not start together. " +
-          "Pick two that both trade now, or two that both wait.",
+        "NFLX waits for its exchange to open but BYDCO trades now, so their start prices would be hours apart. Pick two that both trade now, or two that both wait.",
       );
       expect(mixedHoursAt("BYDCO", "NFLX", sep(14, 19, 30), { durationSecs: 3_600, endTs: 0 })).to.equal(
-        "This round would end around Monday 8:31 PM ET, when NFLX waits for Tuesday's 4:00 AM ET pre-market open but BYDCO " +
-          "is priced on its own exchange's hours, so the two would not end together. " +
-          "Pick a round that ends while both trade, or two that trade the same hours.",
+        "BYDCO waits for its exchange to open but NFLX trades now, so their start prices would be hours apart. Pick two that both trade now, or two that both wait.",
       );
+    });
+
+    it("knows HKEX's lunch break, closing auction, holidays and half days, and the LSE's hours", () => {
+      const hkt = (y: number, m: number, d: number, hh: number, mm: number) => Math.floor(Date.UTC(y, m - 1, d, hh - 8, mm) / 1000);
+      // Lunch: 12:00 to 13:00 Hong Kong time.
+      expect(firstPriceAt("BYDCO", hkt(2026, 9, 15, 11, 59))).to.equal(hkt(2026, 9, 15, 11, 59));
+      expect(firstPriceAt("BYDCO", hkt(2026, 9, 15, 12, 0))).to.equal(hkt(2026, 9, 15, 13, 0));
+      // The closing auction runs to 16:10.
+      expect(firstPriceAt("BYDCO", hkt(2026, 9, 15, 16, 9))).to.equal(hkt(2026, 9, 15, 16, 9));
+      expect(firstPriceAt("BYDCO", hkt(2026, 9, 15, 16, 10))).to.equal(hkt(2026, 9, 16, 9, 30));
+      // National Day, Thursday 1 October 2026.
+      expect(firstPriceAt("BYDCO", hkt(2026, 10, 1, 10, 0))).to.equal(hkt(2026, 10, 2, 9, 30));
+      // Christmas Eve is a half day to 12:10, Christmas is a holiday, and Monday 28 December trades.
+      expect(firstPriceAt("BYDCO", hkt(2026, 12, 24, 12, 5))).to.equal(hkt(2026, 12, 24, 12, 5));
+      expect(firstPriceAt("BYDCO", hkt(2026, 12, 24, 13, 30))).to.equal(hkt(2026, 12, 28, 9, 30));
+      expect(priceTimeAt("BYDCO", hkt(2026, 12, 24, 13, 30))).to.equal(hkt(2026, 12, 28, 9, 31));
+
+      // NWG in London: 08:00 to 16:35, through the change back to GMT on 25 October 2026.
+      const london = (y: number, m: number, d: number, hh: number, mm: number, offset: number) => Math.floor(Date.UTC(y, m - 1, d, hh - offset, mm) / 1000);
+      expect(byTicker("NWG")!.market).to.equal("GB");
+      expect(firstPriceAt("NWG", london(2026, 10, 23, 16, 34, 1))).to.equal(london(2026, 10, 23, 16, 34, 1));
+      expect(firstPriceAt("NWG", london(2026, 10, 23, 16, 35, 1))).to.equal(london(2026, 10, 26, 8, 0, 0));
+      // Boxing Day falls on a Saturday in 2026, so Monday 28 December is the bank holiday; Christmas Eve ends at 12:35.
+      expect(firstPriceAt("NWG", london(2026, 12, 24, 12, 40, 0))).to.equal(london(2026, 12, 29, 8, 0, 0));
+      expect(pricedAt("NWG", london(2026, 12, 24, 12, 30, 0))).to.equal("exchange");
     });
 
     it("knows a holiday: Labor Day waits for Tuesday", () => {
@@ -730,6 +772,7 @@ describe("fights across trading hours", () => {
       ["SPY", "NFLX"],
       ["TSLA", "QQQ"],
       ["VOO", "NVDA"],
+      ["BYDCO", "NVDA"],
     ];
     /* Seconds before an edge (less the round, for its end) that a take is
      * sent at: where the window's far end crosses it, where a bar's end
@@ -745,6 +788,10 @@ describe("fights across trading hours", () => {
       { edges: [sep(7, 20, 1)], bell: sep(11, 15, 59, 30) },
       { edges: [sep(13, 20, 1)], bell: sep(18, 15, 59, 30) },
       { edges: [nov(27, 4, 0), nov(27, 9, 30), nov(27, 12, 59), nov(27, 13, 0), nov(27, 17, 0)], bell: ny(2026, 12, 4, 15, 59, 30) },
+      // HKEX's edges on Tuesday 15 Sep in Hong Kong: its opening, lunch, afternoon and closing auction, in New York time.
+      { edges: [sep(14, 21, 30), sep(15, 0, 0), sep(15, 1, 0), sep(15, 4, 10)], bell: sep(18, 15, 59, 30) },
+      // A weekday night after the cutover, where the composite's window and the exchange hand over.
+      { edges: [sep(23, 20, 0), sep(24, 4, 0)], bell: sep(25, 15, 59, 30) },
     ];
 
     for (const [a, b] of PAIRS) {

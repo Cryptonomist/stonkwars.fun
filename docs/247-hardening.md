@@ -188,3 +188,23 @@ One print on one venue in the end minute, or in the start and end minutes, marke
 - **From `COMPOSITE_FROM`.** A shut US stock not in `venues247.json` waits for its exchange (`oracle.ts` `sourceAt`, `stocks.ts` `firstPriceAt`). This covers GLD, GME, KO, MCD, MRNA and STRC.
 - **Before it.** Boundaries before the cutover keep the perp and pool rules exactly, so a fight running across the cutover ends on the rules it started under.
 - **Tests.** The tests pin each of the six on both sides of the cutover, and KO on the night before and the night of it.
+
+## 10. Hong Kong and London hours
+
+- **The bug.** The study found it by reading the code. `firstPriceAt` returned the boundary for every non-US stock. So a Hong Kong stock taken against a US stock while HKEX was shut had its side priced at the next Hong Kong session, hours after the US side started.
+- **The model.** `market.ts` now models both exchanges (`abroadOpeningAfter`, `abroadOpeningsBetween`). The calendars are cited in its comment.
+  - **HKEX:** 09:30 to 12:00 and 13:00 to 16:10 Hong Kong time, which includes the closing auction. On half days, the morning session to 12:10. It is closed on Hong Kong's weekday general holidays for 2026 and 2027, from the Government's 1823 calendar as the research saved it.
+  - **LSE:** 08:00 to 16:35 London time, which includes the closing auction. On 24 and 31 December, to 12:35. It is closed on England and Wales bank holidays, from GOV.UK.
+- **Where it is used.**
+  - `stocks.ts`: `firstPriceAt`, `pricedAt`, `priceTimeAt`, and `nextFairTake`, which now also tries each exchange's openings.
+  - `oracle.ts` `exchangeBarFinal`, which the oracle and `sourceAt`'s exchange path wait on.
+  - `priceClock.ts`, where a side is shut until its session opens.
+- **Effect on fights.** Such a side now waits for its opening, and a mixed take is refused with the ordinary sentence. The special "priced on its own exchange's hours" wording is gone.
+- **Tests.**
+  - Unit tests for the sessions, the lunch break, the closing auctions, holidays, half days and British Summer Time.
+  - The study's case: BYDCO v NVDA refused on a Saturday and on a Monday morning in New York.
+  - The second-by-second take walk now includes BYDCO v NVDA across HKEX's edges, and a weekday night after the cutover.
+- **Not modelled.**
+  - Typhoon and black rainstorm closures.
+  - The LSE's half-day hours for 2026 and 2027 are its long-standing convention and were not confirmed.
+  - HKEX's half days are its rule applied to the calendar, from the same research.

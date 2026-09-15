@@ -23,6 +23,8 @@ import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
 import { SOURCE_PYTH, START_DELAY_SECS, type DuelView, type StakeAsset } from "@/lib/duel";
 import {
+  abroadOpeningAfter,
+  abroadOpeningsBetween,
   isBell,
   nyParts,
   openingAfter,
@@ -205,8 +207,11 @@ export const tradesAroundTheClock = (ticker: string) => {
  *                     next 4am, as oracle.ts's exchangeBarFinal does. From
  *                     COMPOSITE_FROM that includes a stock with only a perp
  *                     or a pool.
- *   outside the US    the boundary: its own exchange's hours are not modelled,
- *                     so it is never called a wait.
+ *   outside the US    its own exchange's bars: the boundary in a Hong Kong or
+ *                     London session, and otherwise the start of the next one
+ *                     (market.ts, abroadOpeningAfter), so a Hong Kong side
+ *                     taken while HKEX is shut waits for HKEX; the boundary
+ *                     for a market whose sessions are not modelled.
  *
  * `source` is the side's recorded source for a fight that exists; without it,
  * the roster's.
@@ -226,7 +231,7 @@ export const tradesAroundTheClock = (ticker: string) => {
 export function firstPriceAt(ticker: string, boundary: number, source?: SideSource): number | null {
   const s = byTicker(ticker);
   if (!s) return null;
-  if (s.market !== "US") return boundary;
+  if (s.market !== "US") return sourceOf(s, source) === "pyth" ? boundary : abroadOpeningAfter(s.market, boundary);
   if (sourceOf(s, source) === "pyth") return pythPricesAt(boundary) ? boundary : null;
   if (shutPricedFrom(s, boundary)) return boundary;
   return openingAfter(boundary, "extended");
@@ -240,9 +245,8 @@ export function firstPriceAt(ticker: string, boundary: number, source?: SideSour
  *
  * It is firstPriceAt's answer in words. A Pyth stock is "pyth" while Pyth
  * prints, pre-market, after-hours and weekday nights included, and "never" in
- * Pyth's dark hours: it does not wait for anything. A listing outside the US
- * keeps its own exchange's hours, which we do not model, so it is never called
- * a wait. */
+ * Pyth's dark hours: it does not wait for anything. A listing in Hong Kong or
+ * London is "exchange" in its session and "waits" outside it. */
 export function pricedAt(
   ticker: string,
   boundary: number,
@@ -279,7 +283,11 @@ export function pricedAt(
 export function priceTimeAt(ticker: string, boundary: number, source?: SideSource): number | null {
   const s = byTicker(ticker);
   if (!s) return null;
-  if (s.market !== "US") return sourceOf(s, source) === "pyth" ? boundary : firstBarEnd(boundary);
+  if (s.market !== "US") {
+    if (sourceOf(s, source) === "pyth") return boundary;
+    const opening = firstPriceAt(ticker, boundary, "signed");
+    return opening === null ? null : firstBarEnd(opening);
+  }
   if (sourceOf(s, source) === "pyth") return firstPriceAt(ticker, boundary, "pyth");
   const composite = compositeFrom(s, boundary) ? ticker : undefined;
   const from = sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin, composite });
@@ -433,8 +441,9 @@ function closeAhead(p: Apart, now: number, src: Sources): number | null {
  * side is never the one that waits: its price carries its boundary whenever it
  * can exist at all, and where it cannot, darkWords says so instead.
  *
- *   A listing abroad is priced on its own exchange's hours, which nothing here
- *   tracks, so it is never said to trade now, and no gap is put on it.
+ *   A listing in Hong Kong or London trades now only inside its own session
+ *   and waits for the next one outside it, so the words for it are the words
+ *   for any stock. (They used to hedge, when its hours were not modelled.)
  *
  *   A take sent while the later side still prices, which could land after its
  *   close, says so with the close (`stops`), rather than claiming a side that
@@ -447,7 +456,6 @@ function closeAhead(p: Apart, now: number, src: Sources): number | null {
  *   part, so the words name the window. */
 function apartWords(p: Apart, stops: number | null, round?: EndRule): string {
   const gap = apart(p.secs);
-  const abroad = byTicker(p.early)?.market !== "US";
   const earlyPrices = p.earlyFrom === p.boundary;
   const lateFrom = openingWords(p.lateFrom);
   const window = `the median of its 24/7 markets over the ${V2_WINDOW_MINUTES} minutes from`;
@@ -464,28 +472,20 @@ function apartWords(p: Apart, stops: number | null, round?: EndRule): string {
     const when = `${round && round.durationSecs > 0 ? "around" : "at"} ${nyWords(p.boundary)}`;
     const middle = !earlyPrices
       ? `when neither trades, and ${p.early} would take its end price at ${openingWords(p.earlyFrom)} but ${p.late} not until ${lateFrom}`
-      : abroad
-        ? `when ${p.late} waits for ${lateFrom} but ${p.early} is priced on its own exchange's hours`
-        : `when ${p.early} still trades but ${p.late} waits for ${lateFrom}`;
-    const tail = abroad ? "so the two would not end together." : `so their end prices would be ${gap} apart.`;
-    return `This round would end ${when}, ${middle}, ${tail}`;
+      : `when ${p.early} still trades but ${p.late} waits for ${lateFrom}`;
+    return `This round would end ${when}, ${middle}, so their end prices would be ${gap} apart.`;
   }
 
-  const tail = abroad ? "so the two would not start together." : `so their start prices would be ${gap} apart.`;
+  const tail = `so their start prices would be ${gap} apart.`;
   if (stops !== null) {
-    const then = !earlyPrices
-      ? `${p.early} would then start at ${openingWords(p.earlyFrom)}`
-      : abroad
-        ? `${p.early} would then start on its own exchange's hours`
-        : `${p.early} would then start at once`;
+    const then = !earlyPrices ? `${p.early} would then start at ${openingWords(p.earlyFrom)}` : `${p.early} would then start at once`;
     return (
       `${p.late} stops pricing at ${clockWords(nyParts(stops * 1_000))}, and a take now could land after that. ` +
       `${then} but ${p.late} not until ${lateFrom}, ${tail}`
     );
   }
   if (!earlyPrices) return `${p.early} would start at ${openingWords(p.earlyFrom)} but ${p.late} not until ${lateFrom}, ${tail}`;
-  const early = abroad ? `${p.early} is priced on its own exchange's hours` : `${p.early} trades now`;
-  return `${p.late} waits for its exchange to open but ${early}, ${tail}`;
+  return `${p.late} waits for its exchange to open but ${p.early} trades now, ${tail}`;
 }
 
 /* WHERE A PYTH SIDE WOULD LAND IN THE DARK.
@@ -615,6 +615,8 @@ export function nextFairTake(a: string, b: string, from: number, round?: EndRule
   const until = round?.expiresTs || from + 10 * 86_400;
   const moments = openingsBetween(from, until);
   if (byPyth(a, src) || byPyth(b, src)) moments.push(...pythReopeningsBetween(from, until));
+  // A listing abroad lines up again when its own exchange opens.
+  for (const market of new Set([a, b].map((t) => byTicker(t)?.market ?? "US"))) moments.push(...abroadOpeningsBetween(market, from, until));
   for (const t of [...new Set(moments)].sort((x, y) => x - y)) {
     if (!darkWithin(a, b, t, round) && !apartWithin(a, b, t, round) && !shortWithin(a, b, t, round)) return t;
   }

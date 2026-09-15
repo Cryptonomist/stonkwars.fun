@@ -225,9 +225,10 @@ class StubChain {
 
 /* ─── Prices that are not there either ────────────────────────────────────── */
 
-/** Every stub stock trades in Hong Kong: always its own exchange's bars, so
- *  the clock is the plain minute close whatever day the suite runs. */
-const hk: QuoteSymbol = (feed) => ({ symbol: `T${feed.slice(0, 4)}`, currency: "USD", market: "HK" });
+/** Every stub stock trades on an exchange whose sessions are not modelled
+ *  (market.ts models New York, Hong Kong and London): always its own bars, so
+ *  the clock is the plain minute close whatever day and hour the suite runs. */
+const hk: QuoteSymbol = (feed) => ({ symbol: `T${feed.slice(0, 4)}`, currency: "USD", market: "SOMEWHERE" });
 
 const goodQuote: typeof quoteAt = async (o) => ({
   feed: o.feed,

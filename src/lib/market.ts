@@ -297,6 +297,156 @@ export function pythReopeningsBetween(from: number, until: number): number[] {
   return out;
 }
 
+/* HONG KONG AND LONDON.
+ *
+ * The roster lists 79 Hong Kong stocks and one London one (NWG), and their
+ * sides are priced by their own exchange's one-minute bars, which exist only
+ * in their sessions. This used to be unmodelled, and every non-US boundary was
+ * called priced at once: a Hong Kong stock taken against a US one while HKEX
+ * was shut started its side at the next Hong Kong session, hours after the US
+ * side (found by the adversarial study reading this code). Now each exchange's
+ * sessions are known, so such a side waits for its opening exactly as a US
+ * stock waits for 4 AM, and the pages refuse a take the gap would decide.
+ *
+ *   HKEX  09:30 to 12:00 and 13:00 to 16:10 Hong Kong time: the morning
+ *         session, the lunch break, and the afternoon session with its closing
+ *         auction (16:00 to 16:10). On a half day (the eves of Christmas, New
+ *         Year and Lunar New Year when they are weekdays) only the morning
+ *         session, with its auction to 12:10. Hong Kong has no daylight
+ *         saving. Closed on Hong Kong's general holidays that fall on a
+ *         weekday. Sources: HKEX's Securities Market trading hours page for
+ *         the sessions; the holidays are the Hong Kong Government's 1823
+ *         calendar (www.1823.gov.hk/common/ical/en.json) for 2026 and 2027,
+ *         which the research saved and checked against HKEX's 2026 Stock
+ *         Connect calendar and the Government's 2027 gazette notice (press
+ *         release P2026051400300); the half days are HKEX's rule applied to
+ *         those years, from the same research (weekend-mark coverage lens,
+ *         read 15 Sep 2026). A typhoon or black rainstorm closure cannot be
+ *         known in advance and is not modelled.
+ *   LSE   08:00 to 16:35 London time: continuous trading and the closing
+ *         auction (16:30 to 16:35). On Christmas Eve and New Year's Eve, when
+ *         they are weekdays, it ends at 12:35. Closed on England and Wales
+ *         bank holidays, from GOV.UK (www.gov.uk/bank-holidays.json, saved by
+ *         the same research). The half-day hours are the LSE's long-standing
+ *         convention and were not confirmed for 2026 and 2027.
+ *
+ * A market with none of these (none on the roster today) keeps the old rule:
+ * priced at the boundary, because guessing its hours would be worse. */
+type Minutes = [open: number, close: number];
+type Exchange = { zone: string; sessions: Minutes[]; half: Minutes[]; holidays: Set<string>; halfDays: Set<string> };
+
+const EXCHANGES: Record<string, Exchange> = {
+  HK: {
+    zone: "Asia/Hong_Kong",
+    sessions: [
+      [9 * 60 + 30, 12 * 60],
+      [13 * 60, 16 * 60 + 10],
+    ],
+    half: [[9 * 60 + 30, 12 * 60 + 10]],
+    holidays: new Set([
+      "2026-01-01", "2026-02-17", "2026-02-18", "2026-02-19", "2026-04-03", "2026-04-06", "2026-04-07",
+      "2026-05-01", "2026-05-25", "2026-06-19", "2026-07-01", "2026-10-01", "2026-10-19", "2026-12-25",
+      "2027-01-01", "2027-02-08", "2027-02-09", "2027-03-26", "2027-03-29", "2027-04-05", "2027-05-13",
+      "2027-06-09", "2027-07-01", "2027-09-16", "2027-10-01", "2027-10-08", "2027-12-27",
+    ]),
+    halfDays: new Set(["2026-12-24", "2026-12-31", "2027-02-05", "2027-12-24", "2027-12-31"]),
+  },
+  GB: {
+    zone: "Europe/London",
+    sessions: [[8 * 60, 16 * 60 + 35]],
+    half: [[8 * 60, 12 * 60 + 35]],
+    holidays: new Set([
+      "2026-01-01", "2026-04-03", "2026-04-06", "2026-05-04", "2026-05-25", "2026-08-31", "2026-12-25", "2026-12-28",
+      "2027-01-01", "2027-03-26", "2027-03-29", "2027-05-03", "2027-05-31", "2027-08-30", "2027-12-27", "2027-12-28",
+    ]),
+    halfDays: new Set(["2026-12-24", "2026-12-31", "2027-12-24", "2027-12-31"]),
+  },
+};
+
+/** Whether a listing's sessions are modelled here: Hong Kong and London. */
+export const sessionsModelled = (market: string) => market in EXCHANGES;
+
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+function zoneParts(zone: string, ms: number): Parts {
+  let f = zoneFormats.get(zone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      weekday: "short",
+    });
+    zoneFormats.set(zone, f);
+  }
+  const p: Record<string, string> = {};
+  for (const { type, value } of f.formatToParts(new Date(ms))) p[type] = value;
+  return { y: Number(p.year), m: Number(p.month), d: Number(p.day), hh: Number(p.hour) % 24, mm: Number(p.minute), ss: Number(p.second), wd: WEEKDAYS.indexOf(p.weekday) };
+}
+
+/** Unix ms for a wall-clock time in `zone`, the way nyToMs does it for New York. */
+function zoneToMs(zone: string, y: number, m: number, d: number, hh: number, mm: number): number {
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const offsetAt = (ms: number) => {
+    const p = zoneParts(zone, ms);
+    return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - ms;
+  };
+  let ms = guess - offsetAt(guess);
+  const second = offsetAt(ms);
+  if (guess - second !== ms) ms = guess - second;
+  return ms;
+}
+
+/** Each session on the calendar day (y, m, d) in the exchange's zone, as unix
+ *  seconds [start, end), end exclusive; empty on a weekend or holiday. */
+function sessionsOn(x: Exchange, y: number, m: number, d: number): [number, number][] {
+  const noon = zoneParts(x.zone, zoneToMs(x.zone, y, m, d, 12, 0));
+  if (noon.wd === 0 || noon.wd === 6) return [];
+  const key = ymd(noon);
+  if (x.holidays.has(key)) return [];
+  return (x.halfDays.has(key) ? x.half : x.sessions).map(([open, close]) => [
+    Math.floor(zoneToMs(x.zone, noon.y, noon.m, noon.d, Math.floor(open / 60), open % 60) / 1_000),
+    Math.floor(zoneToMs(x.zone, noon.y, noon.m, noon.d, Math.floor(close / 60), close % 60) / 1_000),
+  ]);
+}
+
+/* THE MOMENT A LISTING ABROAD CAN FIRST BE PRICED, FROM A BOUNDARY.
+ *
+ * The boundary itself while its exchange is in a session, otherwise the start
+ * of the next session, walked by calendar day in the exchange's own zone for
+ * at most ten days. The boundary, unchanged, for a market not modelled. Null
+ * only if nothing opens within ten days. */
+export function abroadOpeningAfter(market: string, boundary: number): number | null {
+  const x = EXCHANGES[market];
+  if (!x) return boundary;
+  const p = zoneParts(x.zone, boundary * 1_000);
+  for (let i = 0; i < 10; i++) {
+    for (const [start, end] of sessionsOn(x, p.y, p.m, p.d + i)) {
+      if (boundary < start) return start;
+      if (boundary < end) return boundary;
+    }
+  }
+  return null;
+}
+
+/** Every session start of a modelled exchange in (from, until), in order. */
+export function abroadOpeningsBetween(market: string, from: number, until: number): number[] {
+  const x = EXCHANGES[market];
+  if (!x) return [];
+  const out: number[] = [];
+  const p = zoneParts(x.zone, from * 1_000);
+  for (let i = 0; i < 41; i++) {
+    const sessions = sessionsOn(x, p.y, p.m, p.d + i);
+    if (Math.floor(zoneToMs(x.zone, p.y, p.m, p.d + i, 0, 0) / 1_000) - 86_400 > until) break;
+    for (const [start] of sessions) if (start > from && start < until) out.push(start);
+  }
+  return out;
+}
+
 /** The bell on the trading day containing `ms`, as unix seconds. */
 function bellOn(ms: number): number {
   const p = nyParts(ms);

@@ -313,7 +313,12 @@ describe("oracle", () => {
 
     it("never moves the exchange's time earlier than its bar, in session or out of the US", () => {
       expect(exchangeBarFinal(open, "US")).to.equal(firstBarEnd(open) + BAR_SETTLE_SECS);
+      // Sunday 9:56 PM New York is Monday 9:56 AM in Hong Kong: HKEX is in session.
       expect(exchangeBarFinal(shut, "HK")).to.equal(firstBarEnd(shut) + BAR_SETTLE_SECS);
+      // Tuesday noon New York is midnight in Hong Kong: its bar waits for Wednesday's 9:30 AM HKT, 9:30 PM ET.
+      expect(exchangeBarFinal(open, "HK")).to.equal(Math.floor(nyToMs(2026, 9, 15, 21, 31, 20) / 1000));
+      // A market whose sessions are not modelled keeps the plain rule.
+      expect(exchangeBarFinal(open, "SOMEWHERE")).to.equal(firstBarEnd(open) + BAR_SETTLE_SECS);
     });
 
     it("asks the pool nothing until its window has settled", async () => {

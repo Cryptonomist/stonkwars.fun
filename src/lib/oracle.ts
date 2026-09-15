@@ -45,7 +45,7 @@ import {
   type Reference,
   type Tier,
 } from "./composite";
-import { session, sessionFrom } from "./market";
+import { abroadOpeningAfter, session, sessionFrom } from "./market";
 import { fetchVenueWindow, inputsAt, type Venues247 } from "./venues247";
 
 export const QUOTE_PREFIX = "STONKWARS:PRICE:v1";
@@ -114,14 +114,18 @@ export const firstBarEnd = (boundary: number) => Math.floor(boundary / 60) * 60 
  * boundary, the first bar of the first session after it, plus the settle
  * time. Its minute bars cover 4am to 8pm, so nothing can print before then,
  * and asking the data source before then can only come back empty. A listing
- * outside the US keeps the plain rule: its sessions are not modelled, and
- * guessing would be worse than asking.
+ * in Hong Kong or London is the same with its own exchange's sessions
+ * (market.ts, abroadOpeningAfter); a market whose sessions are not modelled
+ * keeps the plain rule, since guessing would be worse than asking.
  *
  * Only ever later than the plain rule, never earlier, so it cannot move a
  * signature forward. What is signed is still priceAtBoundary's answer from
  * the bars themselves. Null if no session opens within ten days. */
 export function exchangeBarFinal(boundary: number, market = "US"): number | null {
-  if (market !== "US") return firstBarEnd(boundary) + BAR_SETTLE_SECS;
+  if (market !== "US") {
+    const abroad = abroadOpeningAfter(market, boundary);
+    return abroad === null ? null : firstBarEnd(abroad) + BAR_SETTLE_SECS;
+  }
   const opening = sessionFrom(boundary * 1_000, "extended");
   if (opening === null) return null;
   return firstBarEnd(Math.max(boundary, Math.floor(opening / 1_000))) + BAR_SETTLE_SECS;
@@ -460,17 +464,17 @@ async function dollarsPer(currency: string, at: number): Promise<number | null> 
  * `composite` is the stock's ticker in venues247.json, set by the roster
  * (stocks.ts quoteSymbolFor) only for a listed US stock quoted in dollars.
  *
- * Listings outside the US keep their own exchange's hours either way: their
- * sessions are not what `session()` describes, and guessing would be worse
- * than waiting. */
+ * Listings outside the US are always their own exchange's bars: `session()`
+ * describes New York, and nothing trades a Hong Kong or London listing around
+ * the clock here. Shut, such a side waits for its next session like a US stock
+ * with nothing else to read (exchangeBarFinal, market.ts abroadOpeningAfter). */
 export type PriceSource = "exchange" | "perp" | "pool" | "composite";
 
 export function sourceAt(
   boundary: number,
   opts: { market?: string; pool?: string; perp?: string; composite?: string },
 ): PriceSource {
-  // A listing outside the US keeps its own exchange's hours, which session()
-  // does not model. Guessing would be worse than waiting for its own bars.
+  // A listing outside the US is its own exchange's bars, in that exchange's sessions.
   if ((opts.market ?? "US") !== "US") return "exchange";
   if (session(boundary * 1_000) !== "closed") return "exchange";
   // Shut. From the cutover, the composite for a stock pinned to it.
