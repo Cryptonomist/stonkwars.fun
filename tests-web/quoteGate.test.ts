@@ -6,7 +6,17 @@
 
 import { expect } from "chai";
 
-import { answerReuseMs, Busy, FINAL_REUSE_MS, QuoteGate, WAIT_REUSE_MS } from "../src/lib/quoteGate.server";
+import { SOURCE_PYTH, SOURCE_SIGNED, START_DELAY_SECS } from "../src/lib/duel";
+import {
+  answerReuseMs,
+  Busy,
+  FINAL_REUSE_MS,
+  PROOF_BURST,
+  PROOF_PER_IP_PER_MINUTE,
+  proofTarget,
+  QuoteGate,
+  WAIT_REUSE_MS,
+} from "../src/lib/quoteGate.server";
 
 type A = { quote: string | null; parkedUntil: number | null };
 
@@ -123,5 +133,28 @@ describe("quote gate", () => {
       }
     }
     expect(runs).to.equal(2);
+  });
+
+  /* The proof route recomputes only a real fight's own boundaries, for a side
+   * the oracle signs, and on a smaller budget than the quote route. */
+  it("lets the proof route ask only for a signed side of a fight at its start or settle", () => {
+    const d = {
+      acceptedTs: 1_789_900_000,
+      endTs: 1_789_943_202,
+      creatorFeed: "aa".repeat(32),
+      opponentFeed: "bb".repeat(32),
+      creatorSource: SOURCE_SIGNED,
+      opponentSource: SOURCE_PYTH,
+    };
+    expect(proofTarget(d, "start", `0x${"AA".repeat(32)}`)).to.deep.equal({ boundary: d.acceptedTs + START_DELAY_SECS });
+    expect(proofTarget(d, "settle", "aa".repeat(32))).to.deep.equal({ boundary: d.endTs });
+    expect(proofTarget(d, "start", "bb".repeat(32))).to.deep.equal({ refused: "That side of this fight is priced by Pyth, not the oracle." });
+    expect(proofTarget(d, "start", "cc".repeat(32))).to.deep.equal({ refused: "That feed is not a side of this fight." });
+    expect(proofTarget({ ...d, endTs: 0 }, "settle", "aa".repeat(32))).to.deep.equal({ refused: "This fight has no settle boundary yet." });
+
+    const g = gate({ perMinute: PROOF_PER_IP_PER_MINUTE, burst: PROOF_BURST });
+    for (let i = 0; i < PROOF_BURST; i++) expect(g.admit("9.9.9.9").ok).to.equal(true);
+    expect(g.admit("9.9.9.9").ok).to.equal(false);
+    expect([PROOF_PER_IP_PER_MINUTE, PROOF_BURST]).to.deep.equal([12, 4]);
   });
 });

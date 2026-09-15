@@ -5,7 +5,7 @@
  * A side the composite priced (a US stock whose exchange was shut, from
  * COMPOSITE_FROM) carries a price the oracle signed from nine public markets.
  * The receipt's "Check this 24/7 price" opens the proof behind it, recomputed
- * by /api/quote/proof for the same feed and boundary: every pinned market, its
+ * by /api/quote/proof for the fight's side and boundary: every pinned market, its
  * instrument, its last trade before the window, whether it counted and why
  * not, and for each minute of the window its close and the corrected close the
  * median took, kept or dropped by the guard. Then the minute medians, the
@@ -29,12 +29,17 @@ import { isV2, proofSentences, proofTable, ruleWords, sameAsChain, ticksText, ty
 type Loaded = { ok: true; body: ProofResponse } | { ok: false; error: string };
 
 export function CompositeCheck({
+  duel,
+  which,
   feed,
   ticker,
   boundary,
   price,
   expo,
 }: {
+  /** The fight, and which of its boundaries: the proof route recomputes only a real fight's own. */
+  duel: string;
+  which: "start" | "settle";
   feed: string;
   ticker: string;
   boundary: number;
@@ -43,9 +48,9 @@ export function CompositeCheck({
   expo: number;
 }) {
   const [open, setOpen] = useState(false);
-  const url = `/api/quote/proof?feed=${feed}&boundary=${boundary}`;
+  const url = `/api/quote/proof?duel=${duel}&which=${which}&feed=${feed}`;
   const q = useQuery<Loaded>({
-    queryKey: ["composite-proof", feed, boundary],
+    queryKey: ["composite-proof", duel, which, feed, boundary],
     enabled: open,
     staleTime: Infinity,
     retry: false,

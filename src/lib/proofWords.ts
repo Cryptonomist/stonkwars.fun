@@ -14,9 +14,30 @@
  * ticks is printed from its integer text, never through a float. Pure, so a
  * test holds it against a proof built from last weekend's real minutes. */
 
-import { COMPOSITE_RULE, COMPOSITE_V2_RULE, VENUES, type CompositeProof, type CompositeV2Proof, type V2ProofRow, type VenueRequest } from "./composite";
+import {
+  COMPOSITE_RULE,
+  COMPOSITE_V2_RULE,
+  compositePublishTime,
+  VENUES,
+  type CompositeProof,
+  type CompositeV2Proof,
+  type V2ProofRow,
+  type VenueRequest,
+} from "./composite";
 import { etShort } from "./format";
-import { QUOTE_EXPO } from "./oracle";
+import { QUOTE_EXPO, type PriceSource } from "./oracle";
+
+/* WHAT PRICED A SIDE, FROM WHAT THE CHAIN RECORDED.
+ *
+ * The rule in force at a boundary says what prices a side there (oracle.ts,
+ * sourceAt), but a composite side can still fall back to the exchange's first
+ * bar after it. Only a median is stamped at compositePublishTime, the end of
+ * its window, so a composite boundary whose recorded price carries any other
+ * stamp was priced by the exchange: "fallback". */
+export type PricedBy = PriceSource | "fallback";
+
+export const pricedByRecord = (from: PriceSource, boundary: number, publishTime: number): PricedBy =>
+  from === "composite" && publishTime !== compositePublishTime(boundary) ? "fallback" : from;
 
 /** What the proof route answers for a feed and a boundary (app/api/quote/proof). */
 export type ProofResponse = {
@@ -118,19 +139,29 @@ export function proofTable(p: CompositeV2Proof): { minutes: number[]; rows: Proo
  * What priced the side, in the plan's words (docs/247-pricing.md, section 3),
  * then the honest limit: these markets are perpetual futures and tokenized
  * shares, not the exchange listing, and a weekend price is what they traded,
- * not the next open. A side the median did not price says why and what did. */
+ * not the next open. A side the median did not price says which of the rule's
+ * three reasons sent it to the exchange (composite.ts, compositeV2At): too few
+ * counted markets, a median beyond the breaker, or no readable close in a
+ * window minute. Each is told from the proof's own reason, never assumed. */
 export function proofSentences(p: CompositeV2Proof, ticker: string): string[] {
   const from = etShort(p.window.from);
   const out: string[] = [];
+  const took = "so this side took the exchange's first bar after it.";
   if (p.tier === null && p.price !== null) {
     out.push(
       `Priced 24/7 by the Stonk Wars oracle: the median, over the ${p.window.minutes} minutes from ${from} ET, of the one-minute closes of ` +
         `the ${p.counted} markets that traded ${ticker} in the 15 minutes before, each first corrected by its own premium to the others over the hour before.`,
     );
+  } else if (p.reason && /breaker$/.test(p.reason)) {
+    out.push(
+      `The median of ${ticker}'s 24/7 markets from ${from} ET was more than 15% from the exchange's last close, which the rule treats as a price it cannot trust, ${took}` +
+        ` The rule's reason: ${p.reason}.`,
+    );
+  } else if (p.reason && /^no counted market had a readable close/.test(p.reason)) {
+    out.push(`No market counted for ${ticker} had a readable close in a minute of the window from ${from} ET, ${took} The rule's reason: ${p.reason}.`);
   } else {
     out.push(
-      `Fewer than 3 markets (2 of them anchors) could be counted for ${ticker} before ${from} ET, so this side took the exchange's first bar after it.` +
-        (p.reason ? ` The rule's reason: ${p.reason}.` : ""),
+      `Fewer than 3 markets (2 of them anchors) could be counted for ${ticker} before ${from} ET, ${took}` + (p.reason ? ` The rule's reason: ${p.reason}.` : ""),
     );
   }
   out.push("These are perpetual futures and tokenized shares, not the exchange listing; a weekend price is what those markets traded, not the next open.");

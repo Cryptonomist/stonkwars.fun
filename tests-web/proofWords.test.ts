@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 
 import {
   closeText,
+  compositePublishTime,
   compositeV2At,
   V2_LOOKBACK_SECS,
   V2_WINDOW_SECS,
@@ -20,7 +21,7 @@ import {
   type VenueWindow,
 } from "../src/lib/composite";
 import { BAR_SETTLE_SECS, exchangeBarFinal } from "../src/lib/oracle";
-import { proofSentences, proofTable, requestWords, sameAsChain, ticksText, whyWords } from "../src/lib/proofWords";
+import { pricedByRecord, proofSentences, proofTable, requestWords, sameAsChain, ticksText, whyWords } from "../src/lib/proofWords";
 import { WEEKEND_VENUES, weekendMinutes, type WeekendVenue } from "./fixtures/weekend";
 
 const VENUE_OF: Record<WeekendVenue, VenueId> = {
@@ -45,6 +46,36 @@ const fridayClose = (ticker: string): Reference => {
 
 /** Saturday 12 Sep, 16:00 UTC: noon in New York. */
 const SAT16 = 1_789_228_800;
+
+/** The proof of a side the median did not price: only `keep` venues, or a reference `far` off. */
+function fallbackAt(ticker: string, m: number, opts: { keep?: VenueId[]; reference?: Reference }): CompositeV2Proof {
+  const r = compositeV2At({
+    boundary: m,
+    now: m + V2_WINDOW_SECS + BAR_SETTLE_SECS,
+    settleSecs: BAR_SETTLE_SECS,
+    windows: windowsAt(ticker, m).filter((w) => !opts.keep || opts.keep.includes(w.venue)),
+    reference: opts.reference ?? fridayClose(ticker),
+    exchangeFinal: exchangeBarFinal(m),
+  });
+  if (!("waitUntil" in r)) throw new Error(`expected a fallback, got ${JSON.stringify(r)}`);
+  return r.proof;
+}
+
+function windowsAt(ticker: string, m: number): VenueWindow[] {
+  return WEEKEND_VENUES.flatMap((v) => {
+    const rows = weekendMinutes(v, ticker);
+    if (!rows) return [];
+    const candles = rows.map((r): Candle => ({ t: r.t, close: closeText(r.c)!, traded: r.traded }));
+    return [
+      {
+        venue: VENUE_OF[v],
+        instrument: `${ticker}-fixture`,
+        request: { method: "GET" as const, url: `https://example.invalid/${VENUE_OF[v]}/${ticker}/${m}` },
+        rows: candles.filter((r) => r.t >= m - V2_LOOKBACK_SECS && r.t <= m + V2_WINDOW_SECS - 60),
+      },
+    ];
+  });
+}
 
 function proofAt(ticker: string, m: number): { proof: CompositeV2Proof; price: bigint } {
   const windows: VenueWindow[] = WEEKEND_VENUES.flatMap((v) => {
@@ -118,6 +149,33 @@ describe("a 24/7 proof, read back on the receipt", () => {
       "Every request above is public. Hyperliquid keeps about 3 days of one-minute history and Gate about 6 days, " +
         "so those rows can be fetched again only that long; the other markets keep 25 days or more.",
     );
+  });
+
+  /* A side the median did not price says which reason sent it to the
+   * exchange, read from the proof: the breaker is not a thin market. */
+  it("says why a side took the exchange's bar: too few markets, or the breaker", () => {
+    const thin = fallbackAt("TSLA", SAT16, { keep: ["hyperliquid", "gate"] });
+    expect(proofSentences(thin, "TSLA")[0]).to.match(
+      /^Fewer than 3 markets \(2 of them anchors\) could be counted for TSLA before Sat 12 PM ET, so this side took the exchange's first bar after it\. The rule's reason: 0 markets/,
+    );
+    const [t, c] = YAHOO.rows.TSLA.friday;
+    const tripped = fallbackAt("TSLA", SAT16, { reference: { t, close: (c * 0.8).toFixed(2) } });
+    expect(tripped.counted).to.be.at.least(3);
+    const said = proofSentences(tripped, "TSLA")[0];
+    expect(said).to.match(/^The median of TSLA's 24\/7 markets from Sat 12 PM ET was more than 15% from the exchange's last close/);
+    expect(said).to.match(/beyond the 1,500 bps breaker\.$/);
+    expect(said).to.not.match(/Fewer than 3 markets/);
+  });
+
+  /* The receipt's label for a side, from what the chain recorded: a composite
+   * boundary priced at the end of its window is a 24/7 median, and any other
+   * stamp there is the exchange's bar the side fell back to. */
+  it("labels a composite side by the stamp the chain recorded", () => {
+    const b = SAT16 + 17;
+    expect(pricedByRecord("composite", b, compositePublishTime(b))).to.equal("composite");
+    expect(pricedByRecord("composite", b, SAT16 + 2 * 86_400 + 60)).to.equal("fallback");
+    expect(pricedByRecord("exchange", b, SAT16 + 60)).to.equal("exchange");
+    expect(pricedByRecord("perp", b, SAT16 + 60)).to.equal("perp");
   });
 
   it("names a request somebody can make again", () => {

@@ -24,10 +24,43 @@
  * Per warm instance, like the nudge's limits; the venues' own rate limits are
  * the last line, and a 429 from one is a wait, never a different price. */
 
+import { boundaryOf } from "./crankTx";
+import { SOURCE_SIGNED, type DuelView } from "./duel";
 import { NudgeGate, type Admission } from "./nudgeGate.server";
 
 export const QUOTE_PER_IP_PER_MINUTE = 30;
 export const QUOTE_BURST = 10;
+
+/* THE PROOF ROUTE'S OWN, SMALLER BUDGET.
+ *
+ * A proof for a new minute makes this server ask up to nine venues and the
+ * exchange, and Hyperliquid allows 1,200 weight a minute per IP, about 54 of
+ * these requests. At the quote route's 30 a minute, two strangers walking
+ * boundaries could spend that on their own, and every real fight waiting on
+ * Hyperliquid would then wait on them. So the proof route asks for a real
+ * fight's own boundary (proofTarget) and allows 12 a minute per IP with a
+ * burst of 4, which is one fight page opening all four of its proofs. */
+export const PROOF_PER_IP_PER_MINUTE = 12;
+export const PROOF_BURST = 4;
+
+/* WHICH PROOF A FIGHT CAN ASK FOR.
+ *
+ * A side of this fight that the oracle signs (its feed, recorded as signed),
+ * at this fight's start or settle boundary: the proof route recomputes nothing
+ * else, so a caller cannot choose the minutes this server fetches. The words
+ * are the route's 4xx answer. */
+export function proofTarget(
+  d: Pick<DuelView, "acceptedTs" | "endTs" | "creatorFeed" | "opponentFeed" | "creatorSource" | "opponentSource">,
+  which: "start" | "settle",
+  feed: string,
+): { boundary: number } | { refused: string } {
+  const f = feed.replace(/^0x/, "").toLowerCase();
+  const side = f === d.creatorFeed ? d.creatorSource : f === d.opponentFeed ? d.opponentSource : null;
+  if (side === null) return { refused: "That feed is not a side of this fight." };
+  if (side !== SOURCE_SIGNED) return { refused: "That side of this fight is priced by Pyth, not the oracle." };
+  if (which === "start" ? d.acceptedTs === 0 : d.endTs === 0) return { refused: `This fight has no ${which} boundary yet.` };
+  return { boundary: boundaryOf(d, which) };
+}
 export const MAX_COMPUTING = 2;
 export const MAX_QUEUED = 8;
 /** A final answer is history, so it is kept as long as memory allows. */

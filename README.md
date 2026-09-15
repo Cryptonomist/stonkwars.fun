@@ -95,7 +95,7 @@ src/                  the Next.js app
   app/api/prices      live prices for the stocks a page shows (keys stay on the server)
   app/api/pyth        a boundary's Pyth update, for settling from the browser
   app/api/quote       the oracle's signed quotes for a fight's boundaries, with the composite's proof
-  app/api/quote/proof the composite's proof for a stock at a boundary, recomputed and unsigned
+  app/api/quote/proof the composite's proof for one side of a fight at its start or bell, recomputed and unsigned
   app/api/crank       the settler, for an external cron
   app/api/faucet      test clusters only: test shares and SOL
   lib/duel.ts         the client half of the program: PDAs, instructions
