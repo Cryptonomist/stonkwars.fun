@@ -11,11 +11,12 @@ import "server-only";
  * shared for a few seconds by everyone polling. Before the open and after the
  * close, the oracle signs from the exchange's extended-hours minute bars, and
  * this reads the latest of them; see extendedPrices. Once the exchange shuts,
- * the oracle reads a stock's perp or pool instead, and so does this; see
- * offHoursPrices. Every quote says which of those it came from (Quote.source),
+ * the oracle reads a stock's 24/7 markets (or, before COMPOSITE_FROM, its perp
+ * or pool) instead, and so does this; see offHoursPrices. Every quote says which of those it came from (Quote.source),
  * so a page can name it beside the number. */
 
 import { bareFeed, hermes } from "@/lib/hermes.server";
+import { liveCompositePrices } from "@/lib/liveComposite.server";
 import { lastClose, liveSourceFor, parseAllMids, type LiveSource } from "@/lib/livePrice";
 import { session } from "@/lib/market";
 import {
@@ -256,7 +257,8 @@ async function perpMids(dex: string): Promise<Record<string, number>> {
  * health bars still all weekend and then reported a result they never showed.
  * So each stock goes through the oracle's own rule for a boundary of now
  * (pricedAt, by way of liveSourceFor), and is read from the market that rule
- * names.
+ * names: from COMPOSITE_FROM, the live median of its pinned 24/7 markets
+ * (liveComposite.ts).
  *
  * By ticker: a price in dollars, or null where the stock is priced off-hours
  * but that market could not be read just now. A stock missing from the map is
@@ -270,15 +272,24 @@ async function perpMids(dex: string): Promise<Record<string, number>> {
 async function offHoursPrices(
   stocks: Stock[],
   now: number,
-): Promise<Map<string, { price: number; publishTime: number; source: "perp" | "pool" } | null>> {
-  const out = new Map<string, { price: number; publishTime: number; source: "perp" | "pool" } | null>();
+): Promise<Map<string, { price: number; publishTime: number; source: "perp" | "pool" | "composite" } | null>> {
+  const out = new Map<string, { price: number; publishTime: number; source: "perp" | "pool" | "composite" } | null>();
   const perps: { ticker: string; coin: string }[] = [];
   const pools: { ticker: string; pool: string }[] = [];
+  const composites: string[] = [];
   for (const s of stocks) {
     const from = liveSourceFor(s, now);
     const where = quoteSymbolFor(s.feed);
     if (from === "perp" && where?.perp) perps.push({ ticker: s.ticker, coin: where.perp });
     else if (from === "pool" && where?.pool) pools.push({ ticker: s.ticker, pool: where.pool });
+    else if (from === "composite") composites.push(s.ticker);
+  }
+
+  /* The 24/7 markets' latest prices, their median per stock. One request per
+   * venue covers every stock, shared for a few seconds by everyone polling. A
+   * stock short of a quorum is null: the page keeps its last good price. */
+  for (const [ticker, live] of await liveCompositePrices(composites, now)) {
+    out.set(ticker, live ? { price: live.price, publishTime: now, source: "composite" } : null);
   }
 
   /* The perp's mid, now. The oracle signs the close of the minute a boundary

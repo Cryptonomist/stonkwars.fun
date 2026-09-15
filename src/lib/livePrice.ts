@@ -25,9 +25,12 @@ import { pricedAt, type Stock } from "./stocks";
  * "perp": the Hyperliquid perp's mid, while the exchange is shut.
  * "pool": the trimmed mean of the stock's Solana pool, read exactly as the
  *   oracle reads it, while the exchange is shut and there is no perp.
+ * "composite": from COMPOSITE_FROM, while the exchange is shut, the median of
+ *   the latest prices of the markets pinned for the stock in venues247.json
+ *   (liveComposite.ts), the same markets the composite settles on.
  * "last": the exchange's last close. Either nothing prices the stock right now,
  *   or the market that should could not be read, and the page says so. */
-export type LiveSource = "pyth" | "regular" | "extended" | "perp" | "pool" | "last";
+export type LiveSource = "pyth" | "regular" | "extended" | "perp" | "pool" | "composite" | "last";
 
 /** The market a live price for `stock` should come from at `nowSec`. */
 export function liveSourceFor(stock: Stock, nowSec: number): LiveSource {
@@ -42,6 +45,7 @@ export function liveSourceFor(stock: Stock, nowSec: number): LiveSource {
   const from = pricedAt(stock.ticker, nowSec);
   if (from === "perp") return "perp";
   if (from === "pool") return "pool";
+  if (from === "composite") return "composite";
   return "last";
 }
 

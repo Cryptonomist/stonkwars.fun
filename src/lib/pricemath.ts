@@ -37,6 +37,8 @@ export function sourceWords(source: LiveSource): string {
       return "Perp";
     case "pool":
       return "Pool";
+    case "composite":
+      return "24/7 median";
     case "last":
       return "Last close";
   }
