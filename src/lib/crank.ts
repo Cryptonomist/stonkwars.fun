@@ -35,6 +35,7 @@ import {
   sendInOrder,
   sendSigned,
   SendFailed,
+  settleWithFee,
 } from "./crankTx";
 import {
   buildRefundDuel,
@@ -44,6 +45,7 @@ import {
   duelsWithStatus,
   PROGRAM_ID,
   readableProgramError,
+  readFeeConfig,
   SOURCE_SIGNED,
   STATUS_ACCEPTED,
   STATUS_LIVE,
@@ -487,18 +489,31 @@ export async function postAndRun(
   const quotes = await signedQuotes({ ...opts, boundary, which });
   const pythUpdate = await pythUpdateAt(opts.hermes, d, boundary);
   const confirmBy = Math.min(opts.deadlineMs ?? Infinity, Date.now() + CONFIRM_WAIT_MS);
+  const fee = which === "settle" ? await readFeeConfig(conn) : null;
 
   // Both sides signed: one ordinary transaction, no Pyth at all.
   if (!pythUpdate.length) {
-    const tx = new Transaction().add(
-      ComputeBudgetProgram.setComputeUnitLimit({ units: fightUnits(which, quotes.length) }),
-      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: opts.priorityMicroLamports ?? 20_000 }),
-      ...quotes,
-      which === "start" ? buildStartDuel(d, null, null) : buildSettleDuel(d, payer.publicKey, null, null),
-    );
     const latest = await conn.getLatestBlockhash("confirmed");
-    tx.recentBlockhash = latest.blockhash;
-    tx.feePayer = payer.publicKey;
+    const build = (fight: TransactionInstruction) => {
+      const t = new Transaction().add(
+        ComputeBudgetProgram.setComputeUnitLimit({ units: fightUnits(which, quotes.length) }),
+        ComputeBudgetProgram.setComputeUnitPrice({ microLamports: opts.priorityMicroLamports ?? 20_000 }),
+        ...quotes,
+        fight,
+      );
+      t.recentBlockhash = latest.blockhash;
+      t.feePayer = payer.publicKey;
+      return t;
+    };
+    const tx =
+      which === "start"
+        ? build(buildStartDuel(d, null, null))
+        : settleWithFee(
+            d,
+            fee,
+            (feeKeys) => build(buildSettleDuel(d, payer.publicKey, null, null, feeKeys)),
+            (t) => t.serialize({ requireAllSignatures: false, verifySignatures: false }).length,
+          );
     tx.sign(payer);
     try {
       const signature = await sendSigned(conn, tx, {
@@ -532,6 +547,7 @@ export async function postAndRun(
     pythUpdate,
     quotes,
     priorityMicroLamports: opts.priorityMicroLamports,
+    fee,
   });
   const all = [...parts.post, parts.fight, ...parts.close];
   for (const { tx, signers } of all) tx.sign([payer, ...signers]);

@@ -15,6 +15,24 @@ pub struct Config {
     pub oracle: Pubkey,
 }
 
+/* THE PLATFORM FEE.
+ *
+ * Its own account rather than fields on Config, so adding it changed no
+ * existing account's layout. A deployment that never calls `set_fee` has no
+ * such account and charges nothing. See `fee.rs` for how a rate is chosen. */
+#[account]
+#[derive(InitSpace)]
+pub struct FeeConfig {
+    /// Who owns the token accounts fees are paid into.
+    pub treasury: Pubkey,
+    /// The rate for duels created at or after `from_ts`, in basis points.
+    pub fee_bps: u16,
+    /// The most a duel created before `from_ts` pays.
+    pub prior_bps: u16,
+    pub from_ts: i64,
+    pub bump: u8,
+}
+
 /* A NAME ON THE LEADERBOARD.
  *
  * Wins are a wallet's, and a wallet is a string of characters nobody brags

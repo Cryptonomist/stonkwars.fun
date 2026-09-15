@@ -20,6 +20,7 @@
 
 import type { ReactNode, Ref } from "react";
 
+import { FeeNote } from "@/components/FeeNote";
 import { Badge } from "@/components/ui/Badge";
 import { FlashNum } from "@/components/ui/FlashNum";
 import { Notice } from "@/components/ui/Notice";
@@ -284,6 +285,7 @@ export function FightTicket(t: FightTicketProps) {
               .
             </p>
             <p className="mt-1 text-meta text-dim">An exact tie sends both stakes home.</p>
+            <FeeNote className="mt-1 text-meta text-dim" />
           </div>
         ) : !t.pricesError ? (
           <div aria-hidden="true" className="flex flex-col gap-2">

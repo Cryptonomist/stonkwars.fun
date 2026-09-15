@@ -5,6 +5,17 @@ pub const SEED_ASSET: &[u8] = b"asset";
 pub const SEED_DUEL: &[u8] = b"duel";
 pub const SEED_PROFILE: &[u8] = b"profile";
 pub const SEED_XCLAIM: &[u8] = b"xclaim";
+pub const SEED_FEE: &[u8] = b"fee";
+
+/* THE PLATFORM FEE, AND ITS LIMITS.
+ *
+ * A share of the loser's stake, taken at settlement (see `fee.rs`). The cap is
+ * in the program, not the config: no admin, and no stolen admin key, can set a
+ * fee above it. A raise reaches only duels created at least a week after it is
+ * announced, so nobody is charged a rate they did not see when they signed. */
+pub const MAX_FEE_BPS: u16 = 500;
+pub const FEE_NOTICE_SECS: i64 = 7 * 86_400;
+pub const BPS_DENOMINATOR: u64 = 10_000;
 
 /// An X handle is at most 15 characters, each of them `[A-Za-z0-9_]`.
 pub const MAX_HANDLE_LEN: usize = 15;

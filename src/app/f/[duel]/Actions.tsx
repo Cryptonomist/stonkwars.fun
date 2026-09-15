@@ -37,6 +37,7 @@ import { createPortal } from "react-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
 import { useFaucet } from "@/components/FaucetButton";
+import { FeeNote } from "@/components/FeeNote";
 import { Notice } from "@/components/ui/Notice";
 import { Plate } from "@/components/ui/Plate";
 import { TxButton } from "@/components/ui/TxButton";
@@ -446,6 +447,7 @@ export function Actions({
           </div>
         ) : null}
         {winLine ? <p className="text-meta text-ink">{winLine}</p> : null}
+        {winLine ? <FeeNote createdTs={d.createdTs} className="text-meta text-dim" /> : null}
         {rematch}
         {secondary}
         {hints.map((h) => (

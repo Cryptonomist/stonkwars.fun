@@ -552,6 +552,8 @@ describe("duel - LiteSVM", () => {
     cPrice: Address | null,
     xPrice: Address | null,
     payer = cranker,
+    /** The optional fee accounts, after the named ones. */
+    extra: any[] = [],
   ) {
     const a = await payoutAccounts(duel, true);
     return ix("settle_duel", {}, [
@@ -566,6 +568,7 @@ describe("duel - LiteSVM", () => {
       acct(a.xProg, R),
       acct(ATA_PROGRAM, R),
       acct(SYSTEM, R),
+      ...extra,
     ]);
   }
 
@@ -1443,6 +1446,144 @@ describe("duel - LiteSVM", () => {
       // The claim belongs to the second wallet now.
       await expectFailure(await unlinkIx(first, 3131n), first, "NotYourClaim");
       await send(await unlinkIx(second, 3131n), second);
+    });
+  });
+
+  /* THE PLATFORM FEE.
+   *
+   * A share of the loser's stake to the treasury at settlement, capped by the
+   * program, a raise reaching only duels created a week later, and never in the
+   * way of a payout: any gap in what a settler passes and the winner is paid in
+   * full. Runs last among the settlements, and leaves the fee at zero. */
+  describe("platform fee", () => {
+    const WEEK = 7 * 86_400;
+    let feePda: Address;
+    let treasury: KeyPairSigner;
+
+    const setFeeIx = (bps: number, to: Address, signer = admin) =>
+      ix("set_fee", { fee_bps: bps, treasury: new PublicKey(to) }, [
+        acct(configPda, R),
+        acct(signer.address, WS, signer),
+        acct(feePda, W),
+        acct(SYSTEM, R),
+      ]);
+
+    const treasuryAta = (stock: Stock) => ata(treasury.address, stock.mint, stock.program);
+    const feeAccounts = async () => [
+      acct(feePda, R),
+      acct(await treasuryAta(TSLA), W),
+      acct(await treasuryAta(NVDA), W),
+    ];
+
+    /** NVDA +3% against TSLA +1%: the creator (NVDA) wins, the TSLA stake is the loser's. */
+    async function settleCreatorWin(d: { duel: Address; endTs: number }, extra: any[]) {
+      const cp = await putPrice({ feed: NVDA.feed, price: 185_40000000n, publishTime: d.endTs, prev: d.endTs - 1 });
+      const xp = await putPrice({ feed: TSLA.feed, price: 343_40000000n, publishTime: d.endTs, prev: d.endTs - 1 });
+      await send(await settleIx(d.duel, cp, xp, cranker, extra), cranker);
+    }
+
+    before(async () => {
+      feePda = await pda([enc("fee")]);
+      treasury = await generateKeyPairSigner();
+      for (const s of [TSLA, NVDA]) {
+        put(await treasuryAta(s), encodeTokenAccount(s.mint, treasury.address, 0n), s.program, 2_039_280n);
+      }
+    });
+
+    after(async () => {
+      setClock(NOW + 3 * WEEK);
+      await send(setFeeIx(0, treasury.address), admin);
+    });
+
+    it("set_fee is the admin's alone, capped, and needs a treasury", async () => {
+      const stranger = await player();
+      await expectFailure(setFeeIx(100, treasury.address, stranger), stranger, "ConstraintHasOne");
+      await expectFailure(setFeeIx(501, treasury.address), admin, "That fee is above the program's cap");
+      await expectFailure(setFeeIx(100, DEFAULT_PUBKEY), admin, "The fee needs a treasury");
+      expect(exists(feePda)).to.be.false;
+    });
+
+    it("a raise waits a week: a duel created during the notice pays nothing, one created after pays on the loser's stake", async () => {
+      await send(setFeeIx(250, treasury.address), admin);
+      const f = decode("FeeConfig", feePda);
+      expect(f.fee_bps).to.equal(250);
+      expect(f.prior_bps).to.equal(0);
+      expect(Number(f.from_ts)).to.equal(NOW + WEEK);
+      expect(b58(f.treasury)).to.equal(treasury.address);
+
+      const during = await liveDuel(180_00000000n, 340_00000000n);
+      await settleCreatorWin(during, await feeAccounts());
+      expect(tokenAmount(await ata(during.creator.address, TSLA.mint, TOKEN_2022))).to.equal(1_007_200_000n);
+      expect(tokenAmount(await treasuryAta(TSLA))).to.equal(0n);
+
+      setClock(NOW + WEEK);
+      const after = await liveDuel(180_00000000n, 340_00000000n);
+      await settleCreatorWin(after, await feeAccounts());
+      // 2.5% of the 7_200_000 TSLA the opponent staked.
+      expect(tokenAmount(await treasuryAta(TSLA))).to.equal(180_000n);
+      expect(tokenAmount(await ata(after.creator.address, TSLA.mint, TOKEN_2022))).to.equal(1_007_020_000n);
+      expect(tokenAmount(await ata(after.creator.address, NVDA.mint, TOKEN_2022))).to.equal(1_000_000_000n);
+      expect(tokenAmount(await ata(after.opponent.address, TSLA.mint, TOKEN_2022))).to.equal(992_800_000n);
+      expect(tokenAmount(await treasuryAta(NVDA))).to.equal(0n);
+      expect(exists(await ata(after.duel, TSLA.mint, TOKEN_2022))).to.be.false;
+    });
+
+    it("pays the winner in full when the fee accounts are missing, wrong, or frozen, and never charges a tie", async () => {
+      setClock(NOW + WEEK);
+      const before = tokenAmount(await treasuryAta(TSLA));
+
+      const none = await liveDuel(180_00000000n, 340_00000000n);
+      await settleCreatorWin(none, []);
+      expect(tokenAmount(await ata(none.creator.address, TSLA.mint, TOKEN_2022))).to.equal(1_007_200_000n);
+
+      // A token account for the right mint that the treasury does not own.
+      const stranger = await player([[TSLA, 0n]]);
+      const wrong = await liveDuel(180_00000000n, 340_00000000n);
+      await settleCreatorWin(wrong, [acct(feePda, R), acct(await ata(stranger.address, TSLA.mint, TOKEN_2022), W)]);
+      expect(tokenAmount(await ata(wrong.creator.address, TSLA.mint, TOKEN_2022))).to.equal(1_007_200_000n);
+      expect(tokenAmount(await ata(stranger.address, TSLA.mint, TOKEN_2022))).to.equal(0n);
+
+      // Something that is not the fee config, in the fee config's place.
+      const fake = await liveDuel(180_00000000n, 340_00000000n);
+      await settleCreatorWin(fake, [acct(configPda, R), acct(await treasuryAta(TSLA), W)]);
+      expect(tokenAmount(await ata(fake.creator.address, TSLA.mint, TOKEN_2022))).to.equal(1_007_200_000n);
+
+      // A frozen treasury account would fail the transfer, so it is skipped.
+      const frozenAddr = (await generateKeyPairSigner()).address;
+      const frozenData = encodeTokenAccount(TSLA.mint, treasury.address, 0n);
+      frozenData[108] = 2;
+      put(frozenAddr, frozenData, TOKEN_2022, 2_039_280n);
+      const frozen = await liveDuel(180_00000000n, 340_00000000n);
+      await settleCreatorWin(frozen, [acct(feePda, R), acct(frozenAddr, W)]);
+      expect(tokenAmount(await ata(frozen.creator.address, TSLA.mint, TOKEN_2022))).to.equal(1_007_200_000n);
+
+      // +2% each: a tie refunds both stakes whole.
+      const tie = await liveDuel(180_00000000n, 340_00000000n);
+      const cp = await putPrice({ feed: NVDA.feed, price: 183_60000000n, publishTime: tie.endTs, prev: tie.endTs - 1 });
+      const xp = await putPrice({ feed: TSLA.feed, price: 346_80000000n, publishTime: tie.endTs, prev: tie.endTs - 1 });
+      await send(await settleIx(tie.duel, cp, xp, cranker, await feeAccounts()), cranker);
+      expect(decode("Duel", tie.duel).outcome).to.equal(OUTCOME_TIE);
+      expect(tokenAmount(await ata(tie.opponent.address, TSLA.mint, TOKEN_2022))).to.equal(1_000_000_000n);
+
+      expect(tokenAmount(await treasuryAta(TSLA))).to.equal(before);
+    });
+
+    it("a cut reaches a duel already live, and an opponent's win takes the fee from the creator's stake", async () => {
+      setClock(NOW + WEEK);
+      // Creator backs TSLA (+2%), opponent backs NVDA (+3%): the opponent wins.
+      const d = await liveDuel(340_00000000n, 180_00000000n, { c: TSLA, x: NVDA });
+      await send(setFeeIx(100, treasury.address), admin);
+      const before = tokenAmount(await treasuryAta(TSLA));
+
+      const cp = await putPrice({ feed: TSLA.feed, price: 346_80000000n, publishTime: d.endTs, prev: d.endTs - 1 });
+      const xp = await putPrice({ feed: NVDA.feed, price: 185_40000000n, publishTime: d.endTs, prev: d.endTs - 1 });
+      await send(await settleIx(d.duel, cp, xp, cranker, await feeAccounts()), cranker);
+
+      expect(decode("Duel", d.duel).outcome).to.equal(OUTCOME_OPPONENT);
+      // 1% of the creator's 14_000_000 TSLA, not the 2.5% it was created under.
+      expect(tokenAmount(await treasuryAta(TSLA)) - before).to.equal(140_000n);
+      expect(tokenAmount(await ata(d.opponent.address, TSLA.mint, TOKEN_2022))).to.equal(1_013_860_000n);
+      expect(tokenAmount(await ata(d.opponent.address, NVDA.mint, TOKEN_2022))).to.equal(1_000_000_000n);
     });
   });
 

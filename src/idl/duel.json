@@ -1384,6 +1384,82 @@
       ]
     },
     {
+      "name": "set_fee",
+      "docs": [
+        "Set the platform fee and where it is paid. Capped by `MAX_FEE_BPS`; a",
+        "raise reaches only duels created `FEE_NOTICE_SECS` from now, a cut",
+        "reaches every duel at once (see `fee.rs`)."
+      ],
+      "discriminator": [
+        18,
+        154,
+        24,
+        18,
+        237,
+        214,
+        19,
+        80
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "fee_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  101,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        },
+        {
+          "name": "treasury",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "set_oracle",
       "docs": [
         "Name the key whose signed quotes price SOURCE_SIGNED stocks. Duels",
@@ -2099,6 +2175,19 @@
       ]
     },
     {
+      "name": "FeeConfig",
+      "discriminator": [
+        143,
+        52,
+        146,
+        187,
+        219,
+        123,
+        76,
+        155
+      ]
+    },
+    {
       "name": "Profile",
       "discriminator": [
         184,
@@ -2241,6 +2330,32 @@
         34,
         118,
         245
+      ]
+    },
+    {
+      "name": "FeeSet",
+      "discriminator": [
+        113,
+        74,
+        216,
+        72,
+        193,
+        87,
+        4,
+        232
+      ]
+    },
+    {
+      "name": "FeeTaken",
+      "discriminator": [
+        186,
+        193,
+        162,
+        119,
+        103,
+        247,
+        54,
+        213
       ]
     },
     {
@@ -2453,6 +2568,16 @@
       "code": 6033,
       "name": "NotYourClaim",
       "msg": "That X account points at another wallet"
+    },
+    {
+      "code": 6034,
+      "name": "FeeTooHigh",
+      "msg": "That fee is above the program's cap"
+    },
+    {
+      "code": 6035,
+      "name": "NoTreasury",
+      "msg": "The fee needs a treasury to be paid to"
     }
   ],
   "types": [
@@ -2938,6 +3063,101 @@
           {
             "name": "reason",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "treasury",
+            "docs": [
+              "Who owns the token accounts fees are paid into."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_bps",
+            "docs": [
+              "The rate for duels created at or after `from_ts`, in basis points."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "prior_bps",
+            "docs": [
+              "The most a duel created before `from_ts` pays."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "from_ts",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_bps",
+            "docs": [
+              "The rate for duels created at or after `from_ts`."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "prior_bps",
+            "docs": [
+              "The most a duel created before `from_ts` pays."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "from_ts",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeTaken",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "duel",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "bps",
+            "type": "u16"
+          },
+          {
+            "name": "treasury",
+            "type": "pubkey"
           }
         ]
       }

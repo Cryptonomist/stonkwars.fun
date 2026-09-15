@@ -91,3 +91,22 @@ pub struct DuelSettled {
 pub struct DuelRefunded {
     pub duel: Pubkey,
 }
+
+#[event]
+pub struct FeeSet {
+    pub treasury: Pubkey,
+    /// The rate for duels created at or after `from_ts`.
+    pub fee_bps: u16,
+    /// The most a duel created before `from_ts` pays.
+    pub prior_bps: u16,
+    pub from_ts: i64,
+}
+
+#[event]
+pub struct FeeTaken {
+    pub duel: Pubkey,
+    pub mint: Pubkey,
+    pub amount: u64,
+    pub bps: u16,
+    pub treasury: Pubkey,
+}

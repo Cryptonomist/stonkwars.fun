@@ -12,7 +12,7 @@
  * error anywhere; it is a failed transaction at best.
  */
 
-import { PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, SystemProgram, TransactionInstruction, type AccountMeta } from "@solana/web3.js";
 import { BorshCoder, utils, type Idl } from "@coral-xyz/anchor";
 import BN from "bn.js";
 
@@ -449,6 +449,8 @@ export function buildSettleDuel(
   payer: PublicKey,
   creatorPrice: PublicKey | null,
   opponentPrice: PublicKey | null,
+  /** The optional fee accounts (feeAccountsFor), after the named ones. */
+  fee: AccountMeta[] = [],
 ) {
   return new TransactionInstruction({
     programId: PROGRAM_ID,
@@ -461,9 +463,84 @@ export function buildSettleDuel(
       { pubkey: d.opponentTokenProgram, isSigner: false, isWritable: false },
       { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ...fee,
     ],
     data: coder.instruction.encode("settle_duel", {}),
   });
+}
+
+/* ─── The platform fee (programs/duel/src/fee.rs) ────────────────────────── */
+
+export const MAX_FEE_BPS = 500;
+export const FEE_NOTICE_SECS = 7 * 86_400;
+
+export type FeeView = { treasury: PublicKey; feeBps: number; priorBps: number; fromTs: number };
+
+export function feeConfigPda(): PublicKey {
+  return PublicKey.findProgramAddressSync([enc.encode("fee")], PROGRAM_ID)[0];
+}
+
+export function decodeFeeConfig(data: Uint8Array): FeeView {
+  const f = coder.accounts.decode("FeeConfig", Buffer.from(data)) as {
+    treasury: PublicKey;
+    fee_bps: number;
+    prior_bps: number;
+    from_ts: BN;
+  };
+  return { treasury: f.treasury, feeBps: f.fee_bps, priorBps: f.prior_bps, fromTs: f.from_ts.toNumber() };
+}
+
+/** The rate a duel created at `createdTs` pays: mirrors `fee::rate_for`. */
+export function feeRateFor(fee: FeeView | null | undefined, createdTs: number): number {
+  if (!fee) return 0;
+  return createdTs >= fee.fromTs ? fee.feeBps : Math.min(fee.feeBps, fee.priorBps);
+}
+
+/** A share of `amount` at `bps`, rounded down as the program does. */
+export const feeOn = (amount: bigint, bps: number): bigint => (amount * BigInt(bps)) / 10_000n;
+
+/* What a settler passes for the fee: the config, then the treasury's token
+ * account for each mint (the program picks the loser's). Nothing at all when
+ * this duel's rate is zero, so a zero fee costs a settle transaction nothing. */
+export function feeAccountsFor(d: DuelView, fee: FeeView | null | undefined): AccountMeta[] {
+  if (feeRateFor(fee, d.createdTs) <= 0 || !fee) return [];
+  return [
+    { pubkey: feeConfigPda(), isSigner: false, isWritable: false },
+    { pubkey: ataFor(fee.treasury, d.creatorMint, d.creatorTokenProgram), isSigner: false, isWritable: true },
+    { pubkey: ataFor(fee.treasury, d.opponentMint, d.opponentTokenProgram), isSigner: false, isWritable: true },
+  ];
+}
+
+export function buildSetFee(admin: PublicKey, feeBps: number, treasury: PublicKey) {
+  return new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys: [
+      { pubkey: configPda(), isSigner: false, isWritable: false },
+      { pubkey: admin, isSigner: true, isWritable: true },
+      { pubkey: feeConfigPda(), isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: coder.instruction.encode("set_fee", { fee_bps: feeBps, treasury }),
+  });
+}
+
+/* Read once a minute at most: a settler reads it on every pass, and it changes
+ * about never. A read that fails counts as no fee, which only ever costs the
+ * treasury, never a player. */
+let feeCache: { at: number; value: FeeView | null } | null = null;
+export async function readFeeConfig(conn: {
+  getAccountInfo: (k: PublicKey, c?: "confirmed") => Promise<{ data: Uint8Array } | null>;
+}): Promise<FeeView | null> {
+  if (feeCache && Date.now() - feeCache.at < 60_000) return feeCache.value;
+  let value: FeeView | null = null;
+  try {
+    const info = await conn.getAccountInfo(feeConfigPda(), "confirmed");
+    value = info ? decodeFeeConfig(info.data) : null;
+  } catch {
+    value = null;
+  }
+  feeCache = { at: Date.now(), value };
+  return value;
 }
 
 export function buildRefundDuel(d: DuelView, payer: PublicKey) {

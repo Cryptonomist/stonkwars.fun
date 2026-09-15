@@ -22,7 +22,7 @@ import {
 import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 
 import { boundaryOf, crankTransactions, pythFeedsOf, sendInOrder } from "@/lib/crankTx";
-import { SOURCE_SIGNED, type DuelView } from "@/lib/duel";
+import { readFeeConfig, SOURCE_SIGNED, type DuelView } from "@/lib/duel";
 
 type AnyTx = Transaction | VersionedTransaction;
 
@@ -70,7 +70,11 @@ export async function crankFromBrowser(opts: {
 }): Promise<string[]> {
   const { connection, wallet, which, duel } = opts;
   const boundary = boundaryOf(duel, which);
-  const [quotes, update] = await Promise.all([signedQuotes(duel, which), pythUpdate(duel, boundary)]);
+  const [quotes, update, fee] = await Promise.all([
+    signedQuotes(duel, which),
+    pythUpdate(duel, boundary),
+    which === "settle" ? readFeeConfig(connection) : Promise.resolve(null),
+  ]);
 
   // The SDK is typed against Anchor's NodeWallet; the adapter's signers are
   // the same shape.
@@ -83,6 +87,7 @@ export async function crankFromBrowser(opts: {
     which,
     pythUpdate: update,
     quotes,
+    fee,
   });
   // The throwaway accounts sign first; then the wallet signs everything in
   // one prompt.

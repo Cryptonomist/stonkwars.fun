@@ -70,4 +70,8 @@ pub enum DuelError {
     BadHandle,
     #[msg("That X account points at another wallet")]
     NotYourClaim,
+    #[msg("That fee is above the program's cap")]
+    FeeTooHigh,
+    #[msg("The fee needs a treasury to be paid to")]
+    NoTreasury,
 }

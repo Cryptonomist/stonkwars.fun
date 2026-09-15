@@ -34,14 +34,19 @@
 //! * `cancel_duel`: the creator's stake back to the creator, before anyone
 //!   accepts;
 //! * `settle_duel`: both stakes to the winner, or each back to its owner on an
-//!   exact tie;
+//!   exact tie. When a platform fee is set, a capped share of the loser's
+//!   stake goes to the treasury on the way (see `fee.rs`); ties are never
+//!   charged, and a fee that cannot be paid is skipped, never allowed to hold
+//!   up the payout;
 //! * `refund_duel`: each stake back to its owner, when a duel is void or has
 //!   stalled for a week.
 //!
 //! There is no admin withdrawal and no sweep. The admin can register stocks,
-//! switch one off for new duels, pause new duels and name the oracle for new
-//! duels. Nothing it can do touches a stake in escrow, and a duel whose prices
-//! never come is refunded in full a week late rather than held.
+//! switch one off for new duels, pause new duels, name the oracle for new
+//! duels, and set the platform fee within the program's cap (a raise reaching
+//! only duels created a week later). Nothing it can do touches a stake in
+//! escrow beyond that fee, and a duel whose prices never come is refunded in
+//! full a week late rather than held.
 
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
@@ -53,6 +58,7 @@ use anchor_spl::token_interface::{
 pub mod constants;
 pub mod errors;
 pub mod events;
+pub mod fee;
 pub mod mint_check;
 pub mod outcome;
 pub mod pyth;
@@ -94,6 +100,36 @@ pub mod duel {
     pub fn set_oracle(ctx: Context<SetOracle>, oracle: Pubkey) -> Result<()> {
         ctx.accounts.config.oracle = oracle;
         emit!(OracleSet { oracle });
+        Ok(())
+    }
+
+    /// Set the platform fee and where it is paid. Capped by `MAX_FEE_BPS`; a
+    /// raise reaches only duels created `FEE_NOTICE_SECS` from now, a cut
+    /// reaches every duel at once (see `fee.rs`).
+    pub fn set_fee(ctx: Context<SetFee>, fee_bps: u16, treasury: Pubkey) -> Result<()> {
+        require!(treasury != Pubkey::default(), DuelError::NoTreasury);
+        let now = Clock::get()?.unix_timestamp;
+        let f = &mut ctx.accounts.fee_config;
+        let next = fee::schedule(
+            fee::Schedule {
+                fee_bps: f.fee_bps,
+                prior_bps: f.prior_bps,
+                from_ts: f.from_ts,
+            },
+            fee_bps,
+            now,
+        )?;
+        f.treasury = treasury;
+        f.fee_bps = next.fee_bps;
+        f.prior_bps = next.prior_bps;
+        f.from_ts = next.from_ts;
+        f.bump = ctx.bumps.fee_config;
+        emit!(FeeSet {
+            treasury,
+            fee_bps: next.fee_bps,
+            prior_bps: next.prior_bps,
+            from_ts: next.from_ts,
+        });
         Ok(())
     }
 
@@ -450,7 +486,10 @@ pub mod duel {
     }
 
     /// Post the end prices and pay the winner. Permissionless.
-    pub fn settle_duel(ctx: Context<SettleDuel>) -> Result<()> {
+    /* The fee accounts are optional and come last, as remaining accounts: the
+     * fee config, then the treasury's token accounts for either or both mints.
+     * A settler that passes none settles exactly as before there was a fee. */
+    pub fn settle_duel<'info>(ctx: Context<'info, SettleDuel<'info>>) -> Result<()> {
         let d = &ctx.accounts.duel;
         require_eq!(d.status, STATUS_LIVE, DuelError::NotLive);
 
@@ -525,6 +564,40 @@ pub mod duel {
         }
 
         let duel_info = ctx.accounts.duel.to_account_info();
+        let duel_key = ctx.accounts.duel.key();
+        let created_ts = ctx.accounts.duel.created_ts;
+        match winner {
+            Winner::Creator => {
+                take_fee(
+                    ctx.remaining_accounts,
+                    ctx.program_id,
+                    duel_key,
+                    created_ts,
+                    &ctx.accounts.opponent_token_program,
+                    &ctx.accounts.opponent_mint,
+                    &ctx.accounts.opponent_escrow,
+                    duel_info.clone(),
+                    &[seeds],
+                )?;
+                ctx.accounts.opponent_escrow.reload()?;
+            }
+            Winner::Opponent => {
+                take_fee(
+                    ctx.remaining_accounts,
+                    ctx.program_id,
+                    duel_key,
+                    created_ts,
+                    &ctx.accounts.creator_token_program,
+                    &ctx.accounts.creator_mint,
+                    &ctx.accounts.creator_escrow,
+                    duel_info.clone(),
+                    &[seeds],
+                )?;
+                ctx.accounts.creator_escrow.reload()?;
+            }
+            Winner::Tie => {}
+        }
+
         release(
             &ctx.accounts.creator_token_program,
             &ctx.accounts.creator_mint,
@@ -660,6 +733,89 @@ fn side_price(
     }
 }
 
+/* THE FEE, ON THE WAY OUT.
+ *
+ * Reads the fee accounts a settler passed after the named ones, and takes the
+ * fee from the loser's escrow only when every one of them checks out: the fee
+ * config at its own address and owned by this program, a rate above zero for
+ * this duel's creation time, and a treasury token account for exactly this
+ * mint that can take a credit (`fee::treasury_account_ok`). Any gap, and it
+ * returns without moving anything, so the winner is paid in full. */
+fn take_fee<'info>(
+    remaining: &'info [AccountInfo<'info>],
+    program_id: &Pubkey,
+    duel_key: Pubkey,
+    created_ts: i64,
+    token_program: &Interface<'info, TokenInterface>,
+    mint: &InterfaceAccount<'info, Mint>,
+    escrow: &InterfaceAccount<'info, TokenAccount>,
+    duel: AccountInfo<'info>,
+    signer: &[&[&[u8]]],
+) -> Result<u64> {
+    let Some(config_info) = remaining.first() else {
+        return Ok(0);
+    };
+    let (config_key, _) = Pubkey::find_program_address(&[SEED_FEE], program_id);
+    if config_info.key() != config_key || config_info.owner != program_id {
+        return Ok(0);
+    }
+    let config = {
+        let data = config_info.try_borrow_data()?;
+        match FeeConfig::try_deserialize(&mut &data[..]) {
+            Ok(c) => c,
+            Err(_) => return Ok(0),
+        }
+    };
+    let bps = fee::rate_for(
+        fee::Schedule {
+            fee_bps: config.fee_bps,
+            prior_bps: config.prior_bps,
+            from_ts: config.from_ts,
+        },
+        created_ts,
+    );
+    let amount = fee::fee_amount(escrow.amount, bps);
+    if amount == 0 {
+        return Ok(0);
+    }
+
+    let mint_key = mint.key();
+    let token_program_key = token_program.key();
+    let is_2022 = token_program_key == TOKEN_2022;
+    let Some(to) = remaining[1..].iter().find(|a| {
+        a.is_writable
+            && *a.owner == token_program_key
+            && a.try_borrow_data()
+                .map(|d| fee::treasury_account_ok(&d, &mint_key, &config.treasury, is_2022))
+                .unwrap_or(false)
+    }) else {
+        return Ok(0);
+    };
+
+    transfer_checked(
+        CpiContext::new_with_signer(
+            token_program_key,
+            TransferChecked {
+                from: escrow.to_account_info(),
+                mint: mint.to_account_info(),
+                to: to.clone(),
+                authority: duel,
+            },
+            signer,
+        ),
+        amount,
+        mint.decimals,
+    )?;
+    emit!(FeeTaken {
+        duel: duel_key,
+        mint: mint_key,
+        amount,
+        bps,
+        treasury: config.treasury,
+    });
+    Ok(amount)
+}
+
 /// Move a stake into escrow and check the escrow received all of it. The check
 /// is on the escrow's balance delta, so it holds whether or not somebody sent
 /// tokens to the escrow address first, and it is what turns a fee-on-transfer
@@ -765,6 +921,23 @@ pub struct SetOracle<'info> {
     #[account(mut, seeds = [SEED_CONFIG], bump = config.bump, has_one = admin)]
     pub config: Account<'info, Config>,
     pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetFee<'info> {
+    #[account(seeds = [SEED_CONFIG], bump = config.bump, has_one = admin)]
+    pub config: Account<'info, Config>,
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    #[account(
+        init_if_needed,
+        payer = admin,
+        space = 8 + FeeConfig::INIT_SPACE,
+        seeds = [SEED_FEE],
+        bump
+    )]
+    pub fee_config: Account<'info, FeeConfig>,
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]

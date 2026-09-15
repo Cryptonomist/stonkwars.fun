@@ -18,7 +18,42 @@ import { utils } from "@coral-xyz/anchor";
 import type { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 
 import { confirmSignature, NotSeen, TransactionFailed } from "./confirm";
-import { buildSettleDuel, buildStartDuel, SOURCE_PYTH, START_DELAY_SECS, type DuelView } from "./duel";
+import {
+  buildSettleDuel,
+  buildStartDuel,
+  feeAccountsFor,
+  SOURCE_PYTH,
+  START_DELAY_SECS,
+  type DuelView,
+  type FeeView,
+} from "./duel";
+
+/** Solana's limit on a serialized transaction, signatures included. */
+export const MAX_TX_BYTES = 1_232;
+
+/* THE FEE NEVER COSTS A SETTLEMENT.
+ *
+ * A settle transaction is close to the size limit already (payout accounts,
+ * price accounts or signed quotes), and the fee adds three accounts. So the
+ * settle instruction is built with them, measured, and built again without
+ * them if the transaction would not fit: the program then pays the winner in
+ * full. `measure` is the byte length of the transaction the caller would send. */
+export function settleWithFee<T>(
+  d: DuelView,
+  fee: FeeView | null | undefined,
+  build: (feeKeys: ReturnType<typeof feeAccountsFor>) => T,
+  measure: (built: T) => number,
+): T {
+  const keys = feeAccountsFor(d, fee);
+  if (!keys.length) return build([]);
+  const withFee = build(keys);
+  try {
+    if (measure(withFee) <= MAX_TX_BYTES) return withFee;
+  } catch {
+    /* too large to serialize at all */
+  }
+  return build([]);
+}
 
 export type SignedTx = { tx: VersionedTransaction; signers: Signer[] };
 
@@ -79,6 +114,8 @@ export async function crankTransactionParts(opts: {
   pythUpdate: string[];
   quotes: TransactionInstruction[];
   priorityMicroLamports?: number;
+  /** The platform fee (readFeeConfig); a settle passes its accounts when they fit. */
+  fee?: FeeView | null;
 }): Promise<CrankParts> {
   const { conn, receiver, payer, duel: d, which } = opts;
   const priority = opts.priorityMicroLamports ?? 20_000;
@@ -112,21 +149,32 @@ export async function crankTransactionParts(opts: {
   };
   const c = pythAccount(d.creatorFeed, d.creatorSource);
   const o = pythAccount(d.opponentFeed, d.opponentSource);
-  const fight = which === "start" ? buildStartDuel(d, c, o) : buildSettleDuel(d, payer, c, o);
-  const message = new TransactionMessage({
-    payerKey: payer,
-    recentBlockhash: latest.blockhash,
-    instructions: [
-      ComputeBudgetProgram.setComputeUnitLimit({ units: fightUnits(which, opts.quotes.length) }),
-      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }),
-      ...opts.quotes,
-      fight,
-    ],
-  }).compileToV0Message();
+  const compile = (fight: TransactionInstruction) =>
+    new VersionedTransaction(
+      new TransactionMessage({
+        payerKey: payer,
+        recentBlockhash: latest.blockhash,
+        instructions: [
+          ComputeBudgetProgram.setComputeUnitLimit({ units: fightUnits(which, opts.quotes.length) }),
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }),
+          ...opts.quotes,
+          fight,
+        ],
+      }).compileToV0Message(),
+    );
+  const tx =
+    which === "start"
+      ? compile(buildStartDuel(d, c, o))
+      : settleWithFee(
+          d,
+          opts.fee,
+          (feeKeys) => compile(buildSettleDuel(d, payer, c, o, feeKeys)),
+          (built) => built.serialize().length,
+        );
 
   return {
     post,
-    fight: { tx: new VersionedTransaction(message), signers: [] },
+    fight: { tx, signers: [] },
     close,
     lastValidBlockHeight: latest.lastValidBlockHeight,
   };
