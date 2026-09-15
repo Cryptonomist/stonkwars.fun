@@ -399,7 +399,7 @@ export function CreateFight() {
           from then starts it at the first prices after.
         </p>
         <p className="mt-2 text-dim">{queued.why}</p>
-        {runNow ?? (chips[round]?.short ? null : fix)}
+        {runNow ?? fix}
       </Notice>
     );
   } else if (waiting.length) {
@@ -417,7 +417,7 @@ export function CreateFight() {
             ? `${andList(onComposite)} ${onComposite.length === 1 ? "is" : "are"} priced by ${onComposite.length === 1 ? (offHoursWords(onComposite[0], endsAt) ?? "its 24/7 markets") : "the median of the markets that trade them around the clock"}. `
             : ""}
           {onPerp.length
-            ? `${andList(onPerp)} settle on a perpetual futures market that never closes${onPoolOnly.length ? ", and " : "."}`
+            ? `${andList(onPerp)} ${onPerp.length === 1 ? "settles" : "settle"} on a perpetual futures market that never closes${onPoolOnly.length ? ", and " : "."}`
             : ""}
           {onPoolOnly.length
             ? `${onPerp.length ? "" : "The "}${andList(onPoolOnly)} settle on ${onPoolOnly.length === 1 ? "its" : "their"} own Solana pool.`

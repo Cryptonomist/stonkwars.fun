@@ -229,9 +229,10 @@ export function StockPicker({
           className="input min-w-0 sm:max-w-xs"
         />
         {/* Tighter plates below sm, so all four filters and their counts fit
-          * one row on a 375px phone instead of leaving 24/7 alone on a second. */}
+          * one row on a 375px phone instead of leaving Live 24/7 alone on a
+          * second (measured: 337px of 343 at px-2). */}
         <Tabs
-          className="[&>button]:px-2.5 sm:[&>button]:px-4"
+          className="[&>button]:px-2 sm:[&>button]:px-4"
           ariaLabel="Filter stocks"
           value={kind}
           onChange={(k) => {

@@ -114,7 +114,10 @@ describe("a 24/7 proof, read back on the receipt", () => {
     expect(said[1]).to.equal(
       "These are perpetual futures and tokenized shares, not the exchange listing; a weekend price is what those markets traded, not the next open.",
     );
-    expect(said[2]).to.match(/^Every request above is public\. Hyperliquid serves about 3 days of one-minute history and Gate serves about 6 days/);
+    expect(said[2]).to.equal(
+      "Every request above is public. Hyperliquid keeps about 3 days of one-minute history and Gate about 6 days, " +
+        "so those rows can be fetched again only that long; the other markets keep 25 days or more.",
+    );
   });
 
   it("names a request somebody can make again", () => {

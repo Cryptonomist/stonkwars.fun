@@ -139,7 +139,7 @@ export function proofSentences(p: CompositeV2Proof, ticker: string): string[] {
   const short = [...new Set(p.venues.map((v) => v.venue))].filter((v) => days(v) < 20).sort((a, b) => days(a) - days(b));
   if (short.length) {
     out.push(
-      `Every request above is public. ${short.map((v) => `${VENUES[v].name} serves about ${days(v)} days of one-minute history`).join(" and ")}, ` +
+      `Every request above is public. ${short.map((v, i) => `${VENUES[v].name}${i ? "" : " keeps"} about ${days(v)} days${i ? "" : " of one-minute history"}`).join(" and ")}, ` +
         `so ${short.length === 1 ? "its row" : "those rows"} can be fetched again only that long; the other markets keep 25 days or more.`,
     );
   } else {
