@@ -60,12 +60,12 @@ import {
 } from "@/lib/duel";
 import { leadWords, pricesFrom, roundWords, tabTitle } from "@/lib/fightClock";
 import { loserTake, winnerSide } from "@/lib/derive";
-import { ago, etTime, etWhen, points, span, usd } from "@/lib/format";
+import { ago, etTime, etWhen, hm, points, span, usd } from "@/lib/format";
 import { useDuel } from "@/lib/hooks";
 import { movePct, stakeValue, usePrices, type Quotes } from "@/lib/prices";
 import { neverSides, roundClock, shutSides, type RoundClock } from "@/lib/roundClock";
 import { play } from "@/lib/sfx";
-import { decimalsForMint, tickerForMint } from "@/lib/stocks";
+import { decimalsForMint, queueAt, tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 import { useNudgeStatus } from "@/lib/useSettlerNudge";
 import { useSparNudge } from "@/lib/useSparNudge";
@@ -321,6 +321,15 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
   );
 }
 
+/* A QUEUED CHALLENGE: the moment it can first be taken fairly, when a take
+ * now would not be (stocks.ts, queueAt). Null when it can be taken now, or
+ * never before it expires, or with no clock yet. */
+function queuedFrom(d: DuelView, now: number, t1: string, t2: string): number | null {
+  if (!now || d.status !== STATUS_OPEN || d.expiresTs <= now) return null;
+  const q = queueAt(t1, t2, now, d, "taker");
+  return q && "queued" in q ? q.queued : null;
+}
+
 /* ── The status strip ─────────────────────────────────────────────────── */
 
 function StatusStrip({
@@ -341,12 +350,16 @@ function StatusStrip({
   let text: React.ReactNode = "";
   let tone = "text-ink";
   switch (d.status) {
-    case STATUS_OPEN:
+    case STATUS_OPEN: {
       if (now && d.expiresTs <= now) {
         text = "Challenge expired";
         tone = "text-dim";
-      } else text = "Open challenge";
+        break;
+      }
+      const from = queuedFrom(d, now, t1, t2);
+      text = from !== null ? `Open challenge · queued · takeable in ${hm(from - now)}` : "Open challenge";
       break;
+    }
     case STATUS_ACCEPTED:
       text = clock.line;
       break;
@@ -461,12 +474,19 @@ function Center({
 
   if (d.status === STATUS_OPEN) {
     const expired = now > 0 && d.expiresTs <= now;
+    const from = expired ? null : queuedFrom(d, now, t1, t2);
     return wrap(
       <>
         {vs}
         <span className="text-sm text-dim">{roundWords(d)}</span>
         {expired ? (
           <span className="label">Expired {etTime(d.expiresTs)}</span>
+        ) : from !== null ? (
+          <span className="flex flex-col items-center gap-1">
+            <span className="label">Takeable in</span>
+            <Countdown to={from} now={now} className="text-num-lg text-ink" />
+            <span className="text-meta text-dim">{etTime(from)}</span>
+          </span>
         ) : (
           <span className="flex flex-col items-center gap-1">
             <span className="label">Closes in</span>

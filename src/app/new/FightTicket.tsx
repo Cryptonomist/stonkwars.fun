@@ -47,8 +47,11 @@ export type FightTicketProps = {
   rounds: RoundChoice[];
   round: RoundId;
   onRound: (r: RoundId) => void;
-  /** Rounds too short for the 24/7 prices they would get now, each with why. */
-  tooShort?: Partial<Record<RoundId, string>>;
+  /** Rounds that cannot be taken now, each with why: a queued one says from
+   *  when (`sub`), and one nobody could take fairly before it expires is off. */
+  chipNotes?: Partial<Record<RoundId, { sub?: string; title: string; off?: boolean }>>;
+  /** One line under the chips, while the shorter rounds queue for the open. */
+  roundWhy?: string;
   /** One line under the round chips: when this round starts and ends. */
   roundNote: string;
   /** The hours notice, when there is one. */
@@ -153,16 +156,16 @@ export function FightTicket(t: FightTicketProps) {
             const on = t.round === r.id;
             // The sparring wallet takes only rounds a visitor can watch to the end.
             const sparOff = !!t.sparring && !(r.secs && r.secs <= SPAR_MAX_ROUND_SECS);
-            // A round the composite would price must run long enough that one market cannot tip it.
-            const shortOff = t.tooShort?.[r.id];
-            const off = sparOff || !!shortOff;
+            // A round that cannot be taken now queues for when it can, and says so; one that never can is off.
+            const note = t.chipNotes?.[r.id];
+            const off = sparOff || !!note?.off;
             return (
               <button
                 key={r.id}
                 type="button"
                 aria-pressed={on}
                 disabled={off}
-                title={sparOff ? "The sparring wallet takes 5 and 15 minute rounds" : shortOff}
+                title={sparOff ? "The sparring wallet takes 5 and 15 minute rounds" : note?.title}
                 onClick={() => t.onRound(r.id)}
                 className={cx(
                   "btn btn-sm min-w-0 flex-col gap-0.5 px-2",
@@ -177,12 +180,13 @@ export function FightTicket(t: FightTicketProps) {
                     on ? "text-void/70" : "text-dim",
                   )}
                 >
-                  {r.sub}
+                  {note?.sub ?? r.sub}
                 </span>
               </button>
             );
           })}
         </div>
+        {t.roundWhy ? <p className="mt-2 text-meta text-dim">{t.roundWhy}</p> : null}
       </div>
 
       {t.notice}

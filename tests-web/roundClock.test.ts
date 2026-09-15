@@ -85,14 +85,16 @@ describe("round clock", () => {
       expect(roundClock(p, B + PYTH_GRACE_SECS + 2, null, markets).line).to.equal("Locking the start prices");
     });
 
-    it("keeps the existing wording while a side's market is shut", () => {
+    it("says a fight whose market is shut starts at the open, and how long until its first price", () => {
       const sat = ny(12, 14, 0);
       const p = fight(STATUS_ACCEPTED, sat, FEED.exchange);
+      // Monday's 4:00 AM bar is final at 4:01:20 and lands by 4:01:22: from Sunday noon, 16h 1m.
       expect(roundClock(p, ny(13, 12, 0), null, markets)).to.deep.equal({
-        line: "Fight on · waiting for the market that prices it to open",
+        line: "Starts at the open · 16h 1m",
         secondsLeft: null,
         manual: null,
       });
+      expect(roundClock(p, ny(14, 3, 59, 30), null, markets).line).to.equal("Starts at the open · 1m");
     });
 
     it("says it is locking from the price until the settler is late, and says so when a nudge failed", () => {
@@ -194,10 +196,11 @@ describe("round clock", () => {
       );
     });
 
-    it("keeps the existing wording after a bell whose market is shut", () => {
+    it("says a bell whose market is shut settles at the open, and how long until then", () => {
       const fri = ny(11, 19, 0) - 300; // a bell at 7pm on a Friday
       const p = { ...fight(STATUS_LIVE, fri, FEED.exchange), endTs: ny(11, 20, 30) };
-      expect(roundClock(p, ny(12, 9, 0), null, markets).line).to.equal("Bell rung · waiting for the market that prices it to open");
+      // From Saturday 9 AM to Monday's first bar landing at 4:01:22.
+      expect(roundClock(p, ny(12, 9, 0), null, markets).line).to.equal("Bell rung · settles at the open · 1d 19h");
     });
   });
 

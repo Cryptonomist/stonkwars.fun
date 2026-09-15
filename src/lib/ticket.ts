@@ -101,8 +101,9 @@ export function winPreview(
  *
  * 12 and 24 hours are there for the hours the composite prices: a round with a
  * start or an end priced by a stock's 24/7 markets must run at least
- * MIN_OFFHOURS_ROUND_SECS (composite.ts), and /new switches the shorter chips
- * off while that would be so (stocks.ts, tooShortOffHours). */
+ * MIN_OFFHOURS_ROUND_SECS (composite.ts). While that would be so, /new queues
+ * the shorter chips for the open and says from when (stocks.ts, queueAt), so
+ * the overnight round is the one that runs now. */
 export type RoundId = "5m" | "15m" | "1h" | "12h" | "24h" | "bell" | "week";
 
 export type RoundChoice = { id: RoundId; label: string; sub: string; secs?: number; endTs?: number };
@@ -116,7 +117,7 @@ export function roundChoices(nowSec: number): RoundChoice[] {
     { id: "5m", label: "5 min", sub: "after a taker", secs: 300 },
     { id: "15m", label: "15 min", sub: "after a taker", secs: 900 },
     { id: "1h", label: "1 hour", sub: "after a taker", secs: 3_600 },
-    { id: "12h", label: "12 hours", sub: "after a taker", secs: 43_200 },
+    { id: "12h", label: "Overnight 12h", sub: "after a taker", secs: 43_200 },
     { id: "24h", label: "24 hours", sub: "after a taker", secs: 86_400 },
     { id: "bell", label: "Next bell", sub: etTime(bell), endTs: bell },
     { id: "week", label: "Friday bell", sub: etTime(week), endTs: week },

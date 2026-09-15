@@ -702,14 +702,15 @@ export function nextFairTake(a: string, b: string, from: number, round?: EndRule
  * beside the button it disables, or null when the pair can fight. The advice
  * that ends it depends on who reads it: somebody making the challenge can pick
  * other stocks or another round, and somebody taking it can only pick a time,
- * so a taker is told the next moment it can be taken. A ticker off the roster
- * is left alone: nothing here knows its hours. */
+ * so a taker is told the next moment it can be taken. "why" is the reason
+ * alone, with no advice, for a page that says what to do itself (queueAt). A
+ * ticker off the roster is left alone: nothing here knows its hours. */
 export function mixedHoursAt(
   a: string,
   b: string,
   now: number,
   round?: EndRule,
-  reader: "creator" | "taker" = "creator",
+  reader: "creator" | "taker" | "why" = "creator",
 ): string | null {
   const taker = (reason: string, never = "It closes before the two line up again.") => {
     const from = nextFairTake(a, b, now, round);
@@ -719,6 +720,7 @@ export function mixedHoursAt(
   const dark = darkWithin(a, b, now, round);
   if (dark) {
     const reason = darkWords(dark, round);
+    if (reader === "why") return reason;
     if (reader === "taker") return taker(reason, "It closes before it can be taken.");
     const stocks = dark.tickers.length === 1 ? "a stock" : "stocks";
     return dark.at === "start"
@@ -731,11 +733,13 @@ export function mixedHoursAt(
     const short = shortWithin(a, b, now, round);
     if (!short) return null;
     const reason = shortWords(short, round);
+    if (reader === "why") return reason;
     if (reader === "taker") return taker(reason, "It closes before it can be taken.");
     return `${reason} Pick a round of ${MIN_ROUND_WORDS} or more, or a bell.`;
   }
   const stops = closeAhead(p, now, sourcesOf(a, b, round));
   const reason = apartWords(p, stops, round);
+  if (reader === "why") return reason;
   if (reader === "taker") return taker(reason);
   const stamped = stops === null && p.earlyFrom === p.boundary && p.lateFrom === p.boundary;
   const advice = stamped
@@ -748,6 +752,38 @@ export function mixedHoursAt(
           ? "Pick two that both trade now, or two that both wait."
           : "Pick two that open at the same time, or two that both trade now.";
   return `${reason} ${advice}`;
+}
+
+/* QUEUE A CHALLENGE, DO NOT REFUSE IT, WHEN IT CAN BE FAIR LATER.
+ *
+ * A pair that cannot start fairly now can often start fairly at the next
+ * opening: NFLX v NVDA on a Saturday lines up at Monday's 4 AM, and a 15-minute
+ * AAPL v NVDA round the composite would price lines up once the exchange prices
+ * both ends. Such a challenge can still be made. Nobody can take it before
+ * `queued`, the first moment nextFairTake finds before it expires, and a take
+ * then starts it at the first prices after, as any take does. The take gate is
+ * unchanged: the fight page, the Action route and the sparring wallet ask
+ * mixedHoursAt at the take, and it refuses every earlier moment.
+ *
+ * A challenge that could never be taken fairly before it expires (VOO for a
+ * round that would end in Pyth's weekend, whenever it starts) is refused, with
+ * mixedHoursAt's sentence for the reader.
+ *
+ * `round` must carry the expiry the challenge will have (expiresTs), because
+ * the queue must end before it. Null when a take now is fair. */
+export type Queue = { queued: number; why: string } | { refused: string };
+
+export function queueAt(
+  a: string,
+  b: string,
+  now: number,
+  round: EndRule,
+  reader: "creator" | "taker" = "creator",
+): Queue | null {
+  const why = mixedHoursAt(a, b, now, round, "why");
+  if (why === null) return null;
+  const from = nextFairTake(a, b, now, round);
+  return from !== null ? { queued: from, why } : { refused: mixedHoursAt(a, b, now, round, reader)! };
 }
 
 /** How many of the roster fight around the clock at `at`, for the pages that

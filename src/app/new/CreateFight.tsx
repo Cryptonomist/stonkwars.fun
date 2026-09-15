@@ -19,11 +19,13 @@
  * link leaves out starts from the default pair, which fights around the clock,
  * so a weekend visitor never opens on a warning.
  *
- * THE HOURS GATES ARE THE ROSTER'S, UNCHANGED. A create is refused per
- * mixedHoursAt, a bell challenge nobody can take yet says when it can be
- * (nextFairTake), and a fight that would wait says who prices each waiting
- * stock and when it reopens. The refusal is asked again at the click, because
- * the render's clock can be seconds old. */
+ * THE HOURS GATES ARE THE ROSTER'S. A challenge that cannot be taken fairly
+ * now but can be later is queued, not refused (stocks.ts, queueAt): it can be
+ * made, and the ticket says from when it can be taken. Only a pair nobody could
+ * take fairly before it expires is refused, with mixedHoursAt's sentence. A
+ * fight that would wait says who prices each waiting stock and when it
+ * reopens. The refusal is asked again at the click, because the render's
+ * clock can be seconds old. */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -43,23 +45,23 @@ import { requestConnect } from "@/components/ui/intents";
 import { useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, randomSeed } from "@/lib/duel";
 import { FAUCET_TARGET_USD, faucetWouldTopUp } from "@/lib/faucet";
-import { etTime, shares, span, usd } from "@/lib/format";
+import { etShort, etTime, hm, shares, span, usd } from "@/lib/format";
 import { OFFHOURS_WINDOW } from "@/lib/oracle";
 import { isSparWallet, SPAR_MAX_ROUND_SECS, SPAR_WALLET } from "@/lib/spar";
 import { stakeForDollars, stakeValue, usePrices } from "@/lib/prices";
 import {
-  byTicker,
   CLUSTER,
   firstPriceAt,
-  mixedHoursAt,
-  nextFairTake,
+  offHoursWords,
   openingWords,
   pricedAt,
+  queueAt,
   STAKE_DECIMALS,
   stakeAssetFor,
   tokenSymbol,
   tooShortOffHours,
   type EndRule,
+  type Queue,
 } from "@/lib/stocks";
 import { MIN_OFFHOURS_ROUND_SECS } from "@/lib/composite";
 import {
@@ -81,6 +83,16 @@ import { FightTicket } from "./FightTicket";
 const expiryFor = (fixedEnd: number, nowSecs: number) =>
   fixedEnd ? Math.min(fixedEnd - 5 * 60, nowSecs + 7 * 86_400) : nowSecs + 7 * 86_400;
 
+/** A challenge's end rule as the gates read it, made at `at`: its round, and
+ *  the expiry it will carry, which a queue must end before. */
+const roundOf = (secs: number | undefined, fixedEnd: number, at: number): EndRule => ({
+  durationSecs: secs ?? 0,
+  endTs: fixedEnd,
+  expiresTs: expiryFor(fixedEnd, at),
+});
+
+const MIN_ROUND_HOURS = MIN_OFFHOURS_ROUND_SECS / 3_600;
+
 /** "TSLA", "TSLA and QQQ". */
 const andList = (tickers: string[]) => tickers.join(" and ");
 
@@ -88,7 +100,7 @@ const ROUND_WORDS: Record<RoundId, string> = {
   "5m": "5 min",
   "15m": "15 min",
   "1h": "1 hour",
-  "12h": "12 hours",
+  "12h": "Overnight 12h",
   "24h": "24 hours",
   bell: "next bell",
   week: "Friday bell",
@@ -160,51 +172,63 @@ export function CreateFight() {
    * not on a Solana pool. */
   const onPerp = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "perp") : [];
   const onPoolOnly = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "pool") : [];
-  const roundTheClock = [...onPerp, ...onPoolOnly];
-  /* The round starts when somebody takes the challenge, and the nearest that
-   * can be is now. A pair whose start prices would land hours apart, or whose
-   * round would end where one side still trades and the other waits, would be
-   * decided by that gap, so a timed round on it cannot be picked: a timed
-   * challenge is made to be taken now.
+  const onComposite = endsAt ? sides.filter((t) => pricedAt(t, endsAt) === "composite") : [];
+  const roundTheClock = [...onPerp, ...onPoolOnly, ...onComposite];
+  /* QUEUE, DO NOT REFUSE, WHERE IT IS FAIR.
    *
-   * A bell is different. Its end is fixed and it is often set up before the
-   * session, to be taken during it, and the fight page and the Action route
-   * refuse the take itself at any moment the pair would part. So a bell
-   * challenge is refused only when nobody could take it fairly before it
-   * closes, and otherwise says when they can. */
+   * The round starts when somebody takes the challenge. A pair whose start
+   * prices would land hours apart, whose round would end where one side still
+   * trades and the other waits, or whose short round the 24/7 markets would
+   * price, cannot be taken fairly now. Most of those can be at the next
+   * opening, so the challenge is made anyway and queued: it says from when it
+   * can be taken, and the fight page and the Action route refuse the take at
+   * every earlier moment (stocks.ts, queueAt). Only a pair nobody could take
+   * fairly before the challenge expires is refused. */
   const fixedEnd = secs ? 0 : endTs;
   const blockedAt = (at: number, a: string, b: string) => {
-    const fightRound: EndRule = { durationSecs: secs ?? 0, endTs: fixedEnd, expiresTs: expiryFor(fixedEnd, at) };
-    const parts = mixedHoursAt(a, b, at, fightRound);
-    const takeable = parts && fixedEnd ? nextFairTake(a, b, at, fightRound) : null;
-    return { mixed: takeable === null ? parts : null, takeable };
+    const q = queueAt(a, b, at, roundOf(secs, fixedEnd, at));
+    return { mixed: q && "refused" in q ? q.refused : null, queued: q && "queued" in q ? q : null };
   };
-  const gate = p1 && p2 && now ? blockedAt(now, p1, p2) : { mixed: null, takeable: null };
+  const gate = p1 && p2 && now ? blockedAt(now, p1, p2) : { mixed: null, queued: null };
   const mixedHours = gate.mixed;
-  const takeableFrom = gate.takeable;
+  const queued = gate.queued;
 
-  /* ROUNDS TOO SHORT FOR THE HOURS THEY WOULD BE PRICED IN.
+  /* EACH ROUND CHIP, AS IT WOULD GO NOW.
    *
-   * A round the composite would price at its start or end must run at least
-   * MIN_OFFHOURS_ROUND_SECS (stocks.ts, tooShortOffHours), so while that is so
-   * the shorter chips are switched off, with the reason on them, and only the
-   * longer rounds and the bells are offered. */
-  const tooShort = useMemo(() => {
-    const off: Partial<Record<RoundId, string>> = {};
-    if (!p1 || !p2 || !now) return off;
+   * Worked out once a minute. A round the 24/7 markets would price at its
+   * start or end must run at least MIN_OFFHOURS_ROUND_SECS (stocks.ts,
+   * tooShortOffHours), so while the exchange is shut the shorter chips queue
+   * for the open, and say from when; 12 and 24 hours run now. A chip nobody
+   * could take fairly at all is switched off, with the reason on it. */
+  // Only once the page has a clock, so the server render and hydration agree.
+  const chipMinute = now ? minute : 0;
+  const chips = useMemo(() => {
+    const out: Partial<Record<RoundId, { queue: Queue; short: boolean }>> = {};
+    if (!p1 || !p2 || !chipMinute) return out;
+    const at = chipMinute * 60;
     for (const r of rounds) {
       const fixed = r.secs ? 0 : (r.endTs ?? 0);
-      if (tooShortOffHours(p1, p2, now, { durationSecs: r.secs ?? 0, endTs: fixed, expiresTs: expiryFor(fixed, now) })) {
-        off[r.id] = `Priced by 24/7 markets now: rounds of ${span(MIN_OFFHOURS_ROUND_SECS)} or more`;
-      }
+      const q = queueAt(p1, p2, at, roundOf(r.secs, fixed, at));
+      if (q) out[r.id] = { queue: q, short: tooShortOffHours(p1, p2, at, roundOf(r.secs, fixed, at)) };
     }
-    return off;
-  }, [p1, p2, now, rounds]);
+    return out;
+  }, [p1, p2, chipMinute, rounds]);
+  const chipNotes = useMemo(() => {
+    const notes: Partial<Record<RoundId, { sub?: string; title: string; off?: boolean }>> = {};
+    for (const [id, c] of Object.entries(chips) as [RoundId, { queue: Queue; short: boolean }][]) {
+      notes[id] =
+        "queued" in c.queue
+          ? { sub: `from ${etShort(c.queue.queued)}`, title: `Queued: nobody can take it before ${openingWords(c.queue.queued)}. ${c.queue.why}` }
+          : { title: c.queue.refused, off: true };
+    }
+    return notes;
+  }, [chips]);
+  const shortQueued = Object.values(chips).some((c) => c.short && "queued" in c.queue);
   useEffect(() => {
-    if (roundPicked || !tooShort[round]) return;
+    if (roundPicked || !chips[round]?.short) return;
     const longer = shortestRoundAtLeast(MIN_OFFHOURS_ROUND_SECS);
-    if (longer && !tooShort[longer]) setRound(longer);
-  }, [roundPicked, tooShort, round]);
+    if (longer && !chips[longer]) setRound(longer);
+  }, [roundPicked, chips, round]);
   /* Why a side waits. Only a signed stock waits, because its exchange is
    * shut: a Pyth stock prices at once or never, and mixedHoursAt refuses the
    * never. */
@@ -338,7 +362,7 @@ export function CreateFight() {
     setP2(p1);
   };
   const toAllDay = () => {
-    const [a, b] = allDayPair([p1, p2]);
+    const [a, b] = allDayPair([p1, p2], now || undefined);
     setP1(a);
     setP2(b);
   };
@@ -350,26 +374,37 @@ export function CreateFight() {
       Use two 24/7 stocks
     </button>
   );
+  /* A queued short round can run now instead: the shortest round the 24/7
+   * markets may price, when that one is fair now. */
+  const longer = shortestRoundAtLeast(MIN_OFFHOURS_ROUND_SECS);
+  const runNow =
+    queued && chips[round]?.short && longer && !chips[longer] ? (
+      <button type="button" onClick={() => pickRound(longer)} className="btn btn-sm btn-light mt-3">
+        Fight now: {ROUND_WORDS[longer]}
+      </button>
+    ) : null;
   let notice: ReactNode = null;
   if (mixedHours) {
     notice = (
-      <Notice tone="warn" title="These two cannot fight on this round right now.">
+      <Notice tone="warn" title="These two cannot fight on this round before the challenge expires.">
         <p>{mixedHours}</p>
         {fix}
       </Notice>
     );
-  } else if (takeableFrom !== null) {
+  } else if (queued) {
     notice = (
-      <Notice tone="warn" title={`Nobody can take this before ${openingWords(takeableFrom)}.`}>
+      <Notice tone="info" title={`Queued for ${openingWords(queued.queued)}.`}>
         <p>
-          Taken any earlier, {p1} and {p2} would not start together.
+          Nobody can take this before then{now ? <span className="num"> ({hm(queued.queued - now)})</span> : null}, and a take
+          from then starts it at the first prices after.
         </p>
-        {fix}
+        <p className="mt-2 text-dim">{queued.why}</p>
+        {runNow ?? (chips[round]?.short ? null : fix)}
       </Notice>
     );
   } else if (waiting.length) {
     notice = (
-      <Notice tone="warn" title={`This fight would sit until ${reopens ? openingWords(reopens) : "trading resumes"}.`}>
+      <Notice tone="info" title={`This fight would sit until ${reopens ? openingWords(reopens) : "trading resumes"}.`}>
         <p>{waitingWhy}.</p>
         {fix}
       </Notice>
@@ -378,6 +413,9 @@ export function CreateFight() {
     notice = (
       <Notice tone="info" title="The exchange is shut, so this fight runs now.">
         <p>
+          {onComposite.length
+            ? `${andList(onComposite)} ${onComposite.length === 1 ? "is" : "are"} priced by ${onComposite.length === 1 ? (offHoursWords(onComposite[0], endsAt) ?? "its 24/7 markets") : "the median of the markets that trade them around the clock"}. `
+            : ""}
           {onPerp.length
             ? `${andList(onPerp)} settle on a perpetual futures market that never closes${onPoolOnly.length ? ", and " : "."}`
             : ""}
@@ -568,7 +606,12 @@ export function CreateFight() {
             rounds={rounds}
             round={round}
             onRound={pickRound}
-            tooShort={tooShort}
+            chipNotes={chipNotes}
+            roundWhy={
+              shortQueued
+                ? `Rounds under ${MIN_ROUND_HOURS} hours wait for the open while the exchange is shut, so no single venue can swing a result.`
+                : undefined
+            }
             roundNote={roundNote}
             notice={notice}
             taunt={taunt}

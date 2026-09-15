@@ -18,6 +18,7 @@ import {
   offHoursWords,
   pricedAt,
   priceTimeAt,
+  queueAt,
   quoteSymbolFor,
   ROSTER,
   SAME_PRICE_SECS,
@@ -797,6 +798,48 @@ describe("fights across trading hours", () => {
       expect(compositeMarkets("TSLA", sat19)).to.be.at.least(3);
       expect(offHoursWords("TSLA", sat19)).to.equal(`the median of up to ${compositeMarkets("TSLA", sat19)} markets that trade it around the clock`);
       expect(offHoursWords("VOO", sat19)).to.equal(null);
+    });
+  });
+
+  /* A CHALLENGE THAT CAN BE FAIR LATER IS QUEUED, NOT REFUSED.
+   *
+   * /new lets it be made and says when it can be taken; the take gate still
+   * refuses every earlier moment. Only a pair that can never be taken fairly
+   * before it expires is refused. */
+  describe("queues a challenge that can be taken fairly later, and refuses one that never can", () => {
+    const sat19 = sep(19, 14, 0);
+    const week = (from: number, durationSecs: number) => ({ durationSecs, endTs: 0, expiresTs: from + 7 * 86_400 });
+
+    it("queues 15 minutes of AAPL v NVDA on a Saturday after the cutover for Monday's 4 AM, and runs 12 hours now", () => {
+      const round = week(sat19, 900);
+      expect(queueAt("AAPL", "NVDA", sat19, round)).to.deep.equal({
+        queued: sep(21, 4, 0),
+        why:
+          "AAPL and NVDA would be priced by their 24/7 markets at the start of this round, and a round priced that way must run " +
+          "at least 12 hours, because over a shorter one a single market could tip the result.",
+      });
+      // The take gate is unchanged: refused before, fair from then.
+      expect(mixedHoursAt("AAPL", "NVDA", sep(21, 3, 59), round, "taker")).to.not.equal(null);
+      expect(mixedHoursAt("AAPL", "NVDA", sep(21, 4, 0), round, "taker")).to.equal(null);
+      expect(queueAt("AAPL", "NVDA", sat19, week(sat19, 43_200))).to.equal(null);
+    });
+
+    it("queues a stock that waits against one that trades, and a Pyth side in the dark, for the moment both line up", () => {
+      expect(queueAt("NFLX", "NVDA", SATURDAY, week(SATURDAY, 900))).to.deep.include({ queued: sep(14, 4, 0) });
+      expect(queueAt("VOO", "NVDA", sat19, week(sat19, 900))).to.deep.include({ queued: sep(21, 4, 0) });
+      const dark = queueAt("VOO", "NVDA", sat19, week(sat19, 900));
+      expect(dark && "why" in dark ? dark.why : "").to.match(/^Pyth does not publish VOO from Friday 8:00 PM to Sunday 8:00 PM ET/);
+    });
+
+    it("refuses a pair no take can make fair before it expires, in the reader's words", () => {
+      const round = recorded("TSLA", "QQQ", { durationSecs: 5 * 86_400, endTs: 0, expiresTs: sep(14, 20, 0) });
+      expect(queueAt("TSLA", "QQQ", sep(14, 8, 0), round)).to.deep.equal({ refused: mixedHoursAt("TSLA", "QQQ", sep(14, 8, 0), round)! });
+      expect(queueAt("TSLA", "QQQ", sep(14, 8, 0), round, "taker")).to.deep.equal({ refused: mixedHoursAt("TSLA", "QQQ", sep(14, 8, 0), round, "taker")! });
+      expect(mixedHoursAt("TSLA", "QQQ", sep(14, 8, 0), round, "taker")).to.match(/ It closes before it can be taken\.$/);
+    });
+
+    it("says nothing about a pair that can fight now", () => {
+      expect(queueAt("AAPL", "NVDA", sep(21, 10, 0), week(sep(21, 10, 0), 900))).to.equal(null);
     });
   });
 

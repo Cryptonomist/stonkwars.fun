@@ -45,10 +45,11 @@ import {
   type DuelView,
 } from "@/lib/duel";
 import { isDecided, loserTake, margin, moves, winnerSide, type Side } from "@/lib/derive";
-import { ago, clock, points, shares, shortAddress, span, until, usd } from "@/lib/format";
+import { pricesFrom } from "@/lib/fightClock";
+import { ago, clock, hm, points, shares, shortAddress, span, until, usd } from "@/lib/format";
 import { movePct, stakeValue, type Quotes } from "@/lib/prices";
 import { neverSides, roundClock, shutSides } from "@/lib/roundClock";
-import { decimalsForMint, tickerForMint, tokenSymbol } from "@/lib/stocks";
+import { decimalsForMint, queueAt, tickerForMint, tokenSymbol } from "@/lib/stocks";
 
 /** The default key: an empty opponent or invitee slot. */
 const EMPTY_KEY = "11111111111111111111111111111111";
@@ -289,7 +290,9 @@ export function FightRow({
 }
 
 /* The state as a badge, and beneath it (beside it on a phone) the age or the
- * clock: always a real time from the account against the viewer's clock. */
+ * clock: always a real time from the account against the viewer's clock. A
+ * fight that waits for a market, or a challenge queued until it can be taken
+ * fairly, says how long, never as a fault. */
 function rowStatus(d: DuelView, now: number): { badge: ReactNode; age: ReactNode } {
   const text = (t: string | null) => (t ? <span className="num">{t}</span> : null);
   switch (d.status) {
@@ -298,18 +301,20 @@ function rowStatus(d: DuelView, now: number): { badge: ReactNode; age: ReactNode
         return { badge: <Badge variant="live" />, age: <Countdown to={d.endTs} now={now} className="text-ink" /> };
       }
       if (neverPriced(d, now)) return { badge: <Badge>Bell</Badge>, age: text("can never settle") };
-      if (waitingForMarket(d, now)) return { badge: <Badge>Bell</Badge>, age: text("waiting for the open") };
+      if (waitingForMarket(d, now)) return { badge: <Badge>Bell</Badge>, age: text(atTheOpen(d, now, "settles")) };
       if (isLate(d, now)) return { badge: <Badge>Late</Badge>, age: text(`settle late · bell ${ago(d.endTs, now)}`) };
       return { badge: <Badge>Bell</Badge>, age: text("settling") };
-    case STATUS_OPEN:
+    case STATUS_OPEN: {
       if (now && d.expiresTs <= now) return { badge: <Badge>Expired</Badge>, age: text(ago(d.expiresTs, now)) };
+      const from = queuedFrom(d, now);
       return {
         badge: <Badge>{d.durationSecs ? span(d.durationSecs) : "To the bell"}</Badge>,
-        age: text(now ? `closes ${until(d.expiresTs, now)}` : null),
+        age: text(now ? (from !== null ? `takeable in ${hm(from - now)}` : `closes ${until(d.expiresTs, now)}`) : null),
       };
+    }
     case STATUS_ACCEPTED:
       if (neverPriced(d, now)) return { badge: <Badge>Taken</Badge>, age: text("can never start") };
-      if (waitingForMarket(d, now)) return { badge: <Badge>Taken</Badge>, age: text("waiting for the open") };
+      if (waitingForMarket(d, now)) return { badge: <Badge>Taken</Badge>, age: text(atTheOpen(d, now, "starts")) };
       if (isLate(d, now)) return { badge: <Badge>Late</Badge>, age: text(`start late · taken ${ago(d.acceptedTs, now)}`) };
       return { badge: <Badge>Taken</Badge>, age: text("locking prices") };
     case STATUS_SETTLED:
@@ -333,21 +338,26 @@ function rowStatus(d: DuelView, now: number): { badge: ReactNode; age: ReactNode
  *  "15 min round · closes in 6d", "Final · 3h ago", "Dead heat". */
 function statusLine(d: DuelView, now: number): string {
   switch (d.status) {
-    case STATUS_OPEN:
+    case STATUS_OPEN: {
       if (now && d.expiresTs <= now) return "Expired";
-      return `${d.durationSecs ? `${span(d.durationSecs)} round` : "To the bell"}${now ? ` · closes ${until(d.expiresTs, now)}` : ""}`;
-    case STATUS_ACCEPTED:
+      const from = queuedFrom(d, now);
+      const when = now ? (from !== null ? ` · takeable in ${hm(from - now)}` : ` · closes ${until(d.expiresTs, now)}`) : "";
+      return `${d.durationSecs ? `${span(d.durationSecs)} round` : "To the bell"}${when}`;
+    }
+    case STATUS_ACCEPTED: {
       /* "Locking prices" reads as broken when it lasts all weekend. If the
        * market that prices either side is shut, say that instead: the fight is
-       * fine, it is the exchange that is closed. A fight nothing will ever
-       * price says that instead. */
+       * fine, it is the exchange that is closed, and it starts at the open. A
+       * fight nothing will ever price says that instead. */
       if (neverPriced(d, now)) return "Can never start";
-      if (waitingForMarket(d, now)) return "Waiting for the open";
+      const opens = waitingForMarket(d, now) ? atTheOpen(d, now, "starts") : null;
+      if (opens) return opens.charAt(0).toUpperCase() + opens.slice(1);
       return isLate(d, now) ? "Start late" : "Locking prices";
+    }
     case STATUS_LIVE:
       if (!now || d.endTs > now) return now ? `Live · ${clock(d.endTs - now)}` : "Live";
       if (neverPriced(d, now)) return "Bell · can never settle";
-      if (waitingForMarket(d, now)) return "Bell · waiting for the open";
+      if (waitingForMarket(d, now)) return `Bell · ${atTheOpen(d, now, "settles")}`;
       return isLate(d, now) ? "Bell · settle late" : "Bell · settling";
     case STATUS_SETTLED:
       return now && d.endTs ? `Final · ${ago(d.endTs, now)}` : "Final";
@@ -358,6 +368,36 @@ function statusLine(d: DuelView, now: number): string {
     default:
       return "";
   }
+}
+
+/** "starts at the open · 6h 12m": when a fight waiting on a shut market gets
+ *  its prices, the second the round clock will count to once it opens
+ *  (fightClock.ts, pricesFrom). */
+function atTheOpen(d: DuelView, now: number, what: "starts" | "settles"): string {
+  const from = pricesFrom(d, now);
+  return `${what} at the open${from ? ` · ${hm(from.at - now)}` : ""}`;
+}
+
+/* A QUEUED CHALLENGE ON A BOARD. The first moment it can be taken fairly, when
+ * a take now would not be (stocks.ts, queueAt). A board draws many rows every
+ * second, and the answer moves by the minute, so it is kept per fight and
+ * minute. Null when it can be taken now, or never before it expires. */
+const queued = new Map<string, number | null>();
+
+function queuedFrom(d: DuelView, now: number): number | null {
+  if (!now || d.status !== STATUS_OPEN || d.expiresTs <= now) return null;
+  const t1 = tickerForMint(d.creatorMint);
+  const t2 = tickerForMint(d.opponentMint);
+  if (!t1 || !t2) return null;
+  const minute = Math.floor(now / 60) * 60;
+  const key = `${d.address.toBase58()}:${minute}`;
+  if (!queued.has(key)) {
+    if (queued.size > 500) queued.clear();
+    const q = queueAt(t1, t2, minute, d, "taker");
+    queued.set(key, q && "queued" in q ? q.queued : null);
+  }
+  const from = queued.get(key)!;
+  return from !== null && from > now ? from : null;
 }
 
 /** True when a side cannot be priced yet because its market is shut, as the

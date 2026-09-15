@@ -1,6 +1,6 @@
 import { expect } from "chai";
 
-import { ago, etDay, etWhen, pct, pctPair, points, until } from "../src/lib/format";
+import { ago, etDay, etShort, etWhen, hm, pct, pctPair, points, until } from "../src/lib/format";
 import { nyToMs } from "../src/lib/market";
 
 const et = (y: number, m: number, d: number, hh: number, mm: number) => Math.floor(nyToMs(y, m, d, hh, mm, 0) / 1000);
@@ -118,6 +118,19 @@ describe("how long until", () => {
   it("does not count down past zero", () => {
     expect(until(NOW, NOW)).to.equal("now");
     expect(until(NOW - 5, NOW)).to.equal("now");
+  });
+
+  it("gives a queued fight's wait in two units, rounded down", () => {
+    expect(hm(45)).to.equal("45s");
+    expect(hm(12 * 60 + 59)).to.equal("12m");
+    expect(hm(6 * 3_600 + 12 * 60 + 59)).to.equal("6h 12m");
+    expect(hm(86_400 + 19 * 3_600 + 3_599)).to.equal("1d 19h");
+    expect(hm(-5)).to.equal("0s");
+  });
+
+  it("names a moment this week as short as a chip needs", () => {
+    expect(etShort(et(2026, 9, 14, 4, 0))).to.equal("Mon 4 AM");
+    expect(etShort(et(2026, 9, 13, 20, 1))).to.equal("Sun 8:01 PM");
   });
 });
 

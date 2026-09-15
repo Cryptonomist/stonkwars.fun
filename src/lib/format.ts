@@ -189,6 +189,22 @@ export function ago(unix: number, now: number): string {
   return `${p.month} ${p.day}`;
 }
 
+/** "Mon 4 AM", "Sun 8:01 PM": a moment this week, as short as a chip needs. */
+export function etShort(unix: number): string {
+  const p = etParts(unix);
+  return `${p.weekday} ${p.hour}${p.minute === "00" ? "" : `:${p.minute}`} ${p.period}`;
+}
+
+/** "6h 12m", "1d 19h", "12m", "45s": how long until something, to two units.
+ *  Rounded down, so a countdown never promises a minute that has gone. */
+export function hm(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  if (s < 60) return `${s}s`;
+  if (s < 3_600) return `${Math.floor(s / 60)}m`;
+  if (s < 86_400) return `${Math.floor(s / 3_600)}h ${Math.floor((s % 3_600) / 60)}m`;
+  return `${Math.floor(s / 86_400)}d ${Math.floor((s % 86_400) / 3_600)}h`;
+}
+
 /** "in 45s", "in 12m", "in 3h", "in 6d". A time already passed is "now". */
 export function until(unix: number, now: number): string {
   const s = Math.floor(unix - now);

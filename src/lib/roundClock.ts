@@ -19,7 +19,8 @@
  *
  * The countdown runs to readyAt + 2 because a crank sent at readyAt takes a
  * second or two to land. " · retrying" follows the waiting lines after a nudge
- * has failed. A side whose market is shut keeps the page's existing wording.
+ * has failed. A side whose market is shut says it starts (or settles) at the
+ * open, and how long that is: "Starts at the open · 6h 12m".
  * A fight the price clock says can never be priced gets no countdown and no
  * button, only that, and when the program lets its stakes go home.
  *
@@ -29,7 +30,7 @@
 
 import { V2_WINDOW_MINUTES } from "./composite";
 import { STATUS_ACCEPTED, STATUS_LIVE, type DuelView } from "./duel";
-import { etDay } from "./format";
+import { etDay, hm } from "./format";
 import {
   MANUAL_FALLBACK_SECS,
   readyAt,
@@ -78,6 +79,9 @@ export const MANUAL_SETTLE: ManualCrank = {
 
 const NOTHING: RoundClock = { line: "", secondsLeft: null, manual: null };
 
+/** Past every reopening: openingAfter looks ten days ahead. */
+const SHUT_HORIZON_SECS = 10 * 86_400;
+
 const inSecs = (n: number) => (n < 60 ? `${n}s` : `${Math.floor(n / 60)}m ${String(n % 60).padStart(2, "0")}s`);
 
 function waitingOn(why: ReadyWhy, n: number, which: "start" | "settle"): string {
@@ -93,7 +97,7 @@ function waitingOn(why: ReadyWhy, n: number, which: "start" | "settle"): string 
 
 /* THE STOCKS A FIGHT IS WAITING ON A SHUT MARKET FOR.
  *
- * The boards and the fight page say "waiting for the open", and hold back the
+ * The boards and the fight page say it starts at the open, and hold back the
  * manual buttons, while a side's market is shut. That is the price clock's
  * "shut", for the boundary the fight is at: its start once it is accepted,
  * its bell once that has rung. It used to ask whether each stock priced NOW,
@@ -167,11 +171,15 @@ export function roundClock(
     };
   }
   if ("shut" in clock) {
+    /* A shut market is a wait with an end, not a fault, so the line says when:
+     * the second the clock will count to once the market opens (readySince from
+     * past every reopening, as fightClock.ts's pricesFrom asks it), landing
+     * time included. It stays out of secondsLeft, which the page keeps for the
+     * countdown to a price that can already exist. */
+    const later = readySince(d, which, Math.floor(t) + SHUT_HORIZON_SECS, lookup);
+    const wait = "at" in later ? ` · ${hm(later.at + LANDING_SECS - t)}` : "";
     return {
-      line:
-        which === "start"
-          ? "Fight on · waiting for the market that prices it to open"
-          : "Bell rung · waiting for the market that prices it to open",
+      line: which === "start" ? `Starts at the open${wait}` : `Bell rung · settles at the open${wait}`,
       secondsLeft: null,
       manual: null,
     };
