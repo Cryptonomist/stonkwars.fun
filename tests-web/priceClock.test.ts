@@ -243,24 +243,25 @@ describe("price clock", () => {
     });
 
     /* The first print after the gap claims a previous print one second before
-     * it, and VOO's first was 8:00:01: a boundary in the first minute is never
-     * priced. */
-    it("calls a boundary in Sunday's first minute never, and prices one from 8:01", () => {
-      for (const b of [ny(13, 20, 0), ny(13, 20, 0, 1), ny(13, 20, 0, 30), ny(13, 20, 0, 59)]) {
-        const d = alone(b);
-        expect(readyAt(d, "start", b), new Date(b * 1000).toISOString()).to.deep.equal(never(d, "start"));
+     * it. TSLA's first on Sunday 13 Sep was 8:00:00 and VOO's 8:00:01, so a
+     * boundary at 8:00:30 is priced for both, and Hermes' prev and publish
+     * times decide the first second (crank.ts, pythUpdateAt). Calling the
+     * whole first minute never parked such a fight until its refund. The pages
+     * still refuse a take there (stocks.test.ts). */
+    it("tries a boundary in Sunday's first minute, which Hermes can price, and calls the second before it never", () => {
+      for (const b of [ny(13, 20, 0), ny(13, 20, 0, 1), ny(13, 20, 0, 30), ny(13, 20, 0, 59), ny(13, 20, 1, 0)]) {
+        expect(readyAt(alone(b), "start", b), new Date(b * 1000).toISOString()).to.deep.equal(inGrace(b));
       }
-      const b = ny(13, 20, 1, 0);
-      expect(readyAt(alone(b), "start", b)).to.deep.equal(inGrace(b));
+      const d = alone(ny(13, 19, 59, 59));
+      expect(readyAt(d, "start", ny(13, 19, 59, 59))).to.deep.equal(never(d, "start"));
     });
 
-    it("knows Labor Day had no Sunday night: never on Sunday 6 Sep, priced from Monday 7 Sep 8:01 PM", () => {
-      for (const b of [ny(6, 21, 0), ny(7, 12, 0), ny(7, 20, 0, 30)]) {
+    it("knows Labor Day had no Sunday night: never on Sunday 6 Sep, priced from Monday 7 Sep 8 PM", () => {
+      for (const b of [ny(6, 21, 0), ny(7, 12, 0), ny(7, 19, 59, 59)]) {
         const d = alone(b);
         expect(readyAt(d, "start", ny(8, 12, 0)), new Date(b * 1000).toISOString()).to.deep.equal(never(d, "start"));
       }
-      const b = ny(7, 20, 1);
-      expect(readyAt(alone(b), "start", b)).to.deep.equal(inGrace(b));
+      for (const b of [ny(7, 20, 0, 30), ny(7, 20, 1)]) expect(readyAt(alone(b), "start", b)).to.deep.equal(inGrace(b));
     });
 
     /* The decision is the boundary's alone: a Pyth side is never "shut", so

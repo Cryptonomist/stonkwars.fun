@@ -181,14 +181,20 @@ export function openingsBetween(from: number, until: number): number[] {
  * after it. The first print after a gap carries a made-up prev_publish_time,
  * one second before its own, and VOO's first print on Sunday was 8:00:01, so a
  * boundary at 8:00:00 fails for VOO and passes for TSLA. No boundary inside a
- * gap can ever pass, and one just after it passes only for a feed whose first
- * print came before it, which nothing here can know in advance. So a boundary
- * outside every span, or less than PYTH_EDGE_SECS into one, is taken to be one
+ * gap can ever pass. One inside a span passes once the feed has printed before
+ * it: TSLA's Sunday print came at 8:00:00 and VOO's at 8:00:01, so a boundary
+ * at 8:00:30 passes for both. So only a boundary outside every span is one
  * nothing will ever price (pythPricesAt): the crank never tries it and the
- * pages send its stakes to the stall refund. And the pages refuse a fight
- * whose Pyth side could land within PYTH_EDGE_SECS of either end of a gap
- * (pythGapNear), since a thin feed's last print before a gap can come early
- * too. */
+ * pages send its stakes to the stall refund. A boundary in a span's first
+ * PYTH_EDGE_SECS is tried like any other, and Hermes' prev and publish times
+ * decide it (crank.ts, pythUpdateAt): it used to be called never, which parked
+ * fights Hermes could price until their refund, and a feed that comes back
+ * later than the boundary is refused there, which ends at the same refund.
+ * The margin stays where it
+ * protects somebody: the pages refuse a fight whose Pyth side could land
+ * within PYTH_EDGE_SECS of either end of a gap (pythGapNear), since the exact
+ * second a feed comes back, or a thin feed's last print before a gap, cannot
+ * be known in advance. */
 export const PYTH_EDGE_SECS = 60;
 
 /** A stretch Pyth prints through without a break, unix seconds, end exclusive. */
@@ -236,11 +242,10 @@ export function pythSpanAt(t: number): PythSpan | null {
   return { start, end };
 }
 
-/** Whether a Pyth US equity price can ever exist for `boundary`: inside a
- *  span, and at least PYTH_EDGE_SECS past its start. */
+/** Whether a Pyth US equity price can exist for `boundary`: inside a span,
+ *  its first second included. */
 export function pythPricesAt(boundary: number): boolean {
-  const span = pythSpanAt(boundary);
-  return span !== null && boundary >= span.start + PYTH_EDGE_SECS;
+  return pythSpanAt(boundary) !== null;
 }
 
 /* THE GAP A PYTH BOUNDARY IS IN, OR TOO CLOSE TO.

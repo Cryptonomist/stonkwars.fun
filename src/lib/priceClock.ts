@@ -95,13 +95,16 @@ function sideReady(
 
     /* A US equity feed prints five days a week, Sunday 8 PM to Friday 8 PM New
      * York (market.ts, pythSpanAt). Inside that, the print a moment after the
-     * boundary is its price, whatever the exchange is doing. Outside it no
-     * print will ever pass the program's check, and less than PYTH_EDGE_SECS
-     * after its start one may not (market.ts), so both are taken as never:
-     * the fight waits for no opening, and only its refund ends it. This used to
-     * model the regular session only, so 4yf7 (TSLA by Pyth, taken on a Friday
-     * night) was parked until Monday's bell and then refused by Hermes on
-     * every pass. The decision depends on the boundary alone, never on `now`. */
+     * boundary is its price, whatever the exchange is doing. A boundary in a
+     * span's first minute is tried too, and Hermes' prev and publish times
+     * decide it (TSLA printed at 8:00:00 on Sunday, VOO at 8:00:01, so 8:00:30
+     * prices both). Outside every span no print will ever pass
+     * the program's check, so that is never: the fight waits for no opening,
+     * and only its refund ends it. This used to model the regular session only,
+     * so 4yf7 (TSLA by Pyth, taken on a Friday night) was parked until
+     * Monday's bell and then refused by Hermes on every pass; and then called a
+     * boundary in a span's first minute never, which Hermes could price. The
+     * decision depends on the boundary alone, never on `now`. */
     if (pythPricesAt(boundary)) return { at: boundary + PYTH_GRACE_SECS, why: "pyth" };
     return { never: name };
   }

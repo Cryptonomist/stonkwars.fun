@@ -132,8 +132,8 @@ describe("market clock", () => {
    * Every second from 8 PM the evening before a trading day to 8 PM on it,
    * joined across weekday nights; dark from Friday 8 PM to Sunday 8 PM, and
    * on Labor Day weekend from Friday 8 PM to Monday 8 PM. The first print
-   * after a gap carries a made-up prev_publish_time, so a boundary under a
-   * minute into a span is never priced either. */
+   * after a gap carries a made-up prev_publish_time, so a take is refused under
+   * a minute into a span, but a boundary there is still priced when it can be. */
   describe("Pyth's 24/5 hours", () => {
     const span = (t: number) => {
       const s = pythSpanAt(t);
@@ -163,12 +163,17 @@ describe("market clock", () => {
       expect(pythGapNear(sep(12, 12, 0))).to.deep.equal({ from: sep(11, 20, 0), until: sep(13, 20, 0) });
     });
 
-    it("never prices a boundary less than a minute after Sunday's reopening", () => {
-      // Sun 20:00:30 ET: refused. Sun 20:01:00: allowed.
+    /* Hermes priced TSLA from 8:00:00 and VOO from 8:00:01 on Sunday 13 Sep,
+     * so a boundary in the reopening's first minute can be priced, and the
+     * crank tries it. What a page offers keeps the minute's margin: a take
+     * there is refused, because when a feed comes back is not known before. */
+    it("prices a boundary from Sunday's reopening, and refuses a take less than a minute after it", () => {
+      // Sun 20:00:30 ET: refused to a take, and priced if a fight lands there. Sun 20:01:00: allowed.
       for (const t of [sep(13, 20, 0), sep(13, 20, 0, 1), sep(13, 20, 0, 30), sep(13, 20, 0, 59)]) {
-        expect(pythPricesAt(t), iso(t)).to.equal(false);
+        expect(pythPricesAt(t), iso(t)).to.equal(true);
         expect(pythGapNear(t), iso(t)).to.deep.equal({ from: sep(11, 20, 0), until: sep(13, 20, 0) });
       }
+      expect(pythPricesAt(sep(13, 19, 59, 59))).to.equal(false);
       expect(pythPricesAt(sep(13, 20, 1))).to.equal(true);
       expect(pythGapNear(sep(13, 20, 1))).to.equal(null);
     });
@@ -187,7 +192,9 @@ describe("market clock", () => {
       expect(pythPricesAt(sep(6, 21, 0))).to.equal(false);
       expect(pythPricesAt(sep(7, 12, 0))).to.equal(false);
       expect(pythGapNear(sep(6, 21, 0))).to.deep.equal({ from: sep(4, 20, 0), until: sep(7, 20, 0) });
-      expect(pythPricesAt(sep(7, 20, 0, 30))).to.equal(false);
+      expect(pythPricesAt(sep(7, 19, 59, 59))).to.equal(false);
+      expect(pythPricesAt(sep(7, 20, 0, 30))).to.equal(true);
+      expect(pythGapNear(sep(7, 20, 0, 30))).to.deep.equal({ from: sep(4, 20, 0), until: sep(7, 20, 0) });
       expect(pythPricesAt(sep(7, 20, 1))).to.equal(true);
       expect(span(sep(7, 20, 1))).to.deep.equal([iso(sep(7, 20, 0)), iso(sep(11, 20, 0))]);
       const gap = pythGapNear(sep(6, 21, 0))!;

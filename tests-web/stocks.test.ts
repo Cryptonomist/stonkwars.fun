@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { COMPOSITE_FROM, compositePublishTime, MIN_OFFHOURS_ROUND_SECS } from "../src/lib/composite";
 import { SOURCE_PYTH, SOURCE_SIGNED, STALL_REFUND_SECS, START_DELAY_SECS } from "../src/lib/duel";
 import { isTradingDay, nyParts, nyToMs, session } from "../src/lib/market";
-import { BAR_SETTLE_SECS } from "../src/lib/oracle";
+import { BAR_SETTLE_SECS, exchangeBarFinal } from "../src/lib/oracle";
 import { firstBarEnd, PYTH_GRACE_SECS, readyAt, type ClockDuel, type Ready } from "../src/lib/priceClock";
 import {
   apartIfTakenAt,
@@ -139,9 +139,9 @@ describe("fights across trading hours", () => {
   /* PYTH PRINTS FIVE DAYS A WEEK (market.ts, pythSpanAt).
    *
    * From 8 PM New York the evening before each trading day to 8 PM on it, so
-   * Sunday 8 PM to Friday 8 PM with holidays out, and a boundary less than a
-   * minute into a span is never priced. Its perp and the exchange's bars have
-   * nothing to do with it. */
+   * Sunday 8 PM to Friday 8 PM with holidays out. A boundary in a span's first
+   * minute is priced when Hermes has it (a take there is refused, below). Its
+   * perp and the exchange's bars have nothing to do with it. */
   describe("a Pyth stock prices while Pyth prints, and never in its dark hours", () => {
     it("prices pre-market, in session, after-hours and on a weekday night, whatever its perp does", () => {
       for (const t of [sep(14, 8, 0), sep(14, 9, 29, 59), sep(14, 9, 30), sep(14, 15, 59, 59), sep(14, 16, 0), sep(11, 19, 0), sep(14, 22, 0), sep(10, 3, 59, 59)]) {
@@ -151,14 +151,18 @@ describe("fights across trading hours", () => {
       }
     });
 
-    it("never prices from Friday 8 PM until a minute after Sunday 8 PM", () => {
+    it("never prices from Friday 8 PM until Sunday 8 PM", () => {
       expect(pricedAt("TSLA", sep(11, 19, 59, 59), "pyth")).to.equal("pyth");
-      for (const t of [sep(11, 20, 0), SATURDAY, sep(13, 19, 59, 59), sep(13, 20, 0), sep(13, 20, 0, 30), sep(13, 20, 0, 59)]) {
+      for (const t of [sep(11, 20, 0), SATURDAY, sep(13, 19, 59, 59)]) {
         expect(pricedAt("TSLA", t, "pyth"), new Date(t * 1000).toISOString()).to.equal("never");
         expect(firstPriceAt("TSLA", t, "pyth")).to.equal(null);
         expect(priceTimeAt("TSLA", t, "pyth")).to.equal(null);
       }
-      expect(pricedAt("TSLA", sep(13, 20, 1), "pyth")).to.equal("pyth");
+      // Sunday's reopening prices from its first second: TSLA printed at 8:00:00, VOO at 8:00:01.
+      for (const t of [sep(13, 20, 0), sep(13, 20, 0, 30), sep(13, 20, 0, 59), sep(13, 20, 1)]) {
+        expect(pricedAt("TSLA", t, "pyth"), new Date(t * 1000).toISOString()).to.equal("pyth");
+        expect(priceTimeAt("TSLA", t, "pyth")).to.equal(t);
+      }
       // Its perp would price it all weekend; Pyth is what prices it.
       expect(pricedAt("NVDA", SATURDAY)).to.equal("perp");
     });
@@ -291,13 +295,13 @@ describe("fights across trading hours", () => {
 
     it("keeps Pyth's 8 PM on New York's clock across daylight saving changes", () => {
       // Clocks go back on Sunday 1 November 2026: 8 PM that night is 01:00 UTC.
-      expect(firstPriceAt("TSLA", at("2026-11-02T01:00:30Z"), "pyth")).to.equal(null);
-      expect(firstPriceAt("TSLA", at("2026-11-02T01:01:00Z"), "pyth")).to.equal(at("2026-11-02T01:01:00Z"));
+      expect(firstPriceAt("TSLA", at("2026-11-02T00:59:59Z"), "pyth")).to.equal(null);
+      expect(firstPriceAt("TSLA", at("2026-11-02T01:00:30Z"), "pyth")).to.equal(at("2026-11-02T01:00:30Z"));
       expect(firstPriceAt("TSLA", at("2026-10-31T00:00:00Z"), "pyth")).to.equal(null); // Friday 30 Oct, 8 PM EDT
       expect(firstPriceAt("TSLA", at("2026-10-30T23:59:59Z"), "pyth")).to.equal(at("2026-10-30T23:59:59Z"));
       // And forward on Sunday 14 March 2027: 8 PM is 00:00 UTC again.
-      expect(firstPriceAt("TSLA", at("2027-03-15T00:00:30Z"), "pyth")).to.equal(null);
-      expect(firstPriceAt("TSLA", at("2027-03-15T00:01:00Z"), "pyth")).to.equal(at("2027-03-15T00:01:00Z"));
+      expect(firstPriceAt("TSLA", at("2027-03-14T23:59:59Z"), "pyth")).to.equal(null);
+      expect(firstPriceAt("TSLA", at("2027-03-15T00:00:30Z"), "pyth")).to.equal(at("2027-03-15T00:00:30Z"));
       expect(mixed("TSLA", "NVDA", at("2027-03-13T16:00:00Z"))).to.equal(darkStart("TSLA", ...WEEKEND, "Sunday's 8:01 PM ET"));
     });
   });
@@ -720,6 +724,21 @@ describe("fights across trading hours", () => {
       expect(mixedHoursAt("AAPL", "NVDA", sat19, { durationSecs: 0, endTs: sat19 + 3_600 })).to.match(/^AAPL and NVDA would be priced by their 24\/7 markets at the start/);
     });
 
+    /* The exemption where it matters: a composite start under 12 hours before
+     * its bell. On the half day after Thanksgiving the bell rings at 12:59:30,
+     * so a bell round taken at 2 AM runs under 11 hours and is let through;
+     * the same round to 1:30 PM, which is not a bell, is refused. */
+    it("lets a bell round under 12 hours start on the composite on a half day, and refuses the same round to a moment that is not the bell", () => {
+      const taken = nov(27, 2, 0);
+      const bell = nov(27, 12, 59, 30);
+      expect(bell - taken).to.be.below(MIN_OFFHOURS_ROUND_SECS);
+      expect(pricedAt("AAPL", taken + START_DELAY_SECS)).to.equal("composite");
+      expect(mixedHoursAt("AAPL", "NVDA", taken, { durationSecs: 0, endTs: bell })).to.equal(null);
+      expect(mixedHoursAt("AAPL", "NVDA", taken, { durationSecs: 0, endTs: nov(27, 13, 30) })).to.equal(
+        `AAPL and NVDA would be priced by their 24/7 markets at the start of this round, ${why} Pick a round of 12 hours or more, or a bell.`,
+      );
+    });
+
     it("tells a taker when a short round can be taken: when the exchange prices both ends", () => {
       const round = { ...minutes(15), expiresTs: sep(24, 12, 0), creatorSource: SOURCE_SIGNED, opponentSource: SOURCE_SIGNED };
       expect(mixedHoursAt("AAPL", "NVDA", sat19, round, "taker")).to.equal(
@@ -727,6 +746,55 @@ describe("fights across trading hours", () => {
       );
       expect(nextFairTake("AAPL", "NVDA", sat19, round)).to.equal(sep(21, 4, 0));
       expect(mixedHoursAt("AAPL", "NVDA", sat19, { ...round, expiresTs: sep(20, 12, 0) }, "taker")).to.match(/ It closes before it can be taken\.$/);
+    });
+  });
+
+  /* A 24/7 SIDE WHOSE FALLBACK WOULD OUTLIVE THE MINUTES THAT PROVE IT.
+   *
+   * A composite side that falls back waits for the exchange's first bar, and a
+   * fresh instance can only sign that bar while the markets still serve the
+   * minutes behind the verdict: three days where Hyperliquid is pinned. In
+   * the first hours of a closure that runs into a holiday the bar comes later
+   * than that, so a round with a start or an end there is refused. */
+  describe("refuses a 24/7 round whose start or end a fallback would strand past the markets' history", () => {
+    const dec = (day: number, hh: number, mm: number, ss = 0) => ny(2026, 12, day, hh, mm, ss);
+    const day = { durationSecs: 86_400, endTs: 0 };
+    const tail =
+      "If too few of them trade then, the price waits for the exchange's first bar at Monday's 4:00 AM ET pre-market open, " +
+      "more than 3 days later, when the markets no longer serve the minutes that prove it, so this fight could never be priced.";
+
+    it("refuses 24 hours of AAPL v NVDA from 6 PM on Christmas Eve, and takes it from 5:02 AM on Christmas Day", () => {
+      const taken = dec(24, 18, 0);
+      const start = taken + START_DELAY_SECS;
+      expect(pricedAt("AAPL", start)).to.equal("composite");
+      expect(exchangeBarFinal(start)! - start).to.be.above(80 * 3_600);
+      expect(mixedHoursAt("AAPL", "NVDA", taken, day)).to.equal(
+        `AAPL and NVDA would be priced by their 24/7 markets at the start of this round, Thursday 6:00 PM ET. ${tail} Come back from Friday 5:02 AM ET.`,
+      );
+      const clear = dec(25, 5, 2) - START_DELAY_SECS;
+      expect(mixedHoursAt("AAPL", "NVDA", clear - 60, day)).to.not.equal(null);
+      expect(mixedHoursAt("AAPL", "NVDA", clear, day)).to.equal(null);
+      const round = { ...day, expiresTs: dec(31, 0, 0), creatorSource: SOURCE_SIGNED, opponentSource: SOURCE_SIGNED };
+      expect(nextFairTake("AAPL", "NVDA", taken, round)).to.equal(clear);
+      expect(mixedHoursAt("AAPL", "NVDA", taken, round, "taker")).to.match(/ You can take it from Friday's 5:0[01] AM ET\.$/);
+    });
+
+    it("refuses a round that would end there, and says when an end is clear", () => {
+      expect(mixedHoursAt("AAPL", "NVDA", dec(23, 18, 30), day)).to.equal(
+        `This round would end around Thursday 6:31 PM ET, when AAPL and NVDA would be priced by their 24/7 markets. ${tail} ` +
+          "Pick a round that ends while the exchange trades, or from Friday 5:02 AM ET on.",
+      );
+      // A bell round from the same moment ends in session, and is not the composite's at either end.
+      expect(mixedHoursAt("AAPL", "NVDA", dec(23, 18, 30), { durationSecs: 0, endTs: dec(24, 12, 59, 30) })).to.equal(null);
+    });
+
+    it("leaves a pair with no Hyperliquid market alone, and a weekend or a Thanksgiving closure too", () => {
+      // SPY and QQQ keep six days of history at every pinned venue.
+      expect(mixedHoursAt("SPY", "QQQ", dec(24, 18, 0), day)).to.equal(null);
+      expect(mixedHoursAt("AAPL", "NVDA", sep(18, 21, 0), day)).to.equal(null);
+      expect(mixedHoursAt("AAPL", "NVDA", nov(25, 21, 0), day)).to.equal(null);
+      // New Year's Day 2027 is a Friday: Thursday night waits until Monday.
+      expect(mixedHoursAt("AAPL", "NVDA", dec(31, 21, 0), day)).to.match(/could never be priced\. Come back from Friday 5:02 AM ET\.$/);
     });
   });
 
@@ -1022,9 +1090,8 @@ describe("fights across trading hours", () => {
     /* Pyth's hours as the plan states them, written again from scratch so the
      * grid checks market.ts's spans against the rule and not only against
      * themselves. A moment from 8 PM belongs to the next calendar day. That day
-     * must be a trading day; on a half day Pyth is taken to stop at 1 PM; and
-     * the first minute after 8 PM is refused unless the day before printed
-     * right up to 8 PM, which a full trading day does. */
+     * must be a trading day, and on a half day Pyth is taken to stop at 1 PM.
+     * The first minute after 8 PM prices like any other: Hermes decides it. */
     const HALF_DAYS = new Set(["2026-11-27", "2026-12-24", "2027-11-26"]);
     const dayOf = (p: { y: number; m: number; d: number }) => {
       const q = nyParts(nyToMs(p.y, p.m, p.d, 12, 0));
@@ -1035,10 +1102,7 @@ describe("fights across trading hours", () => {
       const late = p.hh >= 20;
       const day = dayOf({ y: p.y, m: p.m, d: p.d + (late ? 1 : 0) });
       if (!day.trading) return false;
-      if (!late && day.half && p.hh >= 13) return false;
-      const before = dayOf({ y: day.q.y, m: day.q.m, d: day.q.d - 1 });
-      const firstMinute = late && p.hh === 20 && p.mm === 0;
-      return !(firstMinute && !(before.trading && !before.half));
+      return !(!late && day.half && p.hh >= 13);
     };
 
     const KINDS: Record<string, string[]> = {

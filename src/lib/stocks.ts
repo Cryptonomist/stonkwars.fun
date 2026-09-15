@@ -35,8 +35,16 @@ import {
   pythReopeningsBetween,
   session,
 } from "@/lib/market";
-import { COMPOSITE_FROM, compositePublishTime, MIN_OFFHOURS_ROUND_SECS, V2_WINDOW_MINUTES } from "@/lib/composite";
-import { firstBarEnd, sourceAt } from "@/lib/oracle";
+import {
+  COMPOSITE_FROM,
+  compositePublishTime,
+  FALLBACK_MARGIN_SECS,
+  fallbackOutlivesHistory,
+  historySecs,
+  MIN_OFFHOURS_ROUND_SECS,
+  V2_WINDOW_MINUTES,
+} from "@/lib/composite";
+import { exchangeBarFinal, firstBarEnd, sourceAt } from "@/lib/oracle";
 import { inputsAt, listed247 } from "@/lib/venues247";
 
 export type Stock = {
@@ -651,6 +659,63 @@ function shortWords(s: Short, round?: EndRule): string {
   return `This round would end ${when}, when ${names} would be priced by ${their} 24/7 markets, ${why}`;
 }
 
+/* A 24/7 SIDE WHOSE FALLBACK WOULD OUTLIVE ITS PROOF.
+ *
+ * A composite side whose markets turn out too thin at its boundary waits for
+ * the exchange's first bar after it, and the oracle can only sign that bar
+ * while the markets still serve the minutes that show the side fell back
+ * (composite.ts, fallbackOutlivesHistory). In the first hours of a closure
+ * that runs into a holiday (the evening before Christmas to the next morning,
+ * the night before New Year's Day, a Friday night before a Monday holiday),
+ * that bar comes more than three days later, past Hyperliquid's history, and
+ * such a side could never be priced: the fight would sit a week for the stall
+ * refund. Nobody can know at the take whether the markets will be thin, so a
+ * round with a start or an end there is refused for any stock whose set would
+ * be stranded, and can be taken again once both land from `freeFrom` on.
+ *
+ * Checked where shortIfTakenAt checks: the start boundary, and the end the
+ * program would compute from the later side's start price. */
+type Stranded = { at: "start" | "end"; boundary: number; tickers: string[]; opening: number; freeFrom: number; days: number };
+
+function strandedAtBoundary(a: string, b: string, boundary: number, at: Stranded["at"], src: Sources): Stranded | null {
+  const final = exchangeBarFinal(boundary);
+  if (final === null) return null;
+  const venuesOf = (t: string) => inputsAt(t, boundary).map((i) => i.venue);
+  const tickers = [...new Set([a, b])].filter((t) => pricedAt(t, boundary, src(t)) === "composite" && fallbackOutlivesHistory(boundary, final, venuesOf(t)));
+  if (!tickers.length) return null;
+  const history = Math.min(...tickers.map((t) => historySecs(venuesOf(t))));
+  const freeFrom = Math.ceil((final - history + FALLBACK_MARGIN_SECS) / 60) * 60;
+  return { at, boundary, tickers, opening: openingAfter(boundary, "extended") ?? final, freeFrom, days: Math.floor(history / 86_400) };
+}
+
+function strandedIfTakenAt(a: string, b: string, acceptedTs: number, round?: EndRule): Stranded | null {
+  const src = sourcesOf(a, b, round);
+  const start = acceptedTs + START_DELAY_SECS;
+  const began = strandedAtBoundary(a, b, start, "start", src);
+  if (began || !round) return began;
+  const pa = priceTimeAt(a, start, src(a));
+  const pb = priceTimeAt(b, start, src(b));
+  if (pa === null || pb === null) return null;
+  const end = round.durationSecs > 0 ? Math.max(pa, pb) + round.durationSecs : round.endTs;
+  return end > 0 ? strandedAtBoundary(a, b, end, "end", src) : null;
+}
+
+function strandedWithin(a: string, b: string, now: number, round?: EndRule): Stranded | null {
+  return strandedIfTakenAt(a, b, now, round) ?? strandedIfTakenAt(a, b, now + TAKE_SLACK_SECS, round);
+}
+
+/** "TSLA would be priced by its 24/7 markets at the start of this round, ...". */
+function strandedWords(s: Stranded, round?: EndRule): string {
+  const names = s.tickers.join(" and ");
+  const their = s.tickers.length === 1 ? "its" : "their";
+  const fallback =
+    `If too few of them trade then, the price waits for the exchange's first bar at ${openingWords(s.opening)}, more than ` +
+    `${s.days} days later, when the markets no longer serve the minutes that prove it, so this fight could never be priced.`;
+  if (s.at === "start") return `${names} would be priced by ${their} 24/7 markets at the start of this round, ${nyWords(s.boundary)}. ${fallback}`;
+  const when = `${round && round.durationSecs > 0 ? "around" : "at"} ${nyWords(s.boundary)}`;
+  return `This round would end ${when}, when ${names} would be priced by ${their} 24/7 markets. ${fallback}`;
+}
+
 /* THE FIRST MOMENT A FIGHT COULD BE TAKEN FAIRLY, AFTER `from`.
  *
  * Two sides that part now can only line up again when some market opens, and
@@ -659,7 +724,9 @@ function shortWords(s: Short, round?: EndRule): string {
  * expires (round.expiresTs, or ten days on when there is none) and returns the
  * first whose whole take window is fair. A round too short for the composite
  * is fair again once both its ends fall where the exchange prices it, which is
- * also an opening. Null when none is. */
+ * also an opening. A round stranded in a holiday closure is also tried at the
+ * moment its start, or its end, first lands from the stranded stretch's end.
+ * Null when none is. */
 export function nextFairTake(a: string, b: string, from: number, round?: EndRule): number | null {
   const src = sourcesOf(a, b, round);
   const until = round?.expiresTs || from + 10 * 86_400;
@@ -667,8 +734,14 @@ export function nextFairTake(a: string, b: string, from: number, round?: EndRule
   if (byPyth(a, src) || byPyth(b, src)) moments.push(...pythReopeningsBetween(from, until));
   // A listing abroad lines up again when its own exchange opens.
   for (const market of new Set([a, b].map((t) => byTicker(t)?.market ?? "US"))) moments.push(...abroadOpeningsBetween(market, from, until));
+  const stranded = strandedWithin(a, b, from, round);
+  if (stranded) {
+    for (const t of [stranded.freeFrom - START_DELAY_SECS, stranded.freeFrom - START_DELAY_SECS - (round?.durationSecs ?? 0)]) {
+      if (t > from && t < until) moments.push(t);
+    }
+  }
   for (const t of [...new Set(moments)].sort((x, y) => x - y)) {
-    if (!darkWithin(a, b, t, round) && !apartWithin(a, b, t, round) && !shortWithin(a, b, t, round)) return t;
+    if (!darkWithin(a, b, t, round) && !apartWithin(a, b, t, round) && !shortWithin(a, b, t, round) && !strandedWithin(a, b, t, round)) return t;
   }
   return null;
 }
@@ -697,7 +770,9 @@ export function nextFairTake(a: string, b: string, from: number, round?: EndRule
  * Last, a pair that lines up but whose round the composite would price at
  * either end must run MIN_OFFHOURS_ROUND_SECS (shortWithin): AAPL v NVDA for
  * 15 minutes on a Saturday after the cutover is refused, for 12 hours it is
- * not.
+ * not. And such a round must not start or end where a fallback to the
+ * exchange would come after the markets' history runs out (strandedWithin):
+ * AAPL v NVDA for 24 hours from 6 PM on Christmas Eve is refused.
  *
  * `now` is when the take is sent, and it lands up to TAKE_SLACK_SECS later,
  * so the pair must be fair for an accept anywhere in that window: a fixed-end
@@ -737,11 +812,20 @@ export function mixedHoursAt(
   const p = apartWithin(a, b, now, round);
   if (!p) {
     const short = shortWithin(a, b, now, round);
-    if (!short) return null;
-    const reason = shortWords(short, round);
+    if (short) {
+      const reason = shortWords(short, round);
+      if (reader === "why") return reason;
+      if (reader === "taker") return taker(reason, "It closes before it can be taken.");
+      return `${reason} Pick a round of ${MIN_ROUND_WORDS} or more, or a bell.`;
+    }
+    const stranded = strandedWithin(a, b, now, round);
+    if (!stranded) return null;
+    const reason = strandedWords(stranded, round);
     if (reader === "why") return reason;
     if (reader === "taker") return taker(reason, "It closes before it can be taken.");
-    return `${reason} Pick a round of ${MIN_ROUND_WORDS} or more, or a bell.`;
+    return stranded.at === "start"
+      ? `${reason} Come back from ${nyWords(stranded.freeFrom)}.`
+      : `${reason} Pick a round that ends while the exchange trades, or from ${nyWords(stranded.freeFrom)} on.`;
   }
   const stops = closeAhead(p, now, sourcesOf(a, b, round));
   const reason = apartWords(p, stops, round);
