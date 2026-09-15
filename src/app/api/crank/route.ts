@@ -3,6 +3,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { crankOnce, CRON_PYTH_YIELD_SECS, CRON_YIELD_SECS, listJobs, type JobListing } from "@/lib/crank";
 import { authorise } from "@/lib/crankAuth.server";
 import { crankKeypair, settlerConnection, settlerHermes, settlerOracle } from "@/lib/settler.server";
+import { sparConnection, sparKeys, sparTick } from "@/lib/spar.server";
 import { quoteSymbolFor } from "@/lib/stocks";
 import { failingVenues, VENUE_ALERT_SECS } from "@/lib/venues247";
 
@@ -55,6 +56,28 @@ export async function GET(req: NextRequest) {
        * runs and looks identical from the outside. */
       { status: 401, headers: { "x-stonkwars-crank": "1" } },
     );
+  }
+
+  /* THE SPARRING WALLET RIDES ALONG.
+   *
+   * On devnet, with its keys set, one sparring tick (lib/spar.server.ts) runs
+   * after this answers, whatever the settler pass finds: it takes challenges
+   * addressed to it, calls off its expired seats and keeps its open seats up.
+   * Riding on this ping means no second cron to set up. It is registered before
+   * any early return, and a failure in it is logged and never touches the
+   * settler's answer. */
+  const spar = sparKeys();
+  if (!("error" in spar)) {
+    after(async () => {
+      try {
+        const tick = await sparTick(sparConnection(), spar);
+        if (tick.takes.length || tick.seats.some((s) => !("skipped" in s))) {
+          console.log(JSON.stringify({ spar: "tick", ...tick }));
+        }
+      } catch (e) {
+        console.error(JSON.stringify({ spar: "tick failed", error: e instanceof Error ? e.message.split("\n")[0] : String(e) }));
+      }
+    });
   }
 
   let payer;

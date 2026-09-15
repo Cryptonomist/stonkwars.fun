@@ -1,24 +1,27 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { authorise } from "@/lib/crankAuth.server";
-import { allDuels, decodeDuel, PROGRAM_ID, type DuelView } from "@/lib/duel";
-import { sparRefusal } from "@/lib/spar";
-import { readDuel, sparConnection, sparKeys, takeForSpar, type SparResult } from "@/lib/spar.server";
+import type { DuelView } from "@/lib/duel";
+import { readDuel, sparConnection, sparKeys, sparTick, takeForSpar } from "@/lib/spar.server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/* THE SPARRING WALLET TAKES WHAT IS ADDRESSED TO IT (devnet only).
+/* THE SPARRING WALLET (devnet only).
  *
- * Two ways in, both ending in lib/spar.server.ts takeForSpar, which applies
- * the same checks any taker gets and refuses anything off devnet:
+ * Two ways in:
  *
  *   POST { duel }  from the fight page of a challenge addressed to the sparring
- *                  wallet, so a visitor's own open page gets it taken without a
- *                  cron. Only that one challenge, and only when it qualifies;
- *                  anyone may ask, because the answer is the same whoever asks.
- *   GET            with Authorization: Bearer $CRON_SECRET, for an external
- *                  cron: every open challenge addressed to the wallet.
+ *                  wallet, so a visitor's own open page gets it taken without
+ *                  waiting for a cron. Only that one challenge, and only when it
+ *                  qualifies (takeForSpar applies the same checks any taker
+ *                  gets); anyone may ask, because the answer is the same
+ *                  whoever asks.
+ *   GET            with Authorization: Bearer $CRON_SECRET: one full tick
+ *                  (sparTick): takes what is addressed to it, calls off its own
+ *                  expired seats and keeps its open seats up. /api/crank runs
+ *                  the same tick after each settler pass, so no second cron is
+ *                  needed; this is for a person checking by hand.
  *
  * With the keys unset the route answers 503 and does nothing, so a deployment
  * that has not provisioned a sparring wallet behaves exactly as before. */
@@ -73,28 +76,11 @@ export async function GET(req: NextRequest) {
   const keys = sparKeys();
   if ("error" in keys) return NextResponse.json({ ok: false, error: keys.error }, { status: 503 });
 
-  const conn = sparConnection();
   const now = Math.floor(Date.now() / 1000);
-  const spar = keys.spar.publicKey.toBase58();
-  let due: DuelView[];
   try {
-    const accounts = await conn.getProgramAccounts(PROGRAM_ID, { commitment: "confirmed", filters: allDuels() });
-    due = [];
-    for (const a of accounts) {
-      try {
-        const d = decodeDuel(a.pubkey, a.account.data);
-        if (!sparRefusal(d, now, spar)) due.push(d);
-      } catch {
-        /* Not a duel this build can read. */
-      }
-    }
+    const tick = await sparTick(sparConnection(), keys);
+    return NextResponse.json({ ok: true, at: now, ...tick });
   } catch (e) {
-    return NextResponse.json({ ok: false, at: now, error: e instanceof Error ? e.message.split("\n")[0] : "listing failed" });
+    return NextResponse.json({ ok: false, at: now, error: e instanceof Error ? e.message.split("\n")[0] : "tick failed" });
   }
-
-  const results: SparResult[] = [];
-  for (const d of due.sort((a, b) => a.expiresTs - b.expiresTs).slice(0, 4)) {
-    results.push(await takeForSpar(conn, d, keys));
-  }
-  return NextResponse.json({ ok: true, at: now, results });
 }

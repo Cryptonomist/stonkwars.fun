@@ -48,7 +48,7 @@ import { ataFor, buildCreateDuel, randomSeed } from "@/lib/duel";
 import { FAUCET_TARGET_USD, faucetWouldTopUp } from "@/lib/faucet";
 import { etShort, etTime, hm, shares, span, usd } from "@/lib/format";
 import { OFFHOURS_WINDOW } from "@/lib/oracle";
-import { isSparWallet, SPAR_MAX_ROUND_SECS, SPAR_WALLET } from "@/lib/spar";
+import { isSparWallet, SPAR_MAX_ROUND_SECS, SPAR_WALLET, sparRoundFor } from "@/lib/spar";
 import { stakeForDollars, stakeValue, usePrices } from "@/lib/prices";
 import {
   CLUSTER,
@@ -292,7 +292,9 @@ export function CreateFight() {
   const spar = SPAR_WALLET
     ? () => {
         setInvite(SPAR_WALLET!);
-        if (!(secs && secs <= SPAR_MAX_ROUND_SECS)) setRound("15m");
+        // A round it takes and a visitor can fight now: 15 minutes while the
+        // exchange trades, the overnight 12 hours while it is shut.
+        setRound(sparRoundFor(Date.now()));
       }
     : undefined;
 
@@ -315,7 +317,7 @@ export function CreateFight() {
           : inviteError
             ? "Check the wallet address"
             : !sparRound
-              ? "Pick a 5 or 15 min round"
+              ? "Pick a timed round of 24 hours or less"
               : mixedHours
               ? "Pick two that line up"
               : !balanceKnown

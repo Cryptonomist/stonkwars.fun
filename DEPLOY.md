@@ -99,6 +99,8 @@ Production and Preview:
 | `NUDGE_SECRET_KEY` | recommended: the nudge key's byte array from step 3. Unset, the nudge pays from `CRANK_SECRET_KEY` and shares its balance with the cron |
 | `NUDGE_MIN_BALANCE_SOL` | optional. Default `0.05` on the nudge's own key, `0.3` when it falls back to the crank key. Below this the nudge sends nothing and answers "settler low" (and logs it); the manual button still appears on schedule |
 | `NUDGE_DISABLED` | optional: `1` switches the page nudge off. Leave unset |
+| `NEXT_PUBLIC_SPAR_WALLET` | optional, devnet only: the sparring wallet's PUBLIC key (`solana-keygen pubkey keys/spar-devnet.json`). A public key, so the prefix is fine here |
+| `SPAR_SECRET_KEY` | optional, devnet only: `cat keys/spar-devnet.json`. With both set, the crank keeps three open seats on the board and the wallet takes any timed challenge of 24 hours or less addressed to it. Leave both unset and sparring never appears |
 
 No key, secret or keyed URL in this table may ever be given a `NEXT_PUBLIC_`
 name: that prefix compiles the value into the page for anyone to read.

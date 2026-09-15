@@ -70,7 +70,7 @@ export type FightTicketProps = {
   held?: { raw: bigint; usd: number | null } | null;
   /** Address the challenge to the sparring wallet; absent when none is offered. */
   onSpar?: () => void;
-  /** The challenge is addressed to the sparring wallet, which takes 5 and 15 minute rounds only. */
+  /** The challenge is addressed to the sparring wallet, which takes timed rounds up to 24 hours. */
   sparring?: boolean;
   /** The primary action and anything said right under it. */
   action: ReactNode;
@@ -154,7 +154,7 @@ export function FightTicket(t: FightTicketProps) {
         <div className="mt-2 grid grid-cols-6 gap-2">
           {t.rounds.map((r) => {
             const on = t.round === r.id;
-            // The sparring wallet takes only rounds a visitor can watch to the end.
+            // The sparring wallet takes timed rounds up to a day, not the bells.
             const sparOff = !!t.sparring && !(r.secs && r.secs <= SPAR_MAX_ROUND_SECS);
             // A round that cannot be taken now queues for when it can, and says so; one that never can is off.
             const note = t.chipNotes?.[r.id];
@@ -165,7 +165,7 @@ export function FightTicket(t: FightTicketProps) {
                 type="button"
                 aria-pressed={on}
                 disabled={off}
-                title={sparOff ? "The sparring wallet takes 5 and 15 minute rounds" : note?.title}
+                title={sparOff ? "The sparring wallet takes timed rounds, not the bells" : note?.title}
                 onClick={() => t.onRound(r.id)}
                 className={cx(
                   "btn btn-sm min-w-0 flex-col gap-0.5 px-2",
@@ -246,7 +246,7 @@ export function FightTicket(t: FightTicketProps) {
                 {t.inviteError}
               </span>
             ) : t.sparring ? (
-              "The sparring wallet takes 5 and 15 minute challenges addressed to it, from its own wallet. The fight is real and settles like any other; it is left off the ranks."
+              "The sparring wallet takes timed challenges addressed to it, up to 24 hours, from its own wallet, within seconds while this page is open. The fight is real and settles like any other; it is left off the ranks."
             ) : (
               "Only that wallet can take it. Leave it empty and anyone with the link can."
             )}
@@ -259,7 +259,7 @@ export function FightTicket(t: FightTicketProps) {
         * visitor on their own sees it without opening "Call someone out". */}
       {t.onSpar && !t.sparring ? (
         <button type="button" onClick={t.onSpar} className="btn btn-sm btn-ghost -mt-2 self-start">
-          Spar with the Stonk Wars test wallet
+          No opponent? Fight the sparring wallet
           <span className="micro text-dim">devnet</span>
         </button>
       ) : null}
