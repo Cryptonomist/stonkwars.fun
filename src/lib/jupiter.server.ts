@@ -78,36 +78,47 @@ export async function jupSwap(o: { quote: JupiterQuote; user: string; feeAccount
 }
 
 /* Mainnet reads, for the treasury's fee accounts. On a mainnet deployment the
- * keyed RPC_URL is mainnet; elsewhere MAINNET_RPC_URL, or the public node. */
-const mainnet = () =>
-  new Connection(
-    (CLUSTER === "mainnet-beta" ? process.env.RPC_URL : process.env.MAINNET_RPC_URL) || "https://api.mainnet-beta.solana.com",
-    "confirmed",
-  );
+ * keyed RPC_URL is mainnet. Elsewhere MAINNET_RPC_URL; failing that, a Helius
+ * devnet RPC_URL's own key on Helius mainnet (one key serves both); and last the
+ * public node, which often refuses servers in the cloud. */
+function mainnetUrl(): string {
+  if (CLUSTER === "mainnet-beta" && process.env.RPC_URL) return process.env.RPC_URL;
+  if (process.env.MAINNET_RPC_URL) return process.env.MAINNET_RPC_URL;
+  const rpc = process.env.RPC_URL ?? "";
+  if (/^https:\/\/devnet\.helius-rpc\.com\//.test(rpc)) return rpc.replace("https://devnet.", "https://mainnet.");
+  return "https://api.mainnet-beta.solana.com";
+}
+const mainnet = () => new Connection(mainnetUrl(), "confirmed");
 
-const seen = new Map<string, { at: number; ok: boolean }>();
+/** Why a quote does or does not carry the fee, said without any secret. */
+export type FeeStatus = "on" | "off" | "no-owner" | "bad-owner" | "no-account" | "lookup-failed";
+
+const seen = new Map<string, { at: number; status: FeeStatus }>();
 const TTL_MS = 10 * 60_000;
+const RETRY_MS = 60_000;
 
-/** The treasury's token account for `output`, if it exists; null means quote no fee. */
-export async function feeAccountFor(output: Leg): Promise<string | null> {
-  const owner = process.env.SWAP_FEE_OWNER;
-  if (!owner) return null;
+/** The treasury's token account for `output`, and whether a fee can be paid into it. */
+export async function feeAccountFor(output: Leg): Promise<{ account: string | null; status: FeeStatus }> {
+  const owner = process.env.SWAP_FEE_OWNER?.trim();
+  if (!owner) return { account: null, status: "no-owner" };
   let account: PublicKey;
   try {
     account = ataFor(new PublicKey(owner), new PublicKey(output.mint), new PublicKey(output.tokenProgram));
   } catch {
-    return null;
+    return { account: null, status: "bad-owner" };
   }
   const key = account.toBase58();
   const hit = seen.get(key);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.ok ? key : null;
-  let ok = false;
+  if (hit && Date.now() - hit.at < (hit.status === "lookup-failed" ? RETRY_MS : TTL_MS)) {
+    return { account: hit.status === "on" ? key : null, status: hit.status };
+  }
+  let status: FeeStatus;
   try {
     const info = await mainnet().getAccountInfo(account, "confirmed");
-    ok = !!info && info.owner.toBase58() === output.tokenProgram;
+    status = info && info.owner.toBase58() === output.tokenProgram ? "on" : "no-account";
   } catch {
-    ok = false;
+    status = "lookup-failed";
   }
-  seen.set(key, { at: Date.now(), ok });
-  return ok ? key : null;
+  seen.set(key, { at: Date.now(), status });
+  return { account: status === "on" ? key : null, status };
 }

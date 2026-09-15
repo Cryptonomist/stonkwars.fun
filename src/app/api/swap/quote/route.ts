@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const bps = swapFeeBps();
-    const feeAccount = bps > 0 ? await feeAccountFor(pair.output) : null;
+    const fee = bps > 0 ? await feeAccountFor(pair.output) : { account: null, status: "off" as const };
+    const feeAccount = fee.account;
     const quote = await jupQuote({
       inputMint: pair.input.mint,
       outputMint: pair.output.mint,
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
     });
     const summary = summarize(quote, side, ticker, pay);
     if (!summary) return bad("Jupiter answered for a different pair", 502);
-    const body: QuoteResponse = { quote, summary, feeAccount, at: Date.now() };
+    const body: QuoteResponse = { quote, summary, feeAccount, feeStatus: { bps, status: fee.status }, at: Date.now() };
     return NextResponse.json(body, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     const status = e instanceof JupiterError && e.status < 500 ? 422 : 502;

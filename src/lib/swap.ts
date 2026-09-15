@@ -78,4 +78,11 @@ export type QuoteSummary = {
   fee: { bps: number; amount: number; symbol: string } | null;
 };
 
-export type QuoteResponse = { quote: JupiterQuote; summary: QuoteSummary; feeAccount: string | null; at: number };
+export type QuoteResponse = {
+  quote: JupiterQuote;
+  summary: QuoteSummary;
+  feeAccount: string | null;
+  /** The configured rate, and why it is or is not charged on this quote (jupiter.server.ts FeeStatus). */
+  feeStatus: { bps: number; status: string };
+  at: number;
+};

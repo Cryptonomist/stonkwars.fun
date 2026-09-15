@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   let feeAccount: string | null = null;
   if (feeBps > 0) {
     if (feeBps !== swapFeeBps()) return bad("That quote carries a fee this site does not charge. Ask for a fresh quote.");
-    feeAccount = await feeAccountFor(trade.pair.output);
+    feeAccount = (await feeAccountFor(trade.pair.output)).account;
     if (!feeAccount) return bad("The fee account is unavailable. Ask for a fresh quote.", 409);
   }
 
