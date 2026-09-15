@@ -826,10 +826,10 @@ describe("fights across trading hours", () => {
       expect(mixedHoursAt("KO", "NVDA", sat19)).to.equal(
         "KO waits for its exchange to open but NVDA trades now, so their start prices would be days apart. Pick two that both trade now, or two that both wait.",
       );
-      // The cutover is a boundary (Wednesday 16 Sep, 7:06:40 PM ET): the night before keeps the pool, that night waits.
-      expect(COMPOSITE_FROM).to.be.within(sep(16, 19, 0), sep(16, 20, 0));
-      expect(pricedAt("KO", sep(15, 21, 0))).to.equal("pool");
-      expect(pricedAt("KO", sep(16, 21, 0))).to.equal("waits");
+      // The cutover is a boundary (Tuesday 15 Sep, 2:15 AM ET): the Monday evening before keeps the pool, Tuesday night waits.
+      expect(COMPOSITE_FROM).to.be.within(sep(15, 2, 0), sep(15, 3, 0));
+      expect(pricedAt("KO", sep(14, 21, 0))).to.equal("pool");
+      expect(pricedAt("KO", sep(15, 21, 0))).to.equal("waits");
     });
   });
 

@@ -744,9 +744,9 @@ describe("composite-v1", () => {
       // The same Saturday a week earlier, before the cutover, keeps the perp.
       expect(sourceAt(B - WEEK, pinned)).to.equal("perp");
       expect(sourceAt(B - WEEK, { ...pinned, perp: undefined })).to.equal("pool");
-      // The cutover is Wednesday 16 Sep, 7:06:40 PM ET: that night is the composite's, the night before the perp's.
-      expect(sourceAt(Math.floor(nyToMs(2026, 9, 16, 21, 0) / 1000), pinned)).to.equal("composite");
-      expect(sourceAt(Math.floor(nyToMs(2026, 9, 15, 21, 0) / 1000), pinned)).to.equal("perp");
+      // The cutover is Tuesday 15 Sep, 2:15 AM ET: that night is the composite's from 2:15, the Monday evening before it the perp's.
+      expect(sourceAt(Math.floor(nyToMs(2026, 9, 15, 3, 0) / 1000), pinned)).to.equal("composite");
+      expect(sourceAt(Math.floor(nyToMs(2026, 9, 14, 21, 0) / 1000), pinned)).to.equal("perp");
       expect(sourceAt(Math.floor(nyToMs(2026, 9, 21, 12, 0) / 1000), pinned)).to.equal("exchange");
       expect(sourceAt(B, { market: "HK", composite: "TSLA" })).to.equal("exchange");
       // A perp or a pool with no pins no longer prices a shut boundary after the cutover; the exchange does.

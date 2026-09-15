@@ -213,8 +213,8 @@ describe("price clock", () => {
       for (const b of [ny(14, 8, 0), ny(11, 19, 11, 35), ny(15, 22, 0), ny(10, 3, 59, 59), utc("2026-09-10T07:59:59Z")]) {
         expect(readyAt(alone(b), "start", b), new Date(b * 1000).toISOString()).to.deep.equal(inGrace(b));
       }
-      // Against NVDA's perp the fight waits on NVDA's bar, as ever, and TSLA never makes it shut.
-      const b = ny(15, 22, 0, 10);
+      // Against NVDA's perp (Monday night, before the cutover) the fight waits on NVDA's bar, and TSLA never makes it shut.
+      const b = ny(14, 22, 0, 10);
       expect(readyAt(starting(tsla(), real("NVDA"), b), "start", b)).to.deep.equal({
         at: firstBarEnd(b) + BAR_SETTLE_SECS,
         why: "minute-close",

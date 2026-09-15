@@ -138,7 +138,8 @@ describe("merging exchange and perp bars", () => {
   });
 
   it("uses the oracle's own session rule at the bell", () => {
-    const m = (hh: number, mm: number) => et(2026, 9, 15, hh, mm);
+    // Monday 14 Sep, before the cutover, when NVDA's shut-exchange source was still its perp.
+    const m = (hh: number, mm: number) => et(2026, 9, 14, hh, mm);
     const isClosed = (t: number) => liveSourceFor(stock("NVDA"), t) === "perp";
     const merged = mergeBars(
       { t: [m(19, 59), m(20, 0)], c: [50, 51] },

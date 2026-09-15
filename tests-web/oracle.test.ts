@@ -179,13 +179,14 @@ describe("oracle", () => {
     /* The perp prints every minute and the pool does not, so when both exist
      * the perp wins and the price can use the ordinary boundary rule. */
     it("prefers the perpetual market once the exchange is shut", () => {
-      expect(sourceAt(at(20, 0), both)).to.equal("perp"); // after-hours over
-      expect(sourceAt(at(2, 30), both)).to.equal("perp"); // the middle of the night
+      // Monday 14 Sep, before the composite's cutover (Tue 15 Sep 2:15 AM ET).
+      expect(sourceAt(at(20, 0, 14), both)).to.equal("perp"); // after-hours over
+      expect(sourceAt(at(2, 30, 14), both)).to.equal("perp"); // the middle of the night
       expect(sourceAt(at(12, 0, 13), both)).to.equal("perp"); // a Sunday
     });
 
     it("falls back to the pool for a stock with no perpetual market", () => {
-      expect(sourceAt(at(2, 30), pooled)).to.equal("pool");
+      expect(sourceAt(at(2, 30, 14), pooled)).to.equal("pool");
     });
 
     it("keeps exchange hours for a stock with neither", () => {

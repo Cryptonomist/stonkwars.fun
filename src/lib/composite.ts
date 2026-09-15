@@ -47,7 +47,7 @@ export const COMPOSITE_RULE = "composite-v1";
  * would. Unix seconds. 1,789,600,000 is Wednesday 16 Sep 2026, 7:06:40 PM New
  * York: a placeholder in the future. The release sets the real value at deploy
  * (docs/247-pricing.md, step 7). */
-export const COMPOSITE_FROM = 1_789_600_000;
+export const COMPOSITE_FROM = 1_789_452_900;
 
 /** A candle traded this recently (m - 840 to m) makes its venue fresh. */
 export const FRESH_SECS = 840;
