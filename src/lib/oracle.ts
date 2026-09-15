@@ -452,10 +452,10 @@ async function dollarsPer(currency: string, at: number): Promise<number | null> 
  * eight at night New York time. Outside that, for a boundary at or after
  * COMPOSITE_FROM, the composite of the markets that trade the stock around
  * the clock, for a stock pinned in src/data/venues247.json (composite.ts).
- * Before COMPOSITE_FROM, or for a stock with no pins, the perp and then the
- * token's pool on Solana, as they always did, so a fight that started under
- * those rules ends under them. A stock with none of these keeps exchange hours
- * and waits for the opening bell.
+ * Before COMPOSITE_FROM, the perp and then the token's pool on Solana, as they
+ * always did, so a fight that started under those rules ends under them. A
+ * stock with none of these, or from COMPOSITE_FROM a stock with no pins, keeps
+ * exchange hours and waits for the opening bell.
  *
  * `composite` is the stock's ticker in venues247.json, set by the roster
  * (stocks.ts quoteSymbolFor) only for a listed US stock quoted in dollars.
@@ -475,7 +475,12 @@ export function sourceAt(
   if (session(boundary * 1_000) !== "closed") return "exchange";
   // Shut. From the cutover, the composite for a stock pinned to it.
   if (opts.composite && boundary >= COMPOSITE_FROM) return "composite";
-  // The perp next: it prints every minute, so the ordinary rule works.
+  /* And for every other stock, from the cutover, the exchange's next bar. A
+   * perp or pool pinned before it priced a stock the composite's markets do
+   * not list (GLD, GME, KO, MCD, MRNA, STRC): one thin market, or a pool, which
+   * is what the composite exists to stop a fight resting on. */
+  if (boundary >= COMPOSITE_FROM) return "exchange";
+  // Before it, the perp next: it prints every minute, so the ordinary rule works.
   if (opts.perp) return "perp";
   if (opts.pool) return "pool";
   return "exchange";

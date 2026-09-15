@@ -384,7 +384,8 @@ export function Actions({
   if (waitingFor && shut.length) {
     const boundary = waitingFor === "starts" ? d.acceptedTs + START_DELAY_SECS : d.endTs;
     const one = shut.length === 1;
-    const opens = Math.max(0, ...shut.map((t) => firstPriceAt(t, boundary) ?? 0));
+    // A shut side is a signed side, whatever the roster says of its stock today.
+    const opens = Math.max(0, ...shut.map((t) => firstPriceAt(t, boundary, "signed") ?? 0));
     hints.push({
       title: `${shut.join(" and ")} ${one ? "is priced by its exchange, which is shut" : "are priced by their exchanges, which are shut"}.`,
       body: `The round ${waitingFor} at ${one ? "its first price" : "their first prices"} ${opens ? `at ${openingWords(opens)}` : "when trading resumes"}.`,

@@ -1,6 +1,6 @@
 import { expect } from "chai";
 
-import { compositePublishTime } from "../src/lib/composite";
+import { COMPOSITE_FROM, compositePublishTime } from "../src/lib/composite";
 import { SOURCE_PYTH, SOURCE_SIGNED, STALL_REFUND_SECS, START_DELAY_SECS } from "../src/lib/duel";
 import { isTradingDay, nyParts, nyToMs } from "../src/lib/market";
 import { BAR_SETTLE_SECS } from "../src/lib/oracle";
@@ -35,12 +35,13 @@ const FRIDAY_OPEN = at("2026-09-11T18:00:00Z"); // 2 PM ET
 const CRYPTO = "05".repeat(32);
 
 /** A duel of a roster stock against CRYPTO, starting from `boundary`, for
- *  asking the price clock about that one stock. */
-const oneSided = (ticker: string, boundary: number): ClockDuel => {
+ *  asking the price clock about that one stock; `source` is what the duel
+ *  recorded for it, the roster's by default. */
+const oneSided = (ticker: string, boundary: number, source?: "pyth" | "signed"): ClockDuel => {
   const s = byTicker(ticker)!;
   return {
     creatorFeed: s.feed,
-    creatorSource: s.source === "pyth" ? SOURCE_PYTH : SOURCE_SIGNED,
+    creatorSource: (source ?? s.source) === "pyth" ? SOURCE_PYTH : SOURCE_SIGNED,
     opponentFeed: CRYPTO,
     opponentSource: SOURCE_PYTH,
     acceptedTs: boundary - START_DELAY_SECS,
@@ -549,6 +550,93 @@ describe("fights across trading hours", () => {
     expect(mixedHoursAt("KO", "NVDA", SATURDAY)).to.equal(null);
   });
 
+  /* A DUEL KEEPS THE SOURCES IT WAS CREATED WITH.
+   *
+   * The registry's source for a stock can change (set_asset moves TSLA and QQQ
+   * to the oracle), and a duel records each side's at creation. A take on a
+   * fight that exists is judged by what it recorded; only a create asks the
+   * roster. The roster still says TSLA is Pyth, so these hold both ways. */
+  describe("judges a fight that exists by the sources it recorded", () => {
+    const signedDuel = { durationSecs: 900, endTs: 0, expiresTs: sep(18, 12, 0), creatorSource: SOURCE_SIGNED, opponentSource: SOURCE_SIGNED };
+    const sat19 = sep(19, 14, 0);
+
+    it("prices a Pyth stock recorded as signed like the signed stock it then is", () => {
+      expect(pricedAt("TSLA", SATURDAY)).to.equal("never");
+      expect(pricedAt("TSLA", SATURDAY, "signed")).to.equal("perp");
+      expect(firstPriceAt("TSLA", SATURDAY, "signed")).to.equal(SATURDAY);
+      expect(priceTimeAt("TSLA", SATURDAY, "signed")).to.equal(firstBarEnd(SATURDAY));
+      // After the cutover TSLA is pinned in venues247.json, so a signed TSLA is the composite's.
+      expect(pricedAt("TSLA", sat19, "signed")).to.equal("composite");
+      expect(priceTimeAt("TSLA", sat19, "signed")).to.equal(compositePublishTime(sat19));
+      // And a signed stock recorded as Pyth is Pyth's.
+      expect(pricedAt("NVDA", SATURDAY, "pyth")).to.equal("never");
+      expect(firstPriceAt("NVDA", sep(14, 22, 0), "pyth")).to.equal(sep(14, 22, 0));
+    });
+
+    it("lets a TSLA v NVDA recorded as signed be taken on a Saturday, and refuses one recorded on Pyth", () => {
+      expect(mixedHoursAt("TSLA", "NVDA", SATURDAY, signedDuel, "taker")).to.equal(null);
+      expect(mixedHoursAt("TSLA", "NVDA", SATURDAY, { ...signedDuel, creatorSource: SOURCE_PYTH }, "taker")).to.equal(
+        "Pyth does not publish TSLA from Friday 8:00 PM to Sunday 8:00 PM ET, and a fight whose start lands then, or within a minute of it, " +
+          "can never be priced. You can take it from Sunday's 8:01 PM ET.",
+      );
+      expect(mixedHoursAt("TSLA", "NVDA", SATURDAY, { ...signedDuel, opponentSource: SOURCE_PYTH }, "taker")).to.match(/^Pyth does not publish NVDA from Friday/);
+      // Without recorded sources, the roster's: TSLA on Pyth.
+      expect(mixedHoursAt("TSLA", "NVDA", SATURDAY, { durationSecs: 900, endTs: 0 })).to.match(/^Pyth does not publish TSLA from Friday/);
+      expect(apartIfTakenAt("TSLA", "NFLX", sep(14, 21, 0), signedDuel)).to.deep.include({ early: "TSLA", late: "NFLX" });
+    });
+
+    it("finds the next fair take by the recorded sources", () => {
+      const nfl = { ...signedDuel, expiresTs: sep(16, 12, 0) };
+      expect(nextFairTake("TSLA", "NFLX", SATURDAY, nfl)).to.equal(sep(14, 4, 0));
+      expect(nextFairTake("TSLA", "NVDA", sep(11, 21, 0), { ...nfl, creatorSource: SOURCE_PYTH })).to.equal(sep(13, 20, 1));
+    });
+
+    /* After the cutover, a Pyth side and a composite side are stamped minutes
+     * apart even when both price at once: the composite's window. */
+    it("refuses a Pyth side against a composite side on a weekday night after the cutover, and says why", () => {
+      const tuesday = sep(22, 21, 0);
+      expect(mixedHoursAt("VOO", "TSLA", tuesday, { durationSecs: 86_400, endTs: 0, creatorSource: SOURCE_PYTH, opponentSource: SOURCE_SIGNED })).to.equal(
+        "TSLA is priced by the median of its 24/7 markets over the 3 minutes from the start and VOO at once, so their start prices would be minutes apart. " +
+          "Pick two priced the same way: two stocks priced around the clock, or two that are not.",
+      );
+    });
+  });
+
+  /* FROM THE CUTOVER, ONLY THE COMPOSITE PRICES A SHUT US STOCK.
+   *
+   * A perp or pool pinned before it priced stocks the composite does not list
+   * (GLD, GME, KO, MCD, MRNA, STRC). From COMPOSITE_FROM those wait for their
+   * exchange like any stock with neither, and a fight across the cutover ends
+   * on the rules it started under. */
+  describe("retires perps and pools after the cutover for stocks the composite does not list", () => {
+    const sat19 = sep(19, 14, 0);
+
+    it("has the stocks the plan names losing round-the-clock pricing", () => {
+      for (const t of ["GLD", "GME", "KO", "MCD", "MRNA", "STRC"]) {
+        const where = quoteSymbolFor(byTicker(t)!.feed)!;
+        expect(!!(where.perp || where.pool), `${t} has a perp or pool`).to.equal(true);
+        expect(where.composite, `${t} is not pinned`).to.equal(undefined);
+      }
+    });
+
+    it("waits for the exchange from the cutover, and keeps the pool or perp before it", () => {
+      for (const t of ["GLD", "GME", "KO", "MCD", "MRNA", "STRC"]) {
+        expect(pricedAt(t, SATURDAY), t).to.be.oneOf(["perp", "pool"]);
+        expect(pricedAt(t, sat19), t).to.equal("waits");
+        expect(firstPriceAt(t, sat19), t).to.equal(sep(21, 4, 0));
+        expect(readyAt(oneSided(t, sat19), "start", sat19), t).to.deep.equal({ shut: [t] });
+      }
+      expect(pricedAt("NVDA", sat19)).to.equal("composite");
+      expect(mixedHoursAt("KO", "NVDA", sat19)).to.equal(
+        "KO waits for its exchange to open but NVDA trades now, so their start prices would be days apart. Pick two that both trade now, or two that both wait.",
+      );
+      // The cutover is a boundary (Wednesday 16 Sep, 7:06:40 PM ET): the night before keeps the pool, that night waits.
+      expect(COMPOSITE_FROM).to.be.within(sep(16, 19, 0), sep(16, 20, 0));
+      expect(pricedAt("KO", sep(15, 21, 0))).to.equal("pool");
+      expect(pricedAt("KO", sep(16, 21, 0))).to.equal("waits");
+    });
+  });
+
   /* THE WHOLE TAKE WINDOW, SECOND BY SECOND, AGAINST THE PRICE CLOCK.
    *
    * For accept times a second apart around every opening and close on five
@@ -691,6 +779,8 @@ describe("fights across trading hours", () => {
       pool: ["SPY", "KO"],
       exchange: ["NFLX", "JPM"],
       abroad: ["BYDCO"],
+      // Pyth stocks on the roster, in duels that recorded them as signed (after a set_asset).
+      "signed by record": ["TSLA", "QQQ"],
     };
 
     const EDGES = [
@@ -716,11 +806,12 @@ describe("fights across trading hours", () => {
     for (const [kind, tickers] of Object.entries(KINDS)) {
       it(`${kind}: ${tickers.join(", ")}`, function () {
         this.timeout(120_000);
+        const src = kind === "signed by record" ? "signed" : undefined;
         for (const ticker of tickers) {
           for (const b of grid) {
             const where = `${ticker} at ${new Date(b * 1000).toISOString()}`;
-            const first = firstPriceAt(ticker, b);
-            const d = oneSided(ticker, b);
+            const first = firstPriceAt(ticker, b, src);
+            const d = oneSided(ticker, b, src);
             const clock = readyAt(d, "start", b + 20 * 86_400);
 
             if (kind === "pyth") {
@@ -738,16 +829,16 @@ describe("fights across trading hours", () => {
             expect(first, where).to.be.a("number");
             const f = first as number;
             expect(f, where).to.be.at.least(b);
-            expect(pricedAt(ticker, b) === "waits", where).to.equal(f !== b);
+            expect(pricedAt(ticker, b, src) === "waits", where).to.equal(f !== b);
 
             const ready = clock as Ready;
             expect(ready, where).to.have.property("at");
-            const priced = pricedAt(ticker, b);
+            const priced = pricedAt(ticker, b, src);
             const expected =
               priced === "pool" ? f + BAR_SETTLE_SECS : priced === "composite" ? compositePublishTime(f) + BAR_SETTLE_SECS : firstBarEnd(f) + BAR_SETTLE_SECS;
             expect(ready.at, where).to.equal(expected);
             // And the time the price will carry is the clock's, less its grace.
-            expect(priceTimeAt(ticker, b), `${where}, price time`).to.equal(ready.at - BAR_SETTLE_SECS);
+            expect(priceTimeAt(ticker, b, src), `${where}, price time`).to.equal(ready.at - BAR_SETTLE_SECS);
 
             expect("shut" in readyAt(d, "start", b), `${where}, now`).to.equal(f > b);
             if (f > b) {

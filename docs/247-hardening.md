@@ -149,3 +149,23 @@ One print on one venue in the end minute, or in the start and end minutes, marke
   - Pre-window prints that make a stale venue count. This needs trades in the 15 minutes before the window and 10 or more calibration minutes. It can add a venue to the count but not remove one, and it happens before the boundary, where a taker can see it.
 - **Pairs.** The opponent is flat. Two stocks that move together, such as two semiconductor names, are closer than this, and two that do not are further apart.
 - **Timing against a side priced at the boundary.** A composite side is stamped up to 3 minutes after its boundary. A Pyth side (VOO) or an exchange side in session (a Hong Kong stock at 21:30 ET) is stamped within a minute. So such a pair lands more than `SAME_PRICE_SECS` apart and is refused, with a sentence that says so.
+
+## 8. Which source prices a side
+
+### A duel keeps the sources it recorded
+
+- **Recording.** `create_duel` records each side's source from the registry, and a later `set_asset` changes only new fights. TSLA and QQQ move to the oracle after deploy, so an open TSLA challenge made on Pyth stays a Pyth fight.
+- **The change.** `firstPriceAt`, `pricedAt` and `priceTimeAt` in `stocks.ts` take an optional source. `mixedHoursAt`, `apartIfTakenAt` and `nextFairTake` read `creatorSource` and `opponentSource` from the round they are given.
+- **Takes use the duel.** Every take gate (the fight page's `Actions.tsx`, the Solana Action route, `spar.server.ts`) already passes the `DuelView` as the round, so each take is judged by what the duel recorded.
+- **Creates use the roster.** A create on /new passes no sources and is judged by the roster.
+- **Tests.**
+  - A grid in `tests-web/stocks.test.ts` holds a Pyth roster stock recorded as signed (TSLA, QQQ) to the price clock to the second.
+  - Case tests take TSLA v NVDA on a Saturday recorded both ways.
+  - Against a composite side after the cutover, a Pyth VOO is refused with the window sentence.
+- **`roster.json` is unchanged.** TSLA and QQQ are still `pyth` there. Flipping them is the release's step, alongside `set_asset`. The code is now safe either side of that flip.
+
+### Perps and pools retire at the cutover for unlisted stocks
+
+- **From `COMPOSITE_FROM`.** A shut US stock not in `venues247.json` waits for its exchange (`oracle.ts` `sourceAt`, `stocks.ts` `firstPriceAt`). This covers GLD, GME, KO, MCD, MRNA and STRC.
+- **Before it.** Boundaries before the cutover keep the perp and pool rules exactly, so a fight running across the cutover ends on the rules it started under.
+- **Tests.** The tests pin each of the six on both sides of the cutover, and KO on the night before and the night of it.

@@ -21,7 +21,7 @@ import { PublicKey } from "@solana/web3.js";
 import perpsJson from "@/data/perps.json";
 import poolsJson from "@/data/pools.json";
 import rosterJson from "@/data/roster.json";
-import { START_DELAY_SECS, type DuelView, type StakeAsset } from "@/lib/duel";
+import { SOURCE_PYTH, START_DELAY_SECS, type DuelView, type StakeAsset } from "@/lib/duel";
 import {
   nyParts,
   openingAfter,
@@ -32,7 +32,7 @@ import {
   pythReopeningsBetween,
   session,
 } from "@/lib/market";
-import { COMPOSITE_FROM, compositePublishTime } from "@/lib/composite";
+import { COMPOSITE_FROM, compositePublishTime, V2_WINDOW_MINUTES } from "@/lib/composite";
 import { firstBarEnd, sourceAt } from "@/lib/oracle";
 import { listed247 } from "@/lib/venues247";
 
@@ -143,6 +143,33 @@ export function quoteSymbolFor(feed: string) {
 const compositeFrom = (s: Stock, boundary: number) =>
   s.market === "US" && s.currency === "USD" && boundary >= COMPOSITE_FROM && listed247(s.ticker);
 
+/* WHAT PRICES A SHUT US STOCK, IF ANYTHING.
+ *
+ * From COMPOSITE_FROM the composite, for a stock pinned in venues247.json, and
+ * nothing for any other: a perp or pool pinned before the cutover (GLD, GME,
+ * KO, MCD, MRNA, STRC among them) no longer prices a boundary after it, and
+ * such a stock waits for its exchange like every stock with neither
+ * (oracle.ts, sourceAt). Before the cutover, the perp or pool as they always
+ * did, so a fight running across it ends on the rules it started under. */
+const shutPricedFrom = (s: Stock, boundary: number) =>
+  compositeFrom(s, boundary) || (boundary < COMPOSITE_FROM && (!!PERPS[s.ticker] || !!POOLS[s.ticker]));
+
+/* WHO PRICES A SIDE: THE ROSTER FOR A NEW FIGHT, THE DUEL FOR AN OLD ONE.
+ *
+ * A duel records each side's source when it is created, from the registry
+ * (programs/duel, create_duel), and keeps it: an admin set_asset later changes
+ * new fights only. So a challenge made on Pyth stays a Pyth fight after TSLA
+ * moves to the oracle, and judging its take by the roster would call a Pyth
+ * side signed. Every function here takes an optional source for that; a round
+ * carrying a duel's creatorSource and opponentSource (a DuelView fits) hands
+ * them to mixedHoursAt and nextFairTake, and only a create asks the roster. */
+export type SideSource = Stock["source"];
+
+/** A source recorded on chain (SOURCE_PYTH or SOURCE_SIGNED), as the roster writes it. */
+export const sourceFromChain = (n: number): SideSource => (n === SOURCE_PYTH ? "pyth" : "signed");
+
+const sourceOf = (s: Stock, source?: SideSource): SideSource => source ?? s.source;
+
 /** Whether a stock can settle a fight whenever it is taken. Pyth's equity
  *  feeds go dark from Friday 8 PM to Sunday 8 PM New York and on holidays
  *  (market.ts, pythSpanAt), so a Pyth-priced stock is not one of them however
@@ -167,15 +194,21 @@ export const tradesAroundTheClock = (ticker: string) => {
  *                     8 PM New York (pythPricesAt); otherwise null, because a
  *                     Pyth side never waits for an opening: a boundary in its
  *                     dark hours can never be priced at all.
- *   signed, perp/pool the boundary: the exchange's bars from 4am to 8pm, and
- *                     the perp or pool whenever the exchange is shut.
+ *   signed, perp/pool the boundary, before COMPOSITE_FROM: the exchange's bars
+ *                     from 4am to 8pm, and the perp or pool whenever the
+ *                     exchange is shut.
  *   signed, composite the boundary, from COMPOSITE_FROM, for a stock pinned in
  *                     venues247.json: the composite whenever the exchange is
  *                     shut (oracle.ts sourceAt).
  *   signed, neither   the exchange's bars, 4am to 8pm; shut, it waits for the
- *                     next 4am, as oracle.ts's exchangeBarFinal does.
+ *                     next 4am, as oracle.ts's exchangeBarFinal does. From
+ *                     COMPOSITE_FROM that includes a stock with only a perp
+ *                     or a pool.
  *   outside the US    the boundary: its own exchange's hours are not modelled,
  *                     so it is never called a wait.
+ *
+ * `source` is the side's recorded source for a fight that exists; without it,
+ * the roster's.
  *
  * ONE THING IT CANNOT KNOW. A pool whose hour before the boundary holds fewer
  * than OFFHOURS_MIN_BARS trades has no price worth signing, and the oracle
@@ -189,12 +222,12 @@ export const tradesAroundTheClock = (ticker: string) => {
  * Unix seconds, never before the boundary. Null for a ticker off the roster,
  * for a Pyth boundary that can never be priced, or if nothing opens within
  * ten days. */
-export function firstPriceAt(ticker: string, boundary: number): number | null {
+export function firstPriceAt(ticker: string, boundary: number, source?: SideSource): number | null {
   const s = byTicker(ticker);
   if (!s) return null;
   if (s.market !== "US") return boundary;
-  if (s.source === "pyth") return pythPricesAt(boundary) ? boundary : null;
-  if (PERPS[ticker] || POOLS[ticker] || compositeFrom(s, boundary)) return boundary;
+  if (sourceOf(s, source) === "pyth") return pythPricesAt(boundary) ? boundary : null;
+  if (shutPricedFrom(s, boundary)) return boundary;
   return openingAfter(boundary, "extended");
 }
 
@@ -212,10 +245,11 @@ export function firstPriceAt(ticker: string, boundary: number): number | null {
 export function pricedAt(
   ticker: string,
   boundary: number,
+  source?: SideSource,
 ): "exchange" | "pyth" | "perp" | "pool" | "composite" | "waits" | "never" {
   const s = byTicker(ticker);
-  if (s && s.market === "US" && s.source === "pyth") return pythPricesAt(boundary) ? "pyth" : "never";
-  if (!s || firstPriceAt(ticker, boundary) !== boundary) return "waits";
+  if (s && s.market === "US" && sourceOf(s, source) === "pyth") return pythPricesAt(boundary) ? "pyth" : "never";
+  if (!s || firstPriceAt(ticker, boundary, source) !== boundary) return "waits";
   if (s.market !== "US" || session(boundary * 1_000) !== "closed") return "exchange";
   if (compositeFrom(s, boundary)) return "composite";
   return PERPS[ticker] ? "perp" : "pool";
@@ -241,17 +275,17 @@ export function pricedAt(
  * side to the next bar, and a thin pool falls back to the exchange (see
  * firstPriceAt). A test holds this to priceClock's readyAt second for second,
  * less PYTH_GRACE_SECS or BAR_SETTLE_SECS. Null as for firstPriceAt. */
-export function priceTimeAt(ticker: string, boundary: number): number | null {
+export function priceTimeAt(ticker: string, boundary: number, source?: SideSource): number | null {
   const s = byTicker(ticker);
   if (!s) return null;
-  if (s.market !== "US") return s.source === "pyth" ? boundary : firstBarEnd(boundary);
-  if (s.source === "pyth") return firstPriceAt(ticker, boundary);
+  if (s.market !== "US") return sourceOf(s, source) === "pyth" ? boundary : firstBarEnd(boundary);
+  if (sourceOf(s, source) === "pyth") return firstPriceAt(ticker, boundary, "pyth");
   const composite = compositeFrom(s, boundary) ? ticker : undefined;
-  const source = sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin, composite });
-  if (source === "pool") return boundary;
-  if (source === "composite") return compositePublishTime(boundary);
-  const from = firstPriceAt(ticker, boundary);
-  return from === null ? null : firstBarEnd(from);
+  const from = sourceAt(boundary, { market: s.market, pool: POOLS[ticker]?.pool, perp: PERPS[ticker]?.coin, composite });
+  if (from === "pool") return boundary;
+  if (from === "composite") return compositePublishTime(boundary);
+  const first = firstPriceAt(ticker, boundary, "signed");
+  return first === null ? null : firstBarEnd(first);
 }
 
 /* HOW FAR APART TWO SIDES' PRICES MAY BE.
@@ -304,7 +338,25 @@ const apart = (secs: number) => (secs >= 86_400 ? "days" : secs >= 3_600 ? "hour
 /** A fight's end rule as the program holds it (DuelView fits): a duration
  *  counted from the later start price, or a fixed end; and, for a challenge
  *  already made, when it stops being takeable. */
-export type EndRule = { durationSecs: number; endTs: number; expiresTs?: number };
+export type EndRule = {
+  durationSecs: number;
+  endTs: number;
+  expiresTs?: number;
+  /** For a duel that exists, each side's recorded source, SOURCE_PYTH or
+   *  SOURCE_SIGNED; without them, each side is judged by the roster. */
+  creatorSource?: number;
+  opponentSource?: number;
+};
+
+/** Each side's source, by ticker: the duel's where it recorded them (`a` is the
+ *  creator's stock and `b` the opponent's), otherwise the roster's. */
+type Sources = (ticker: string) => SideSource | undefined;
+
+function sourcesOf(a: string, b: string, round?: EndRule): Sources {
+  const ca = round?.creatorSource;
+  const ob = round?.opponentSource;
+  return (t) => (t === a && ca !== undefined ? sourceFromChain(ca) : t === b && ob !== undefined ? sourceFromChain(ob) : undefined);
+}
 
 /** Where a fight's two sides would part: which of its prices, the boundary
  *  they are taken after, the side whose price comes first and the side whose
@@ -321,11 +373,11 @@ export type Apart = {
 };
 
 /** Undefined when either side's hours are unknown. */
-function apartAtBoundary(a: string, b: string, boundary: number, at: Apart["at"]): Apart | null | undefined {
-  const pa = priceTimeAt(a, boundary);
-  const pb = priceTimeAt(b, boundary);
-  const fa = firstPriceAt(a, boundary);
-  const fb = firstPriceAt(b, boundary);
+function apartAtBoundary(a: string, b: string, boundary: number, at: Apart["at"], src: Sources): Apart | null | undefined {
+  const pa = priceTimeAt(a, boundary, src(a));
+  const pb = priceTimeAt(b, boundary, src(b));
+  const fa = firstPriceAt(a, boundary, src(a));
+  const fb = firstPriceAt(b, boundary, src(b));
   if (pa === null || pb === null || fa === null || fb === null) return undefined;
   if (Math.abs(pa - pb) <= SAME_PRICE_SECS) return null;
   return pa < pb
@@ -341,15 +393,16 @@ function apartAtBoundary(a: string, b: string, boundary: number, at: Apart["at"]
  * one ends at endTs (programs/duel/src/lib.rs, start_duel). The start is
  * checked first, then the end. Null when both prices land within
  * SAME_PRICE_SECS at both, and for a ticker off the roster, whose hours
- * nothing here knows. */
+ * nothing here knows. A round carrying a duel's sources is judged by them. */
 export function apartIfTakenAt(a: string, b: string, acceptedTs: number, round?: EndRule): Apart | null {
+  const src = sourcesOf(a, b, round);
   const start = acceptedTs + START_DELAY_SECS;
-  const began = apartAtBoundary(a, b, start, "start");
+  const began = apartAtBoundary(a, b, start, "start", src);
   if (began === undefined) return null;
   if (began || !round) return began;
-  const startTs = Math.max(priceTimeAt(a, start)!, priceTimeAt(b, start)!);
+  const startTs = Math.max(priceTimeAt(a, start, src(a))!, priceTimeAt(b, start, src(b))!);
   const end = round.durationSecs > 0 ? startTs + round.durationSecs : round.endTs;
-  return end > 0 ? (apartAtBoundary(a, b, end, "end") ?? null) : null;
+  return end > 0 ? (apartAtBoundary(a, b, end, "end", src) ?? null) : null;
 }
 
 /** Where a take checked at `now` could part, wherever in the next
@@ -364,11 +417,11 @@ function apartWithin(a: string, b: string, now: number, round?: EndRule): Apart 
 /** When the later side of a start that parts still prices at `now` itself,
  *  the close a take sent now could land after: the first whole minute of the
  *  take window at which it no longer prices. Null otherwise. */
-function closeAhead(p: Apart, now: number): number | null {
-  if (p.at !== "start" || firstPriceAt(p.late, now) !== now) return null;
+function closeAhead(p: Apart, now: number, src: Sources): number | null {
+  if (p.at !== "start" || firstPriceAt(p.late, now, src(p.late)) !== now) return null;
   const last = now + TAKE_SLACK_SECS + START_DELAY_SECS;
   for (let m = Math.ceil((now + START_DELAY_SECS) / 60) * 60; m <= last; m += 60) {
-    if (firstPriceAt(p.late, m) !== m) return m;
+    if (firstPriceAt(p.late, m, src(p.late)) !== m) return m;
   }
   return null;
 }
@@ -384,12 +437,27 @@ function closeAhead(p: Apart, now: number): number | null {
  *
  *   A take sent while the later side still prices, which could land after its
  *   close, says so with the close (`stops`), rather than claiming a side that
- *   still trades has stopped. */
+ *   still trades has stopped.
+ *
+ *   Two sides that both price at the boundary can still be stamped minutes
+ *   apart: a composite side's price is the median of the W minutes from it,
+ *   stamped at their end (composite.ts), and a Pyth print or an exchange bar
+ *   is stamped within the minute. That is the only way both price and still
+ *   part, so the words name the window. */
 function apartWords(p: Apart, stops: number | null, round?: EndRule): string {
   const gap = apart(p.secs);
   const abroad = byTicker(p.early)?.market !== "US";
   const earlyPrices = p.earlyFrom === p.boundary;
   const lateFrom = openingWords(p.lateFrom);
+  const window = `the median of its 24/7 markets over the ${V2_WINDOW_MINUTES} minutes from`;
+
+  if (earlyPrices && p.lateFrom === p.boundary && stops === null) {
+    if (p.at === "end") {
+      const when = `${round && round.durationSecs > 0 ? "around" : "at"} ${nyWords(p.boundary)}`;
+      return `This round would end ${when}, when ${p.late} is priced by ${window} the end and ${p.early} at once, so their end prices would be ${gap} apart.`;
+    }
+    return `${p.late} is priced by ${window} the start and ${p.early} at once, so their start prices would be ${gap} apart.`;
+  }
 
   if (p.at === "end") {
     const when = `${round && round.durationSecs > 0 ? "around" : "at"} ${nyWords(p.boundary)}`;
@@ -433,26 +501,27 @@ function apartWords(p: Apart, stops: number | null, round?: EndRule): string {
  * program would compute from the later side's start price. */
 type Dark = { at: "start" | "end"; boundary: number; tickers: string[]; from: number; until: number };
 
-const byPyth = (ticker: string) => {
+const byPyth = (ticker: string, src: Sources) => {
   const s = byTicker(ticker);
-  return !!s && s.market === "US" && s.source === "pyth";
+  return !!s && s.market === "US" && sourceOf(s, src(ticker)) === "pyth";
 };
 
-function darkAtBoundary(a: string, b: string, boundary: number, at: Dark["at"]): Dark | null {
-  const tickers = [...new Set([a, b])].filter(byPyth);
+function darkAtBoundary(a: string, b: string, boundary: number, at: Dark["at"], src: Sources): Dark | null {
+  const tickers = [...new Set([a, b])].filter((t) => byPyth(t, src));
   const gap = tickers.length ? pythGapNear(boundary) : null;
   return gap ? { at, boundary, tickers, ...gap } : null;
 }
 
 function darkIfTakenAt(a: string, b: string, acceptedTs: number, round?: EndRule): Dark | null {
+  const src = sourcesOf(a, b, round);
   const start = acceptedTs + START_DELAY_SECS;
-  const began = darkAtBoundary(a, b, start, "start");
+  const began = darkAtBoundary(a, b, start, "start", src);
   if (began || !round) return began;
-  const pa = priceTimeAt(a, start);
-  const pb = priceTimeAt(b, start);
+  const pa = priceTimeAt(a, start, src(a));
+  const pb = priceTimeAt(b, start, src(b));
   if (pa === null || pb === null) return null;
   const end = round.durationSecs > 0 ? Math.max(pa, pb) + round.durationSecs : round.endTs;
-  return end > 0 ? darkAtBoundary(a, b, end, "end") : null;
+  return end > 0 ? darkAtBoundary(a, b, end, "end", src) : null;
 }
 
 /** The same, wherever in the next TAKE_SLACK_SECS a take sent at `now` lands.
@@ -479,9 +548,10 @@ function darkWords(d: Dark, round?: EndRule): string {
  * expires (round.expiresTs, or ten days on when there is none) and returns the
  * first whose whole take window is fair. Null when none is. */
 export function nextFairTake(a: string, b: string, from: number, round?: EndRule): number | null {
+  const src = sourcesOf(a, b, round);
   const until = round?.expiresTs || from + 10 * 86_400;
   const moments = openingsBetween(from, until);
-  if (byPyth(a) || byPyth(b)) moments.push(...pythReopeningsBetween(from, until));
+  if (byPyth(a, src) || byPyth(b, src)) moments.push(...pythReopeningsBetween(from, until));
   for (const t of [...new Set(moments)].sort((x, y) => x - y)) {
     if (!darkWithin(a, b, t, round) && !apartWithin(a, b, t, round)) return t;
   }
@@ -544,11 +614,13 @@ export function mixedHoursAt(
 
   const p = apartWithin(a, b, now, round);
   if (!p) return null;
-  const stops = closeAhead(p, now);
+  const stops = closeAhead(p, now, sourcesOf(a, b, round));
   const reason = apartWords(p, stops, round);
   if (reader === "taker") return taker(reason);
-  const advice =
-    p.at === "end"
+  const stamped = stops === null && p.earlyFrom === p.boundary && p.lateFrom === p.boundary;
+  const advice = stamped
+    ? "Pick two priced the same way: two stocks priced around the clock, or two that are not."
+    : p.at === "end"
       ? "Pick a round that ends while both trade, or two that trade the same hours."
       : stops !== null
         ? "Pick two that trade the same hours."

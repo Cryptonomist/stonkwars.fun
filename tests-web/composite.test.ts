@@ -679,7 +679,10 @@ describe("composite-v1", () => {
       expect(sourceAt(Math.floor(nyToMs(2026, 9, 15, 21, 0) / 1000), pinned)).to.equal("perp");
       expect(sourceAt(Math.floor(nyToMs(2026, 9, 21, 12, 0) / 1000), pinned)).to.equal("exchange");
       expect(sourceAt(B, { market: "HK", composite: "TSLA" })).to.equal("exchange");
-      expect(sourceAt(B, { market: "US", perp: "xyz:TSLA" })).to.equal("perp");
+      // A perp or a pool with no pins no longer prices a shut boundary after the cutover; the exchange does.
+      expect(sourceAt(B, { market: "US", perp: "xyz:TSLA" })).to.equal("exchange");
+      expect(sourceAt(B, { market: "US", pool: "somepool" })).to.equal("exchange");
+      expect(sourceAt(B - WEEK, { market: "US", perp: "xyz:TSLA" })).to.equal("perp");
     });
 
     it("asks no venue before the window can be final", async () => {
