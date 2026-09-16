@@ -19,7 +19,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { applyPalette, paletteOf, readPalette, writePalette, type Palette } from "@/lib/paletteLab";
+import { applyPalette, PALETTES, paletteOf, readPalette, writePalette, type Palette } from "@/lib/paletteLab";
 import { cx } from "./ui/cx";
 
 export function PaletteLab() {
@@ -51,22 +51,23 @@ export function PaletteLab() {
   return (
     <div className="fixed bottom-4 left-3 z-50 hidden max-w-56 flex-col gap-2 bg-panel-3 p-3 shadow-overlay ring-2 ring-ink sm:flex">
       <p className="label text-ink">Palette preview</p>
-      <div className="flex gap-1">
-        {(["current", "calm"] as Palette[]).map((value) => (
+      {/* Stacked, because four of these side by side would each be too narrow
+        * to read at the button's own type size. */}
+      <div className="flex flex-col gap-1">
+        {PALETTES.map((value) => (
           <button
             key={value}
             type="button"
             aria-pressed={palette === value}
             onClick={() => setPalette(value)}
-            className={cx("btn btn-sm flex-1 px-3", palette === value ? "btn-light" : "btn-ghost")}
+            className={cx("btn btn-sm w-full px-3", palette === value ? "btn-light" : "btn-ghost")}
           >
-            {value === "current" ? "Current" : "Calm"}
+            {value}
           </button>
         ))}
       </div>
       <p className="text-micro text-dim">
-        Browse the site with this on. Calm keeps cyan and pink for the two sides of a fight and takes them off buttons
-        that only mean press this.{" "}
+        Each one is the one above it plus a little more. Browse the site with it on.{" "}
         <Link href="/palette" className="link">
           What changes
         </Link>

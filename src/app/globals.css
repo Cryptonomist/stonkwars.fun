@@ -413,40 +413,6 @@ html {
   filter: brightness(1.1);
 }
 
-/* ── A QUIETER PALETTE, TO LOOK AT BEFORE CHOOSING ─────────────────────────
- *
- * Reached by adding ?palette to any URL, which puts a switch on the page. It
- * changes no hue at all. What it changes is how much work the two side colours
- * are asked to do:
- *
- *   the action on a screen goes to ink, so cyan stops meaning "press this"
- *   a buy and a sell go to the same green and red every price on the site uses
- *   the glows come down from 0.35 to 0.18
- *
- * Cyan and pink are then left doing one job each, which is the job they were
- * picked for. Delete this block and components/PaletteLab.tsx once the choice
- * is made either way. */
-[data-palette="calm"] {
-  --shadow-glow-p1: 0 0 24px rgb(47 224 255 / 0.18);
-  --shadow-glow-p2: 0 0 24px rgb(255 62 165 / 0.18);
-  --shadow-glow-up: 0 0 24px rgb(53 242 139 / 0.18);
-}
-
-[data-palette="calm"] .btn-primary {
-  background: var(--color-ink);
-  color: var(--color-void);
-}
-
-[data-palette="calm"] .btn-buy {
-  background: var(--color-up);
-  color: var(--color-void);
-}
-
-[data-palette="calm"] .btn-sell {
-  background: var(--color-down);
-  color: var(--color-void);
-}
-
 .btn-sm {
   font-size: 0.85rem;
   padding: 0.45rem 0.95rem;
@@ -965,4 +931,88 @@ html {
     animation: none;
     opacity: 1;
   }
+}
+
+/* ── QUIETER PALETTES, TO LOOK AT BEFORE CHOOSING ──────────────────────────
+ *
+ * Reached at /palette, which puts a switch on every page. Neither of these
+ * changes a single hue. What they change is how much work the two side colours
+ * are asked to do, and they differ by exactly one thing.
+ *
+ * MIDDLE takes cyan off a buy and pink off a sell, since those are not sides of
+ * anything and the site already has green and red for a price going up or down,
+ * and it halves the glows. Cyan stays on the action on a screen, where it is
+ * doing real work: ink is already the colour of buttons like Get test shares,
+ * so a primary button in ink stops outranking them in the nav.
+ *
+ * CALM is middle plus that last step, so cyan and pink are left doing one job
+ * each: a side of a fight, and nothing else.
+ *
+ * QUIET is calm plus the thing the other two barely touch: see its own note
+ * below, and the reason it has to live out here.
+ *
+ * THIS BLOCK SITS OUTSIDE @layer components ON PURPOSE. It is the same trap
+ * described above that layer, from the other side. A palette has to beat a
+ * utility: text-p1 on a ticker is Tailwind's own utility, so a rule in
+ * `components` loses to it however specific it is, and the quiet one did,
+ * silently, until a screenshot showed no ticker had moved. Unlayered, it wins.
+ * The button rules would have worked either way, since btn-buy and btn-primary
+ * are component classes with nothing competing.
+ *
+ * Delete this block with components/PaletteLab.tsx, lib/paletteLab.ts and
+ * app/palette once the choice is made, whichever way it goes. */
+[data-palette="middle"],
+[data-palette="calm"],
+[data-palette="quiet"] {
+  --shadow-glow-p1: 0 0 24px rgb(47 224 255 / 0.18);
+  --shadow-glow-p2: 0 0 24px rgb(255 62 165 / 0.18);
+  --shadow-glow-up: 0 0 24px rgb(53 242 139 / 0.18);
+}
+
+[data-palette="middle"] .btn-buy,
+[data-palette="calm"] .btn-buy,
+[data-palette="quiet"] .btn-buy {
+  background: var(--color-up);
+  color: var(--color-void);
+}
+
+[data-palette="middle"] .btn-sell,
+[data-palette="calm"] .btn-sell,
+[data-palette="quiet"] .btn-sell {
+  background: var(--color-down);
+  color: var(--color-void);
+}
+
+/* The one step middle does not take. */
+[data-palette="calm"] .btn-primary,
+[data-palette="quiet"] .btn-primary {
+  background: var(--color-ink);
+  color: var(--color-void);
+}
+
+/* QUIET goes after the thing the other two barely touch.
+ *
+ * Almost none of the cyan and pink on a screen is a button. It is the tickers.
+ * Every fight names two stocks and every one of them is painted by its side, in
+ * the main event, in closing soon, in the ring, in the wire, in the command
+ * palette, on a profile. A home page carries about thirty saturated words on
+ * that account, against four buttons, which is why changing the buttons hardly
+ * showed.
+ *
+ * So here the side colours keep every fill, bar and chart line at full strength
+ * (a health bar is a quantity and has to read at a glance) and are softened
+ * where they are only text. Same two hues, same left-is-cyan rule, a third of
+ * the shout. This is a look at the direction: if it is the right one, the real
+ * version would keep the main event and a live fight page at full strength and
+ * soften only the lists, which is a change to those components rather than a
+ * class override. */
+/* Same hue, most of the chroma gone, lightness held where it still reads on
+ * void. A first pass kept enough saturation that the two looked alike in a
+ * screenshot, which is no use in something built to be compared. */
+[data-palette="quiet"] .text-p1 {
+  color: #8fbccb;
+}
+
+[data-palette="quiet"] .text-p2 {
+  color: #c992a8;
 }

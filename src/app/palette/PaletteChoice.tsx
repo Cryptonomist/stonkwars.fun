@@ -13,26 +13,51 @@ import { Plate } from "@/components/ui/Plate";
 import { cx } from "@/components/ui/cx";
 import { applyPalette, paletteOf, readPalette, writePalette, type Palette } from "@/lib/paletteLab";
 
+/* Four steps, each the one before it plus a little more, so the question is
+ * only ever how far to go rather than which direction. */
 const WHAT: { id: Palette; name: string; blurb: string; changes: string[] }[] = [
   {
     id: "current",
     name: "Current",
     blurb: "The site as it is today.",
     changes: [
-      "Cyan is side one, and also every primary button on the site",
+      "Cyan is side one, and also every primary button",
       "Cyan and pink are buy and sell in the trade panel",
+      "Every ticker is painted by its side, everywhere",
       "Live things glow at 0.35",
+    ],
+  },
+  {
+    id: "middle",
+    name: "Middle",
+    blurb: "Take away the meanings that were never sides. Buttons keep their rank.",
+    changes: [
+      "Buy and sell go to the green and red every price already uses",
+      "Glows come down to 0.18",
+      "Cyan stays on the action on a screen, where it outranks the rest",
+      "Tickers are untouched",
     ],
   },
   {
     id: "calm",
     name: "Calm",
-    blurb: "The same hues, asked to do less. Nothing is recoloured.",
+    blurb: "Middle, plus cyan off the buttons.",
     changes: [
-      "Cyan and pink mean a side of a fight and nothing else",
+      "Everything middle does",
       "The action on a screen goes to ink, so cyan stops meaning press this",
-      "Buy and sell go to the green and red every price already uses",
-      "Live things glow at 0.18",
+      "Cyan and pink then mean a side of a fight and nothing else",
+      "Tickers are still untouched, which is why this changes less than it sounds",
+    ],
+  },
+  {
+    id: "quiet",
+    name: "Quiet",
+    blurb: "Calm, plus the thing the other two barely touch.",
+    changes: [
+      "Everything calm does",
+      "A ticker's name is softened wherever it is only text",
+      "Fills, health bars and chart lines stay at full strength",
+      "This is where nearly all the colour on a screen actually is",
     ],
   },
 ];
@@ -58,7 +83,7 @@ export function PaletteChoice() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {WHAT.map((opt) => {
           const on = palette === opt.id;
           return (
@@ -112,9 +137,10 @@ export function PaletteChoice() {
           ))}
         </div>
         <p className="max-w-prose text-meta text-dim">
-          One thing to watch for, because it is the real cost of the calm one: ink is already the colour of buttons like
-          Get test shares, so a primary button in ink no longer outranks them in the nav. Cyan was doing real work
-          there. Whichever way you go, say so and the loser gets deleted.
+          Two things to watch for. Ink is already the colour of buttons like Get test shares, so a primary button in ink
+          stops outranking them in the nav: that is what middle keeps and calm gives up. And nearly every coloured word
+          on a board is a ticker rather than a button, which is why only quiet moves the needle much. Whichever you
+          pick, say so and the rest gets deleted.
         </p>
       </Plate>
     </div>

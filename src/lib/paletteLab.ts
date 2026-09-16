@@ -10,7 +10,13 @@
  * components/PaletteLab.tsx for the switch itself. Delete the three together
  * once the choice is made. */
 
-export type Palette = "current" | "calm";
+/* Four steps, each one the last plus a little more. Current is the site today;
+ * middle takes the side colours off a buy and a sell and halves the glows; calm
+ * also takes them off the action on a screen; quiet also softens them wherever
+ * they are only a ticker's name, which is where nearly all of them are. */
+export type Palette = "current" | "middle" | "calm" | "quiet";
+
+export const PALETTES: Palette[] = ["current", "middle", "calm", "quiet"];
 
 /** Stored under this key: a palette name, or "off" after a Hide. */
 export const PALETTE_KEY = "sw-palette";
@@ -33,12 +39,13 @@ export function writePalette(v: string) {
   }
 }
 
-/** Paint the page in a palette. The calm one is a data attribute on <html>. */
+/** Paint the page. Everything but the current one is a data attribute on <html>. */
 export function applyPalette(p: Palette) {
   const root = document.documentElement;
-  if (p === "calm") root.dataset.palette = "calm";
-  else delete root.dataset.palette;
+  if (p === "current") delete root.dataset.palette;
+  else root.dataset.palette = p;
 }
 
 /** What a stored value means; anything unrecognised means the current one. */
-export const paletteOf = (stored: string | null): Palette => (stored === "calm" ? "calm" : "current");
+export const paletteOf = (stored: string | null): Palette =>
+  PALETTES.includes(stored as Palette) ? (stored as Palette) : "current";
