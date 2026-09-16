@@ -63,6 +63,9 @@ import { useNow } from "@/lib/useNow";
 
 const PAGE = 20;
 
+/** Wins on the trot before the profile says so out loud. */
+const STRONG_STREAK = 3;
+
 /** The latest thing that happened to a fight, for ordering a history. */
 const lastActivity = (d: DuelView, now: number) =>
   Math.max(d.createdTs, d.acceptedTs, d.startTs, d.endTs > 0 && (!now || d.endTs <= now) ? d.endTs : 0);
@@ -305,7 +308,14 @@ export function ProfileView({ wallet }: { wallet: string }) {
             sub: <FormPips results={record.form} />,
           },
           { label: "Win rate", value: <span className="num">{rate}</span> },
-          { label: "Streak", value: record.streak },
+          {
+            label: "Streak",
+            value: record.streak,
+            /* Three on the trot, and only three: said on every win it would be
+             * wallpaper, and the whole point of the line is that it is about
+             * this one. A loss sets the streak to zero and takes it away. */
+            sub: record.streak >= STRONG_STREAK ? "The stonk is strong with this one." : undefined,
+          },
           { label: "Best streak", value: record.best },
           {
             label: "Taken",
