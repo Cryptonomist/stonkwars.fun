@@ -100,8 +100,20 @@ export function signedQuoteInstruction(oracle: Keypair, q: Quote): TransactionIn
 }
 
 /** One-minute bars: start times in unix seconds, and closes (null for a
- * minute with no trade). */
-export type Bars = { t: number[]; c: (number | null)[] };
+ * minute with no trade).
+ *
+ * A bar's open, high, low and traded size come too when the source gives them.
+ * They are for drawing and nothing else: every price rule below reads closes,
+ * so what a chart shows can never change what a fight settles at. */
+export type Bars = {
+  t: number[];
+  c: (number | null)[];
+  o?: (number | null)[];
+  h?: (number | null)[];
+  l?: (number | null)[];
+  /** Traded size in the bar: shares on an exchange, contracts on a perp. */
+  v?: (number | null)[];
+};
 
 /** The end of the bar a boundary falls in: the first bar that ends after it,
  *  and so the earliest a bar-priced side's price can close. A boundary exactly
@@ -167,15 +179,23 @@ export async function fetchBars(symbol: string, from: number, to: number, interv
   const url = `${YAHOO}/${encodeURIComponent(symbol)}?period1=${from}&period2=${to}&interval=${interval}&includePrePost=true`;
   const r = await fetch(url, { headers: HEADERS, cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!r.ok) throw new Error(`${symbol}: market data HTTP ${r.status}`);
+  type Quote = {
+    close?: (number | null)[];
+    open?: (number | null)[];
+    high?: (number | null)[];
+    low?: (number | null)[];
+    volume?: (number | null)[];
+  };
   const body = (await r.json()) as {
     chart?: {
-      result?: { timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[] }[] } }[];
+      result?: { timestamp?: number[]; indicators?: { quote?: Quote[] } }[];
       error?: { description?: string } | null;
     };
   };
   const res = body.chart?.result?.[0];
   if (!res) throw new Error(`${symbol}: ${body.chart?.error?.description ?? "no market data"}`);
-  return { t: res.timestamp ?? [], c: res.indicators?.quote?.[0]?.close ?? [] };
+  const q = res.indicators?.quote?.[0];
+  return { t: res.timestamp ?? [], c: q?.close ?? [], o: q?.open, h: q?.high, l: q?.low, v: q?.volume };
 }
 
 /* THE MARKET THAT NEVER CLOSES.
@@ -217,11 +237,21 @@ export async function fetchPerpBars(coin: string, from: number, to: number, inte
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   if (!r.ok) throw new Error(`${coin}: perp data HTTP ${r.status}`);
-  const rows = ((await r.json()) as { t: number; c: string }[] | null) ?? [];
+  const rows =
+    ((await r.json()) as { t: number; o?: string; h?: string; l?: string; c: string; v?: string }[] | null) ?? [];
+
+  /* Hyperliquid sends every field as a decimal string. A price has to be
+   * positive to be a price; a size of zero is a real answer (nobody traded). */
+  const price = (s: string | undefined) => (s != null && Number(s) > 0 ? Number(s) : null);
+  const size = (s: string | undefined) => (s != null && Number.isFinite(Number(s)) && Number(s) >= 0 ? Number(s) : null);
 
   const bars: Bars = {
     t: rows.map((c) => Math.floor(c.t / 1_000)),
-    c: rows.map((c) => (Number(c.c) > 0 ? Number(c.c) : null)),
+    c: rows.map((c) => price(c.c)),
+    o: rows.map((c) => price(c.o)),
+    h: rows.map((c) => price(c.h)),
+    l: rows.map((c) => price(c.l)),
+    v: rows.map((c) => size(c.v)),
   };
   if (perpWindowComplete(bars, to, Math.floor(Date.now() / 1_000))) {
     if (perpBars.size > 500) perpBars.clear();

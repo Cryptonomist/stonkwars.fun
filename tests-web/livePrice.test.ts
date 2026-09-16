@@ -130,11 +130,14 @@ describe("merging exchange and perp bars", () => {
       t: [m(19, 58), m(19, 59), m(20, 0), m(20, 1), m(20, 2)],
       c: [888, 888, 102, null, 103],
     };
-    expect(mergeBars(exchange, perp, isClosed)).to.deep.equal({
+    const merged = mergeBars(exchange, perp, isClosed);
+    expect({ t: merged.t, c: merged.c, src: merged.src }).to.deep.equal({
       t: [m(19, 57), m(19, 59), m(20, 0), m(20, 2)],
       c: [100, 101.5, 102, 103],
       src: ["exchange", "exchange", "perp", "perp"],
     });
+    // Neither of these sources gave a size, so none is invented.
+    expect(merged.v).to.deep.equal([null, null, null, null]);
   });
 
   it("uses the oracle's own session rule at the bell", () => {

@@ -67,6 +67,61 @@ export function fibLevels(high: number, low: number): FibLevel[] {
   }));
 }
 
+/* THE AVERAGE PRICE EVERY SHARE ACTUALLY CHANGED HANDS AT.
+ *
+ * VWAP weights each bar by how much traded in it, so an hour nobody touched
+ * counts for less than a minute the whole market went through. It is anchored
+ * to the left edge of the window, which is what an "anchored VWAP" means: the
+ * running average since the window began, not a session's own. Null until some
+ * size has accumulated, so a stretch the market reported no size for draws
+ * nothing rather than a line at zero.
+ *
+ * Each bar counts at its typical price, the average of its high, low and close,
+ * which is the usual convention and closer to where the trading sat than the
+ * close alone. */
+export function vwap(
+  high: number[],
+  low: number[],
+  close: number[],
+  volume: (number | null)[],
+): (number | null)[] {
+  const out: (number | null)[] = new Array(close.length).fill(null);
+  let value = 0;
+  let size = 0;
+  for (let i = 0; i < close.length; i++) {
+    const v = volume[i];
+    if (v != null && Number.isFinite(v) && v > 0) {
+      value += ((high[i] + low[i] + close[i]) / 3) * v;
+      size += v;
+    }
+    if (size > 0) out[i] = value / size;
+  }
+  return out;
+}
+
+/** True when a market reported any size at all over these bars. */
+export const hasVolume = (volume: (number | null)[]) => volume.some((v) => v != null && v > 0);
+
+/* A traded size in as few characters as a chart's axis has room for: 12.4M,
+ * 806K, 1.24B. Whole units below a thousand, since a thin bar that traded
+ * eleven shares should say eleven. */
+export function volumeWords(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "";
+  const units: [number, string][] = [
+    [1e12, "T"],
+    [1e9, "B"],
+    [1e6, "M"],
+    [1e3, "K"],
+  ];
+  for (const [size, suffix] of units) {
+    if (n >= size) {
+      const scaled = n / size;
+      return `${scaled.toFixed(scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2)}${suffix}`;
+    }
+  }
+  return n.toLocaleString("en-US", { maximumFractionDigits: n < 10 ? 2 : 0 });
+}
+
 /** A simple moving average over `period` bars; null until there are enough. */
 export function sma(values: number[], period: number): (number | null)[] {
   if (period <= 1) return values.slice();

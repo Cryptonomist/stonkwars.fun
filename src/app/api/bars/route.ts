@@ -34,7 +34,17 @@ const DAILY = 86_400;
 const FINAL_AFTER_SECS = 120;
 const MAX_KEPT = 200;
 
-type Body = { t: number[]; c: number[]; src: ("exchange" | "perp")[]; note?: string };
+type Body = {
+  t: number[];
+  c: number[];
+  /** The bar's open, its extremes, and what traded in it (null where unreported). */
+  o: number[];
+  h: number[];
+  l: number[];
+  v: (number | null)[];
+  src: ("exchange" | "perp")[];
+  note?: string;
+};
 
 /* Finished ranges never change, so each is kept per server instance. The
  * oldest is dropped first once there are too many. */
@@ -100,11 +110,15 @@ export async function GET(req: NextRequest) {
 
   const merged = mergeBars(exchange, perp, isClosed, step);
   // Nothing past the end of the range, including a last-trade point stamped late.
-  const body: Body = { t: [], c: [], src: [] };
+  const body: Body = { t: [], c: [], o: [], h: [], l: [], v: [], src: [] };
   for (let i = 0; i < merged.t.length; i++) {
     if (merged.t[i] < Math.floor(from / step) * step || merged.t[i] > to) continue;
     body.t.push(merged.t[i]);
     body.c.push(merged.c[i]);
+    body.o.push(merged.o[i]);
+    body.h.push(merged.h[i]);
+    body.l.push(merged.l[i]);
+    body.v.push(merged.v[i]);
     body.src.push(merged.src[i]);
   }
   if (anyClosed && !coin) body.note = "No minute bars while the exchange is shut for this stock.";

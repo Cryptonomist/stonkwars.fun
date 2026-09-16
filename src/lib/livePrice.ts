@@ -79,22 +79,42 @@ export function lastClose(bars: Bars): { price: number; time: number } | null {
   return null;
 }
 
+export type MergedBars = {
+  t: number[];
+  c: number[];
+  /** The bucket's open, and the extremes reached inside it. */
+  o: number[];
+  h: number[];
+  l: number[];
+  /** Traded size, or null where the market did not report one. */
+  v: (number | null)[];
+  src: ("exchange" | "perp")[];
+};
+
 /* ONE PATH, FROM TWO MARKETS.
  *
  * A chart that crosses a closing bell has to switch markets at the bell,
  * exactly as the oracle does: the exchange's bars while it trades, the perp's
  * once it shuts. Each minute is taken from one market only, chosen by
  * `isClosed`, so the two series never interleave into a zigzag. Points are
- * bucketed to the start of their minute (the later point wins inside one),
- * minutes with no trade are dropped, and the result is in time order. */
+ * bucketed to the start of their minute, minutes with no trade are dropped,
+ * and the result is in time order.
+ *
+ * A bucket wider than the bars that fall in it is built the way a candle is:
+ * the first bar's open, the highest high and the lowest low reached inside it,
+ * the last close, and the sizes added up. A market that reports no size leaves
+ * null rather than zero, so a chart can tell "nobody traded" from "nobody
+ * said". */
 export function mergeBars(
   exchange: Bars,
   perp: Bars,
   isClosed: (t: number) => boolean,
   /** One bucket, in seconds. A chart asking for wider bars buckets by those. */
   stepSecs = 60,
-): { t: number[]; c: number[]; src: ("exchange" | "perp")[] } {
-  const byMinute = new Map<number, { c: number; src: "exchange" | "perp" }>();
+): MergedBars {
+  type Cell = { o: number; h: number; l: number; c: number; v: number | null; src: "exchange" | "perp" };
+  const byMinute = new Map<number, Cell>();
+
   const take = (bars: Bars, src: "exchange" | "perp", wantClosed: boolean) => {
     const n = Math.min(bars.t.length, bars.c.length);
     for (let i = 0; i < n; i++) {
@@ -102,18 +122,51 @@ export function mergeBars(
       if (close == null || !Number.isFinite(close) || !(close > 0)) continue;
       const minute = Math.floor(bars.t[i] / stepSecs) * stepSecs;
       if (isClosed(minute) !== wantClosed) continue;
-      // Bars arrive oldest first, so a later point in the same minute is newer.
-      // The two markets never share a minute: isClosed gives each to one.
-      byMinute.set(minute, { c: close, src });
+
+      // A source that gives no open, high or low prices that bar at its close.
+      const priced = (col: (number | null)[] | undefined) => {
+        const x = col?.[i];
+        return x != null && Number.isFinite(x) && x > 0 ? x : close;
+      };
+      const raw = bars.v?.[i];
+      const size = raw != null && Number.isFinite(raw) && raw >= 0 ? raw : null;
+
+      /* A bar the market says nothing traded in has no traded range either. Its
+       * high and low are then a quote rather than a print, and one stale quote
+       * stretches the whole scale: an after-hours TSLA bar with a volume of
+       * zero carried a low twenty dollars under its own open and close. Such a
+       * bar reaches only as far as it opened and closed. A bar that reported no
+       * size at all is left alone, since "nobody said" is not "nobody traded". */
+      const quoteOnly = size === 0;
+      const high = quoteOnly ? Math.max(priced(bars.o), close) : priced(bars.h);
+      const low = quoteOnly ? Math.min(priced(bars.o), close) : priced(bars.l);
+
+      const had = byMinute.get(minute);
+      if (!had) {
+        byMinute.set(minute, { o: priced(bars.o), h: high, l: low, c: close, v: size, src });
+        continue;
+      }
+      /* Bars arrive oldest first, so a later one extends the bucket it falls
+       * in and its close becomes the bucket's. The two markets never share a
+       * bucket: isClosed gives each to one. */
+      had.h = Math.max(had.h, high);
+      had.l = Math.min(had.l, low);
+      had.c = close;
+      if (size !== null) had.v = (had.v ?? 0) + size;
     }
   };
   take(exchange, "exchange", false);
   take(perp, "perp", true);
 
   const minutes = [...byMinute.keys()].sort((a, b) => a - b);
+  const cell = (m: number) => byMinute.get(m)!;
   return {
     t: minutes,
-    c: minutes.map((m) => byMinute.get(m)!.c),
-    src: minutes.map((m) => byMinute.get(m)!.src),
+    c: minutes.map((m) => cell(m).c),
+    o: minutes.map((m) => cell(m).o),
+    h: minutes.map((m) => Math.max(cell(m).h, cell(m).o, cell(m).c)),
+    l: minutes.map((m) => Math.min(cell(m).l, cell(m).o, cell(m).c)),
+    v: minutes.map((m) => cell(m).v),
+    src: minutes.map((m) => cell(m).src),
   };
 }
