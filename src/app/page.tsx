@@ -71,6 +71,11 @@ export default function Home() {
           <LiveNowLink />
           {/* A phone already has this button in the bar under its thumb, and the
             * second copy up here cost the first screen a fight row. */}
+          {/* Shares come before a stake, and nothing on this page said where to
+            * get them. The desk is one tap from here and from the nav. */}
+          <Link href="/trade" className="btn btn-ghost hidden shrink-0 sm:inline-flex">
+            Buy or sell
+          </Link>
           <Link href="/new" className="btn btn-p1 hidden shrink-0 sm:inline-flex">
             Pick a fight
           </Link>
@@ -105,6 +110,23 @@ export default function Home() {
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6" aria-label="Rails">
+          <Plate as="section" pad="std" className="flex flex-col gap-3" aria-labelledby="trade-cta">
+            <p id="trade-cta" className="h-section">
+              Own the shares first
+            </p>
+            <p className="text-sm text-dim">
+              Buy a stock with USDC or SOL, sell what you hold, and stake it in a fight. Your wallet, your shares.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/trade" className="btn btn-sm btn-light">
+                Buy stocks
+              </Link>
+              <Link href="/trade?side=sell" className="btn btn-sm btn-ghost">
+                Sell
+              </Link>
+            </div>
+          </Plate>
+
           <section className="flex min-w-0 flex-col gap-3" aria-labelledby="movers-head">
             <SectionHead id="movers-head" title="Moving today" />
             <Plate pad="std" className="py-2">

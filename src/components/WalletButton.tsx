@@ -420,6 +420,7 @@ function WalletMenu({ address, className }: { address: string; className?: strin
         </div>
 
         <div className="py-1">
+          <MenuItem href="/trade">Buy or sell shares</MenuItem>
           <MenuItem href="/fights?tab=mine">My fights</MenuItem>
           {/* Every board shows a wallet as an address until its owner links an X
             * handle, and this menu is where people look for account actions. The

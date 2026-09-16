@@ -33,6 +33,7 @@ import { CLUSTER } from "@/lib/stocks";
 
 const LINKS = [
   { href: "/fights", label: "Fights" },
+  { href: "/trade", label: "Trade" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/how", label: "How it works" },
 ];
