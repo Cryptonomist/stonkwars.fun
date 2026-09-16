@@ -136,16 +136,16 @@ describe("how long until", () => {
 
 describe("a round on the market's clock", () => {
   it("writes one day once", () => {
-    expect(etWhen(et(2026, 9, 12, 16, 21), et(2026, 9, 12, 16, 27))).to.equal("Sat 12 Sep, 4:21 to 4:27 PM ET");
+    expect(etWhen(et(2026, 9, 12, 16, 21), et(2026, 9, 12, 16, 27))).to.equal("Sat, Sep 12, 4:21 to 4:27 PM ET");
   });
 
   it("names both halves of the day when a round crosses noon", () => {
-    expect(etWhen(et(2026, 9, 11, 11, 30), et(2026, 9, 11, 13, 5))).to.equal("Fri 11 Sep, 11:30 AM to 1:05 PM ET");
+    expect(etWhen(et(2026, 9, 11, 11, 30), et(2026, 9, 11, 13, 5))).to.equal("Fri, Sep 11, 11:30 AM to 1:05 PM ET");
   });
 
   it("writes both days when a round runs over a weekend", () => {
     expect(etWhen(et(2026, 9, 11, 15, 0), et(2026, 9, 14, 9, 30))).to.equal(
-      "Fri 11 Sep 3:00 PM to Mon 14 Sep 9:30 AM ET",
+      "Fri, Sep 11 3:00 PM to Mon, Sep 14 9:30 AM ET",
     );
   });
 
@@ -157,7 +157,7 @@ describe("a round on the market's clock", () => {
 
 describe("a moment days away", () => {
   it("carries its date", () => {
-    expect(etDay(et(2026, 9, 18, 22, 22))).to.equal("Fri 18 Sep, 10:22 PM ET");
-    expect(etDay(et(2026, 11, 2, 9, 5))).to.equal("Mon 2 Nov, 9:05 AM ET");
+    expect(etDay(et(2026, 9, 18, 22, 22))).to.equal("Fri, Sep 18, 10:22 PM ET");
+    expect(etDay(et(2026, 11, 2, 9, 5))).to.equal("Mon, Nov 2, 9:05 AM ET");
   });
 });

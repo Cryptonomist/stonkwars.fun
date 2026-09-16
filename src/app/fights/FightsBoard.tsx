@@ -165,7 +165,7 @@ function etDay(unix: number, now: number): { key: string; label: string } {
   for (const p of ET_DAY.formatToParts(new Date(unix * 1000))) parts[p.type] = p.value;
   const thisYear = now > 0 && ET_DAY.formatToParts(new Date(now * 1000)).find((p) => p.type === "year")?.value;
   const year = thisYear && thisYear !== parts.year ? ` ${parts.year}` : "";
-  return { key: `${parts.year}-${parts.month}-${parts.day}`, label: `${parts.weekday} ${parts.day} ${parts.month}${year}` };
+  return { key: `${parts.year}-${parts.month}-${parts.day}`, label: `${parts.weekday}, ${parts.month} ${parts.day}${year}` };
 }
 
 /* The test fights: every duel account the listed read leaves out. Never read

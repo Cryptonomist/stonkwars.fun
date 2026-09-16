@@ -26,9 +26,9 @@
  * changes hands, at 8:00 PM ET from the exchange to the perp, a faint marker
  * names the market the line comes from after it.
  *
- * The window is the last six hours to the whole minute, so every viewer asks
- * for the same range in a given minute and the edge can answer from cache.
- * It is asked again each minute.
+ * The window ends at the whole minute, so every viewer asks for the same range
+ * in a given minute and the edge can answer from cache. It is asked again each
+ * minute.
  *
  * Plain SVG measured to its box, like the race chart, so text stays at its real
  * size on a phone. The crosshair follows a mouse or a finger (a finger keeps it
@@ -166,15 +166,15 @@ export function IntradayChart({
   let body;
   if (!charted) {
     body = (
-      <Notice title="No minute chart for this listing.">
-        Minute bars are drawn for US listings only. The live price above still comes from its own market.
+      <Notice title="No chart for this listing.">
+        Bars are drawn for US listings only. The live price above still comes from its own market.
       </Notice>
     );
   } else if (bars.isError && !bars.data) {
     body = (
       <Notice
         tone="error"
-        title="Minute bars are unavailable right now."
+        title="Bars are unavailable right now."
         action={
           <button type="button" onClick={() => void bars.refetch()} className="btn btn-sm btn-ghost">
             Retry
@@ -521,7 +521,11 @@ function Chart({
 
   /** Shares on an exchange, contracts on a perp. Never the two added together. */
   const sizeWords = (i: number) =>
-    v[i] == null ? null : `${volumeWords(v[i]!)} ${src[i] === "perp" ? "contracts" : "shares"}`;
+    v[i] == null
+      ? null
+      : `${volumeWords(v[i]!)} ${
+          src[i] === "perp" ? (v[i] === 1 ? "contract" : "contracts") : v[i] === 1 ? "share" : "shares"
+        }`;
 
   const describe = (i: number) =>
     [
@@ -565,7 +569,7 @@ function Chart({
       style={{ height }}
       tabIndex={n ? 0 : -1}
       role="group"
-      aria-label={`${summary}${n ? " Use the arrow keys to read each minute." : ""}`}
+      aria-label={`${summary}${n ? " Use the arrow keys to read each bar." : ""}`}
       onPointerMove={onPoint}
       onPointerDown={onPoint}
       onPointerLeave={(e) => {
@@ -818,7 +822,7 @@ function Chart({
 
       {n === 0 ? (
         <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-dim">
-          No minute bars in the last 6 hours.
+          No bars in this window.
         </p>
       ) : null}
 

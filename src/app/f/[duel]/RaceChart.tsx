@@ -154,7 +154,7 @@ export function RaceChart({
         )}
       </div>
       <div className="flex flex-col gap-1 text-meta text-dim">
-        <p>Path from 1-minute market bars and live prices, for watching. The result uses only the on-chain start and bell prices.</p>
+        <p>Path from one-minute market bars and live prices, for watching. The result uses only the on-chain start and bell prices.</p>
         {series.notes.map((n) => (
           <p key={n}>{n}</p>
         ))}

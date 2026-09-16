@@ -71,7 +71,7 @@ export function TradeTerminal({ ticker, side }: { ticker: string; side: Side }) 
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,4fr)_minmax(0,5fr)_minmax(0,3fr)]">
         <section className="flex min-w-0 flex-col gap-3" aria-labelledby="trade-stocks">
-          <SectionHead id="trade-stocks" title="Stocks" count={`${STAKEABLE.length} tradeable`} />
+          <SectionHead id="trade-stocks" title="Stocks" count={`${STAKEABLE.length} tradable`} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -165,7 +165,7 @@ export function TradeTerminal({ ticker, side }: { ticker: string; side: Side }) 
             )}
           </Plate>
           <p className="text-meta text-dim">
-            {byTicker(picked)?.name ?? picked} and every other listed stock has its own page with a chart and its record:{" "}
+            {byTicker(picked)?.name ?? picked}, like every other listed stock, has its own page with a chart and its record:{" "}
             <Link href={`/s/${picked}`} className="link">
               {picked} page
             </Link>

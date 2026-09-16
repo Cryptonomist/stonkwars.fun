@@ -289,7 +289,7 @@ describe("round clock", () => {
       expect(refundAt).to.equal(ny(18, 22, 21, 49));
       const line =
         "Can never start · Pyth has no TSLA price for the moment it was taken, and never will. " +
-        "Both stakes can be sent home from Fri 18 Sep, 10:22 PM ET.";
+        "Both stakes can be sent home from Fri, Sep 18, 10:22 PM ET.";
       for (const now of [d.acceptedTs + 5, ny(13, 20, 30), ny(14, 9, 30, 5), ny(15, 12, 0), refundAt - 1]) {
         expect(roundClock(d, now), String(now)).to.deep.equal({ line, secondsLeft: null, manual: null });
         expect(shutSides(d, now)).to.deep.equal([]);
@@ -314,7 +314,7 @@ describe("round clock", () => {
       expect(n).to.deep.equal({ never: ["TSLA"], refundAt: ny(19, 9, 0) });
       expect(neverWords(n, "settle")).to.equal("Pyth has no TSLA price for its bell, and never will.");
       expect(roundClock(live, ny(13, 12, 0)).line).to.equal(
-        "Can never settle · Pyth has no TSLA price for its bell, and never will. Both stakes can be sent home from Sat 19 Sep, 9:00 AM ET.",
+        "Can never settle · Pyth has no TSLA price for its bell, and never will. Both stakes can be sent home from Sat, Sep 19, 9:00 AM ET.",
       );
       expect(refundWords(n, ny(19, 9, 0))).to.equal("Anyone can send both stakes home.");
     });

@@ -217,7 +217,7 @@ describe("receipt", () => {
 
   it("stamps a price's moment to the second on New York's clock", () => {
     // Saturday 12 September 2026, 4:21:00 PM EDT is 20:21:00 UTC.
-    expect(etStamp(Date.UTC(2026, 8, 12, 20, 21, 0) / 1000)).to.equal("Sat 12 Sep 4:21:00 PM ET");
-    expect(etStamp(Date.UTC(2026, 8, 14, 13, 30, 5) / 1000)).to.equal("Mon 14 Sep 9:30:05 AM ET");
+    expect(etStamp(Date.UTC(2026, 8, 12, 20, 21, 0) / 1000)).to.equal("Sat, Sep 12, 4:21:00 PM ET");
+    expect(etStamp(Date.UTC(2026, 8, 14, 13, 30, 5) / 1000)).to.equal("Mon, Sep 14, 9:30:05 AM ET");
   });
 });

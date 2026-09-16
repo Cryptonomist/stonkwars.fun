@@ -500,7 +500,7 @@ function PodiumCard({
           ) : null}
           {h.favourite ? (
             <span className="flex min-w-0 items-baseline gap-2">
-              <span className="label w-20 shrink-0">Favourite</span>
+              <span className="label w-20 shrink-0">Favorite</span>
               <span className="min-w-0 truncate text-meta">
                 <span className="text-ink">{h.favourite.ticker}</span>{" "}
                 <span className="num">

@@ -75,13 +75,13 @@ export function WhySolana({ className }: { className?: string }) {
     },
     {
       label: "Prices checked on chain",
-      body: "Pyth prices are verified on Solana and checked by the program; oracle quotes by Solana's Ed25519 program in the same transaction. A wrong price is refused, not argued about.",
+      body: "Pyth prices are verified on Solana and checked by the program; oracle quotes are verified by Solana's Ed25519 program in the same transaction. A wrong price is refused, not argued about.",
     },
     {
       label: "Stakes held by the program",
       body: (
         <>
-          Escrow sits in accounts owned by each fight&apos;s address, with no admin withdraw, and anyone can finish a
+          Escrow sits in accounts owned by each fight&apos;s address, with no admin withdrawal, and anyone can finish a
           fight. Program <ExplorerLink kind="address" value={PROGRAM_ID.toBase58()} />
         </>
       ),

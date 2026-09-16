@@ -144,7 +144,7 @@ export function FightView({ address }: { address: string }) {
       <div className="py-6">
         <Empty
           title="No fight at this address."
-          body="Cancelled fights close their account, so their links stop working."
+          body="Canceled fights close their accounts, so their links stop working."
           action={{ href: "/new", label: "Pick a fight", tone: "p1" }}
         />
       </div>
@@ -550,7 +550,7 @@ function Center({
         </div>
         <span className="text-center text-sm font-semibold text-ink">
           {tie
-            ? "Dead heat. Both stakes home."
+            ? "Dead heat. Both stakes go home."
             : m1 !== null && m2 !== null && loser
               ? `${loser === "p1" ? t2 : t1} won by ${points(Math.abs(m1 - m2))} percentage points`
               : "Final"}

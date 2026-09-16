@@ -109,7 +109,7 @@ const ROUND_WORDS: Record<RoundId, string> = {
   "1h": "1 hour",
   "12h": "Overnight 12h",
   "24h": "24 hours",
-  bell: "next bell",
+  bell: "Next bell",
   week: "Friday bell",
 };
 
@@ -438,7 +438,7 @@ export function CreateFight() {
             ? `${andList(onPerp)} ${onPerp.length === 1 ? "settles" : "settle"} on a perpetual futures market that never closes${onPoolOnly.length ? ", and " : "."}`
             : ""}
           {onPoolOnly.length
-            ? `${onPerp.length ? "" : "The "}${andList(onPoolOnly)} settle on ${onPoolOnly.length === 1 ? "its" : "their"} own Solana pool.`
+            ? `${andList(onPoolOnly)} ${onPoolOnly.length === 1 ? "settles on its" : "settle on their"} own Solana pool.`
             : ""}
         </p>
         {onPoolOnly.length && secs && secs < OFFHOURS_WINDOW * 60 ? (

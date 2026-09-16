@@ -254,7 +254,7 @@ export function ConnectX({ compact = false, className }: { compact?: boolean; cl
   );
 
   /* The wallet's own words ("User rejected the request") become the site's
-   * ("You cancelled in your wallet."), and nothing longer than a sentence. */
+   * ("You canceled in your wallet."), and nothing longer than a sentence. */
   const feedback = error ? (
     <Notice tone="error" title="That did not go through." className="mt-3">
       {readableProgramError(error)}

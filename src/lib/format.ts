@@ -110,7 +110,7 @@ export function clock(secondsLeft: number): string {
   return `${m}:${two(s)}`;
 }
 
-/** "15 min", "1 hr", "2 days" */
+/** "15 min", "1 hr", "1 day", "2 days" */
 export function span(seconds: number): string {
   if (seconds < 3_600) return `${Math.round(seconds / 60)} min`;
   if (seconds < 86_400) {
@@ -118,7 +118,7 @@ export function span(seconds: number): string {
     return `${Number.isInteger(h) ? h : h.toFixed(1)} hr`;
   }
   const d = seconds / 86_400;
-  return `${Number.isInteger(d) ? d : d.toFixed(1)} days`;
+  return `${Number.isInteger(d) ? d : d.toFixed(1)} ${d === 1 ? "day" : "days"}`;
 }
 
 export const shortAddress = (a: string, n = 4): string =>
@@ -171,10 +171,10 @@ function etParts(unix: number): EtParts {
   };
 }
 
-/** "Fri 18 Sep, 10:21 PM ET": a moment days away, so with its date. */
+/** "Fri, Sep 18, 10:21 PM ET": a moment days away, so with its date. */
 export function etDay(unix: number): string {
   const p = etParts(unix);
-  return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute} ${p.period} ET`;
+  return `${p.weekday}, ${p.month} ${p.day}, ${p.hour}:${p.minute} ${p.period} ET`;
 }
 
 /** "now", "45s ago", "12m ago", "3h ago", "2d ago", then "Sep 3" (in ET). */
@@ -215,12 +215,12 @@ export function until(unix: number, now: number): string {
   return `in ${Math.floor(s / 86_400)}d`;
 }
 
-/** A round as the market's clock saw it: "Sat 12 Sep, 4:21 to 4:27 PM ET" on
- *  one ET day, "Fri 11 Sep 3:00 PM to Mon 14 Sep 9:30 AM ET" across days. */
+/** A round as the market's clock saw it: "Sat, Sep 12, 4:21 to 4:27 PM ET" on
+ *  one ET day, "Fri, Sep 11 3:00 PM to Mon, Sep 14 9:30 AM ET" across days. */
 export function etWhen(startUnix: number, endUnix: number): string {
   const a = etParts(startUnix);
   const b = etParts(endUnix);
-  const date = (p: EtParts) => `${p.weekday} ${p.day} ${p.month}`;
+  const date = (p: EtParts) => `${p.weekday}, ${p.month} ${p.day}`;
   const time = (p: EtParts) => `${p.hour}:${p.minute}`;
   if (a.ymd === b.ymd) {
     const from = a.period === b.period ? time(a) : `${time(a)} ${a.period}`;

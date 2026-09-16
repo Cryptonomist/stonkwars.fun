@@ -274,9 +274,9 @@ const STAMP = new Intl.DateTimeFormat("en-US", {
   hour12: true,
 });
 
-/** "Sat 12 Sep 4:21:00 PM ET": a price's moment, to the second, on the market's clock. */
+/** "Sat, Sep 12, 4:21:00 PM ET": a price's moment, to the second, on the market's clock. */
 export function etStamp(unix: number): string {
   const p: Record<string, string> = {};
   for (const part of STAMP.formatToParts(new Date(unix * 1000))) p[part.type] = part.value;
-  return `${p.weekday} ${p.day} ${p.month} ${p.hour}:${p.minute}:${p.second} ${(p.dayPeriod ?? "").toUpperCase()} ET`;
+  return `${p.weekday}, ${p.month} ${p.day}, ${p.hour}:${p.minute}:${p.second} ${(p.dayPeriod ?? "").toUpperCase()} ET`;
 }

@@ -220,7 +220,7 @@ export function StockPicker({
             reset();
           }}
           onKeyDown={onSearchKey}
-          placeholder={`Search ${COUNTS.all.toLocaleString()} tokenized stocks`}
+          placeholder={`Search ${COUNTS.all.toLocaleString("en-US")} tokenized stocks`}
           aria-label={`Search stocks for ${side === "p1" ? "your" : "their"} corner`}
           autoComplete="off"
           autoCorrect="off"

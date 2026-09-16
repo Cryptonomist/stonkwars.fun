@@ -12,7 +12,7 @@ export default function Terms() {
   return (
     <LegalPage
       title="Terms"
-      updated="13 September 2026"
+      updated="September 13, 2026"
       intro="Stonk Wars is a demonstration of peer-to-peer escrow on Solana. Using it means accepting what follows. If you do not, do not use it."
     >
       <Section title="What this is">
@@ -65,13 +65,13 @@ export default function Terms() {
           rely on it, fight only the stocks marked as priced by Pyth.
         </p>
         <p>
-          While a US stock&apos;s own market is open, from 4am to 8pm New York time, that market is where the oracle reads.
+          While a US stock&apos;s own market is open, from 4 AM to 8 PM New York time, that market is where the oracle reads.
           Outside those hours, for the stocks marked 24/7, the price is the median of the one-minute closes, over three
           minutes, of the public markets that trade the stock around the clock: perpetual futures and tokenized shares,
           each corrected by its premium to the others. Those are not the share, and their price can differ from the
           share&apos;s; each market was checked against the stock&apos;s own price before it was pinned. When too few of them
-          traded, the price is the exchange&apos;s first bar after it opens instead. Off-hours prices are thinner than an
-          exchange print and can differ from where the stock next opens, which is the trade for being able to fight at
+          have traded, the price is the exchange&apos;s first bar after it opens instead. Off-hours prices are thinner than an
+          exchange print and can differ from where the stock next opens, which is the trade-off for being able to fight at
           all while the exchange is shut. The markets for each stock are pinned and published, and every such price
           comes with a proof listing each market&apos;s request and closes, so anyone can read the same numbers from the
           same public sources. Every other stock waits for its market to open.
@@ -80,7 +80,7 @@ export default function Terms() {
 
       <Section title="Who may use it">
         <p>
-          You must be 18 or older, and using it must be lawful where you live. That is your judgement to make, not ours.
+          You must be 18 or older, and using it must be lawful where you live. That is your judgment to make, not ours.
           Issuers of tokenized stocks generally do not offer them to US persons, and their restrictions are theirs to
           enforce.
         </p>
@@ -137,7 +137,7 @@ export default function Terms() {
 
       <Section title="No warranty, and the limit of what we owe">
         <p>
-          Stonk Wars is provided as it is, with no warranty of any kind, express or implied, including that it will be
+          Stonk Wars is provided as is, with no warranty of any kind, express or implied, including that it will be
           available, uninterrupted, accurate or fit for any purpose.
         </p>
         <p>

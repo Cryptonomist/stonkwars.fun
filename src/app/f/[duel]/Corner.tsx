@@ -206,7 +206,7 @@ function Record({ wallet }: { wallet: string }) {
   const record = useMemo(() => (duels.data ? recordFor(wallet, duels.data) : null), [duels.data, wallet]);
   if (!record || record.fights === 0) return null;
   return (
-    <span className="micro num shrink-0 text-dim" title={`${record.wins} wins, ${record.losses} losses${record.ties ? `, ${record.ties} dead heats` : ""}`}>
+    <span className="micro num shrink-0 text-dim" title={`${record.wins} ${record.wins === 1 ? "win" : "wins"}, ${record.losses} ${record.losses === 1 ? "loss" : "losses"}${record.ties ? `, ${record.ties} ${record.ties === 1 ? "dead heat" : "dead heats"}` : ""}`}>
       {record.wins}W-{record.losses}L
     </span>
   );

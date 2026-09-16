@@ -91,7 +91,7 @@ export function Combo({ combo }: { combo: { side: Side; count: number; damage: n
       key={`${combo.side}-${combo.count}`}
       className={`combo display text-hud-sm ${combo.side === "p1" ? "text-p1" : "text-p2"}`}
     >
-      {combo.count} hit combo
+      {combo.count}-hit combo
       <span className="num ml-2 text-meta text-dim normal-case">{points(combo.damage)} pts</span>
     </span>
   );

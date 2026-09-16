@@ -73,7 +73,7 @@ export function Movers({ rows = 8 }: { rows?: number }) {
         }
         className="my-2"
       >
-        Moves fill in when they return.
+        Moves fill in when prices return.
       </Notice>
     );
   }

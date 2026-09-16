@@ -12,7 +12,7 @@ export default function Privacy() {
   return (
     <LegalPage
       title="Privacy"
-      updated="13 September 2026"
+      updated="September 13, 2026"
       intro="Stonk Wars has no accounts, no signup and no email list. There is very little to say here, and most of what there is concerns a blockchain, which is public by design and which nobody can edit afterwards, including us."
     >
       <Section title="What we do not collect">
@@ -44,7 +44,7 @@ export default function Privacy() {
           request offline access, so X gives us no refresh token and we cannot act as you later.
         </p>
         <p>
-          At the moment you connect we read three things, your numeric X account id, your handle, and the address of
+          At the moment you connect we read three things: your numeric X account id, your handle, and the address of
           your X profile picture. The access token that let us read them is discarded immediately and never stored.
         </p>
         <p className="text-ink">

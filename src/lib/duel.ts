@@ -615,7 +615,7 @@ export function readableProgramError(err: unknown): string {
       : String(err);
   const named = text.match(/Error Message: ([^.\n]+)/);
   if (named) return named[1].trim();
-  if (/User rejected|rejected the request/i.test(text)) return "You cancelled in your wallet.";
+  if (/User rejected|rejected the request/i.test(text)) return "You canceled in your wallet.";
   if (/insufficient (lamports|funds)|0x1\b/i.test(text)) {
     return "Not enough SOL for fees and rent. Grab some devnet SOL and try again.";
   }

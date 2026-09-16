@@ -56,7 +56,7 @@ function Bar({ health, side, size }: { health: number; side: "p1" | "p2"; size: 
       aria-valuenow={Math.round(health)}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={`${side === "p1" ? "Challenger" : "Answer"} health`}
+      aria-label={`${side === "p1" ? "Challenger" : "Opponent"} health`}
     >
       <div
         className={`bar-fill absolute inset-y-0 ${side === "p1" ? "right-0 bg-p1" : "left-0 bg-p2"} ${

@@ -243,7 +243,7 @@ export function ProfileView({ wallet }: { wallet: string }) {
         {showTests ? (
           <div id="profile-test-fights" className="flex flex-col gap-2">
             <p className="text-meta text-dim">
-              Staked in devnet test tokens rather than listed stocks, so they count on no board and in no record here.
+              These fights are staked in devnet test tokens rather than listed stocks, so they count on no board and in no record here.
             </p>
             {testFights.map((d) => (
               <FightRow key={d.address.toBase58()} d={d} now={now} viewer={wallet} you={self} />
@@ -353,7 +353,7 @@ export function ProfileView({ wallet }: { wallet: string }) {
 
           {favourites.length ? (
             <section className="flex flex-col gap-3" aria-labelledby="profile-stocks">
-              <SectionHead id="profile-stocks" title="Favourite stocks" />
+              <SectionHead id="profile-stocks" title="Favorite stocks" />
               <ul className="card flex flex-col">
                 {favourites.map((f) => (
                   <li
