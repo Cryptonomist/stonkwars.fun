@@ -391,7 +391,7 @@ function WalletMenu({ address, className }: { address: string; className?: strin
 
           <p className="mt-3 flex items-baseline justify-between gap-3">
             {/* On devnet these are test tokens, and the total says so. */}
-            <span className="label">{CLUSTER !== "mainnet-beta" ? "Test shares" : "Stock tokens"}</span>
+            <span className="label">{CLUSTER !== "mainnet-beta" ? "Test shares" : "Tokenized stocks"}</span>
             {total !== null ? <span className="num text-meta text-ink">{usd(total)} now</span> : null}
           </p>
           {holdings.data === undefined && !holdings.isError ? (
@@ -420,12 +420,12 @@ function WalletMenu({ address, className }: { address: string; className?: strin
               ) : null}
             </ul>
           ) : holdings.data ? (
-            <p className="mt-1 text-meta text-dim">No stock tokens in this wallet yet.</p>
+            <p className="mt-1 text-meta text-dim">No tokenized stocks in this wallet yet.</p>
           ) : null}
         </div>
 
         <div className="py-1">
-          <MenuItem href="/trade">Buy or sell shares</MenuItem>
+          <MenuItem href="/trade">Buy or sell stocks</MenuItem>
           <MenuItem href="/fights?tab=mine">My fights</MenuItem>
           {/* Every board shows a wallet as an address until its owner links an X
             * handle, and this menu is where people look for account actions. The

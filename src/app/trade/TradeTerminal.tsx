@@ -60,7 +60,7 @@ export function TradeTerminal({ ticker, side }: { ticker: string; side: Side }) 
           <p className="label">Trade</p>
           <h1 className="display mt-1 text-hud-lg text-ink">Buy and sell stocks</h1>
           <p className="mt-2 max-w-prose text-sm text-dim">
-            Tokenized shares, swapped on Solana through Jupiter, in your own wallet. Own the shares and you can stake them
+            Tokenized stocks, swapped on Solana through Jupiter, in your own wallet. Own the shares and you can stake them
             in a fight.
           </p>
         </div>
@@ -140,7 +140,7 @@ export function TradeTerminal({ ticker, side }: { ticker: string; side: Side }) 
               </div>
             ) : held.length === 0 ? (
               <p className="px-3 py-3 text-sm text-dim">
-                No stock tokens yet. {CLUSTER === "mainnet-beta" ? "Buy some here." : "Get free test shares from the panel."}
+                No tokenized stocks yet. {CLUSTER === "mainnet-beta" ? "Buy some here." : "Get free test shares from the panel."}
               </p>
             ) : (
               held.map((h) => (

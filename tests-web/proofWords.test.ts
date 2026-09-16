@@ -143,7 +143,7 @@ describe("a 24/7 proof, read back on the receipt", () => {
         "that traded TSLA in the 15 minutes before, each first corrected by its own premium to the others over the hour before.",
     );
     expect(said[1]).to.equal(
-      "These are perpetual futures and tokenized shares, not the exchange listing; a weekend price is what those markets traded, not the next open.",
+      "These are perpetual futures and tokenized stocks, not the exchange listing; a weekend price is what those markets traded, not the next open.",
     );
     expect(said[2]).to.equal(
       "Every request above is public. Hyperliquid keeps about 3 days of one-minute history and Gate about 6 days, " +

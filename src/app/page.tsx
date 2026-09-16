@@ -46,7 +46,7 @@ export default function Home() {
         * page's largest type said nothing live; the main event is a real round
         * (or the latest result), and the pitch is one line under it. The page
         * keeps its heading for screen readers and search. */}
-      <h1 className="sr-only">{BRAND.name}: stock duels on Solana</h1>
+      <h1 className="sr-only">{BRAND.name}: 1v1 tokenized stock fights on Solana</h1>
       <section className="flex flex-col gap-3 py-6" aria-label="Main event">
         <MainEvent />
         <div className="flex min-w-0 items-center gap-x-6 gap-y-3">
@@ -61,7 +61,7 @@ export default function Home() {
             </Link>
           </p>
           <p className="hidden min-w-0 flex-1 text-meta text-dim sm:block">
-            Your stock vs theirs. Stake tokenized shares against someone else&apos;s; the bigger percentage move by the
+            Your stock vs theirs. Stake shares of a tokenized stock against someone else&apos;s; the bigger percentage move by the
             bell takes both stakes, paid in shares.
             {/* Said where the stake is first mentioned, so nobody reads the
               * line as asking for their money. */}

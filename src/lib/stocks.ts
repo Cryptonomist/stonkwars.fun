@@ -119,7 +119,7 @@ const tokenByMint = new Map(TOKENS.map((t) => [t.mint, t]));
 /** Stocks with at least one stakeable token here, in roster order. */
 export const STAKEABLE = ROSTER.filter((s) => tokensByTicker.has(s.ticker));
 
-/* Tokenized shares carry 8 decimals across the board (xStocks, and the test
+/* Tokenized stocks carry 8 decimals across the board (xStocks, and the test
  * mints). Anything that shows an amount for a specific mint should still ask
  * decimalsForMint. */
 export const STAKE_DECIMALS = TOKENS[0]?.decimals ?? 8;

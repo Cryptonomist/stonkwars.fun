@@ -76,7 +76,7 @@ const RULES: Rule[] = [
     id: "what-you-stake",
     label: "What you stake",
     q: "What am I actually staking?",
-    a: "Tokenized shares of the stock you back. On mainnet that means an issuer's tokenized stock, such as an xStock; on devnet, test tokens that stand in for them, which the faucet hands out. The winner receives both stakes as shares, not as cash.",
+    a: "Shares of the tokenized stock you back. On mainnet that means an issuer's tokenized stock, such as an xStock; on devnet, test tokens that stand in for it, which the faucet hands out. The winner receives both stakes as shares, not as cash.",
   },
   {
     id: "which-stocks",
@@ -121,7 +121,7 @@ const RULES: Rule[] = [
     id: "three-in-the-morning",
     label: "Fighting at 3 AM",
     q: "Can I fight at three in the morning?",
-    a: `Yes. ${AROUND_THE_CLOCK.toLocaleString("en-US")} tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check. Every other stock fights the moment its market opens. We never invent a price. A US stock's own market runs from 4 AM to 8 PM New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside that, at night, on weekends and on holidays, those ${AROUND_THE_CLOCK.toLocaleString("en-US")} are priced by the markets that trade them around the clock: perpetual futures and tokenized shares on up to nine public venues, and the price is the median of their one-minute closes over three minutes. A round priced that way runs at least ${MIN_ROUND_HOURS} hours, because a round is only as hard to tip as its move is big: on the weekend we measured, one venue pushing its own price could have changed over a third of some stock's 15-minute rounds, but at most 2.6% of any stock's 12-hour rounds and 5.2% of its 24-hour ones. Pick a shorter round and it waits for the open.${
+    a: `Yes. ${AROUND_THE_CLOCK.toLocaleString("en-US")} tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check. Every other stock fights the moment its market opens. We never invent a price. A US stock's own market runs from 4 AM to 8 PM New York time and the oracle reads it the whole way, pre-market and after-hours included. Outside that, at night, on weekends and on holidays, those ${AROUND_THE_CLOCK.toLocaleString("en-US")} are priced by the markets that trade them around the clock: perpetual futures and tokenized stocks on up to nine public venues, and the price is the median of their one-minute closes over three minutes. A round priced that way runs at least ${MIN_ROUND_HOURS} hours, because a round is only as hard to tip as its move is big: on the weekend we measured, one venue pushing its own price could have changed over a third of some stock's 15-minute rounds, but at most 2.6% of any stock's 12-hour rounds and 5.2% of its 24-hour ones. Pick a shorter round and it waits for the open.${
       PYTH.length
         ? ` The ${PYTH.length === 1 ? "stock" : "stocks"} priced by Pyth (${listWords(PYTH)}) ${PYTH.length === 1 ? "fights" : "fight"} while Pyth's equity feeds print, from 8 PM Sunday to 8 PM Friday New York time, except on market holidays and after 1 PM on a half day. A fight that would start or end while Pyth is dark is refused, because nothing could ever price it.`
         : ""

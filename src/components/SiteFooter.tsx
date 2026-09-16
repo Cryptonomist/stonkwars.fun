@@ -130,7 +130,7 @@ export function SiteFooter() {
               <Wordmark />
             </Link>
             <p className="max-w-sm text-sm leading-relaxed text-dim">
-              {BRAND.tagline} Stake tokenized shares against someone else&apos;s pick; the bigger move takes both
+              {BRAND.tagline} Stake shares of a tokenized stock against someone else&apos;s pick; the bigger move takes both
               stakes, settled on Solana with a receipt anyone can check.
             </p>
             <div className="flex flex-wrap items-center gap-3">
@@ -175,7 +175,7 @@ export function SiteFooter() {
           </span>
           <span>
             {CLUSTER === "mainnet-beta"
-              ? "Stakes are real tokenized shares. Nothing here is investment advice."
+              ? "Stakes are real shares of tokenized stocks. Nothing here is investment advice."
               : "Devnet test shares: nothing real is at stake. Nothing here is investment advice."}
           </span>
         </div>

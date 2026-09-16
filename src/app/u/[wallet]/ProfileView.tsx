@@ -434,7 +434,7 @@ function HoldingsRail({ wallet, fights, self }: { wallet: string; fights: DuelVi
           </div>
         ) : valued.length === 0 ? (
           <p className="px-3 py-2.5 text-meta text-dim">
-            {self ? "No stock tokens in your wallet yet." : "No stock tokens in this wallet."}
+            {self ? "No tokenized stocks in your wallet yet." : "No tokenized stocks in this wallet."}
           </p>
         ) : (
           <ul className="flex flex-col">

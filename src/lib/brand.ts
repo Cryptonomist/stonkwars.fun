@@ -7,7 +7,7 @@ export const BRAND = {
   x: "@stonkwarsfun",
   tagline: "Win, and you own their stock.",
   pitch:
-    "Stake tokenized shares of your stock. They stake theirs. At the bell, the bigger percentage move takes every share on the table. Signed prices decide it, anyone can settle it, and no house takes a cut.",
+    "Stake shares of your tokenized stock. They stake theirs. At the bell, the bigger percentage move takes every share on the table. Signed prices decide it, anyone can settle it, and no house takes a cut.",
 } as const;
 
 /* The origin this deployment actually answers on, which is not always the one

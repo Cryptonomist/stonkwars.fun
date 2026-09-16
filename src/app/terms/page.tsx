@@ -17,12 +17,12 @@ export default function Terms() {
     >
       <Section title="What this is">
         <p>
-          Two people each stake tokenized shares of a stock. At the bell, whichever stock moved more in percent takes
-          both stakes. A program on Solana holds the shares in the meantime and pays them out. That is the whole
+          Two people each stake shares of a tokenized stock. At the bell, the bigger percentage move takes both
+          stakes. A program on Solana holds the shares in the meantime and pays them out. That is the whole
           service.
         </p>
         <p>
-          It currently runs on Solana devnet with test tokens that stand in for real tokenized shares. Devnet tokens
+          It currently runs on Solana devnet with test tokens that stand in for real tokenized stocks. Devnet tokens
           have no monetary value, devnet SOL has no monetary value, and the cluster can be reset by its operators at
           any time, taking everything on it.
         </p>
@@ -67,7 +67,7 @@ export default function Terms() {
         <p>
           While a US stock&apos;s own market is open, from 4 AM to 8 PM New York time, that market is where the oracle reads.
           Outside those hours, for the stocks marked 24/7, the price is the median of the one-minute closes, over three
-          minutes, of the public markets that trade the stock around the clock: perpetual futures and tokenized shares,
+          minutes, of the public markets that trade the stock around the clock: perpetual futures and tokenized stocks,
           each corrected by its premium to the others. Those are not the share, and their price can differ from the
           share&apos;s; each market was checked against the stock&apos;s own price before it was pinned. When too few of them
           have traded, the price is the exchange&apos;s first bar after it opens instead. Off-hours prices are thinner than an
@@ -153,8 +153,8 @@ export default function Terms() {
           accepting the new version.
         </p>
         <p>
-          Governing law and the courts that hear any dispute: the laws of the operator&apos;s place of residence, to be
-          stated here before any mainnet deployment.
+          Governing law and the courts that hear any dispute are those of the operator&apos;s place of residence. That
+          place will be named here before any mainnet deployment.
         </p>
       </Section>
     </LegalPage>

@@ -164,7 +164,7 @@ export function proofSentences(p: CompositeV2Proof, ticker: string): string[] {
       `Fewer than 3 markets (2 of them anchors) could be counted for ${ticker} before ${from} ET, ${took}` + (p.reason ? ` The rule's reason: ${p.reason}.` : ""),
     );
   }
-  out.push("These are perpetual futures and tokenized shares, not the exchange listing; a weekend price is what those markets traded, not the next open.");
+  out.push("These are perpetual futures and tokenized stocks, not the exchange listing; a weekend price is what those markets traded, not the next open.");
   // How long each row can be fetched again, from the retention the rule itself is built on.
   const days = (v: keyof typeof VENUES) => VENUES[v].retentionSecs / 86_400;
   const short = [...new Set(p.venues.map((v) => v.venue))].filter((v) => days(v) < 20).sort((a, b) => days(a) - days(b));
