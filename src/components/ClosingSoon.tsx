@@ -125,7 +125,7 @@ export function Card({ d, now, quotes }: { d: DuelView; now: number; quotes?: Qu
       </div>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
-          <span className="display shrink-0 text-hud-sm text-p1 normal-case">{t1}</span>
+          <span className="display shrink-0 text-hud-sm text-p1-soft normal-case">{t1}</span>
           {isLive ? (
             <span title="Since the on-chain start" className="min-w-0 truncate">
               <Move value={m1} text={s1} className="num text-meta" />
@@ -143,7 +143,7 @@ export function Card({ d, now, quotes }: { d: DuelView; now: number; quotes?: Qu
               Take
             </span>
           )}
-          <span className="display shrink-0 text-hud-sm text-p2 normal-case">{t2}</span>
+          <span className="display shrink-0 text-hud-sm text-p2-soft normal-case">{t2}</span>
         </span>
       </div>
     </Link>
@@ -164,7 +164,7 @@ function FinalCard({ d, now }: { d: DuelView; now: number }) {
     const winner = won === s;
     return (
       <span className={cx("flex min-w-0 items-center gap-2", s === "p2" && "flex-row-reverse")}>
-        <span className={cx("display shrink-0 text-hud-sm normal-case", s === "p1" ? "text-p1" : "text-p2", won && !winner && "opacity-50")}>
+        <span className={cx("display shrink-0 text-hud-sm normal-case", s === "p1" ? "text-p1-soft" : "text-p2-soft", won && !winner && "opacity-50")}>
           {ticker}
         </span>
         {won ? (

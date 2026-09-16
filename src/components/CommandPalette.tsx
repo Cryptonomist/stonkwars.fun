@@ -544,9 +544,9 @@ function ResultLine({ r, quotes }: { r: Result; quotes?: Quotes }) {
       return (
         <span className="flex min-w-0 flex-1 items-center gap-3">
           <span className="flex min-w-0 items-baseline gap-1.5 font-display text-hud-xs font-black uppercase">
-            <span className="truncate text-p1">{r.t1}</span>
+            <span className="truncate text-p1-soft">{r.t1}</span>
             <span className="text-meta text-dim">vs</span>
-            <span className="truncate text-p2">{r.t2}</span>
+            <span className="truncate text-p2-soft">{r.t2}</span>
           </span>
           {r.live ? <Badge variant="live" /> : <Badge variant="neutral">{r.status ?? "Open"}</Badge>}
           <span className="num ml-auto hidden shrink-0 truncate text-meta text-dim sm:inline">

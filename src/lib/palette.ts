@@ -20,6 +20,9 @@ export const PALETTE = {
   p2: "#ff3ea5",
   p2Deep: "#5a1239",
   p2Tint: "#261324",
+  /** A ticker's name in a list or a feed: the same hues, most of the chroma gone. */
+  p1Soft: "#8fbccb",
+  p2Soft: "#c992a8",
   up: "#35f28b",
   upTint: "#132924",
   down: "#ff4d5e",

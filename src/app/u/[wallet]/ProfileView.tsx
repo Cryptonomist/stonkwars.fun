@@ -498,9 +498,9 @@ function OpenRow({ d, now }: { d: DuelView; now: number }) {
       href={`/f/${d.address.toBase58()}`}
       className="row flex h-9 min-w-0 items-center gap-2 px-3 focus-visible:-outline-offset-2"
     >
-      <span className="display text-hud-xs text-p1">{t1}</span>
+      <span className="display text-hud-xs text-p1-soft">{t1}</span>
       <span className="micro text-dim">vs</span>
-      <span className="display text-hud-xs text-p2">{t2}</span>
+      <span className="display text-hud-xs text-p2-soft">{t2}</span>
       <span className="num min-w-0 flex-1 truncate text-meta text-dim">
         {shares(d.creatorAmount, decimalsForMint(d.creatorMint))} <span className="normal-case">{tokenSymbol(t1)}</span>
       </span>

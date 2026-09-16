@@ -3,7 +3,6 @@ import { Big_Shoulders, Big_Shoulders_Stencil, Geist, Geist_Mono } from "next/fo
 
 import { BottomNav } from "@/components/BottomNav";
 import { CommandPalette } from "@/components/CommandPalette";
-import { PaletteLab } from "@/components/PaletteLab";
 import { XLinkSheet } from "@/components/ConnectX";
 import { FightWatcher } from "@/components/FightWatcher";
 import { Providers } from "@/components/Providers";
@@ -80,10 +79,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <FightWatcher />
           <CommandPalette />
           <BottomNav />
-          {/* A temporary switch for comparing two palettes on the real pages.
-            * Draws nothing until a URL carries ?palette. Remove with the calm
-            * block in globals.css once the choice is made. */}
-          <PaletteLab />
         </Providers>
       </body>
     </html>

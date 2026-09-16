@@ -152,7 +152,7 @@ export function FightRow({
             className={cx(
               // normal-case: a test ticker such as "SOLt" keeps its case.
               "display shrink-0 text-hud-sm normal-case",
-              s === "p1" ? "text-p1" : "text-p2",
+              s === "p1" ? "text-p1-soft" : "text-p2-soft",
               loser && "opacity-50",
             )}
           >

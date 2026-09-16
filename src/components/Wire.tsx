@@ -139,7 +139,7 @@ function stakesByFight(duels: DuelView[]): Map<string, Stake> {
 
 function T({ side, children }: { side: "p1" | "p2"; children: string }) {
   return (
-    <span className={cx("display shrink-0 text-hud-xs normal-case", side === "p1" ? "text-p1" : "text-p2")}>{children}</span>
+    <span className={cx("display shrink-0 text-hud-xs normal-case", side === "p1" ? "text-p1-soft" : "text-p2-soft")}>{children}</span>
   );
 }
 

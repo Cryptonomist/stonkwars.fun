@@ -157,7 +157,7 @@ function SideRow({
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 border-t border-line py-2 first:border-t-0 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto]">
       <dt className="flex min-w-0 items-center gap-2">
         <span
-          className={cx("display truncate text-hud-xs", side === "p1" ? "text-p1" : "text-p2", !won && "opacity-50")}
+          className={cx("display truncate text-hud-xs", side === "p1" ? "text-p1-soft" : "text-p2-soft", !won && "opacity-50")}
         >
           {ticker}
         </span>
