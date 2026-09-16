@@ -404,10 +404,20 @@ html {
  * panel cyan and pink meant buy and sell, which are not sides of anything.
  *
  * Now the three jobs have three names and three paints. The action on a screen
- * is ink, which costs it a little rank against .btn-light and is worth it: cyan
- * no longer says two things at once. A buy and a sell take the same green and
- * red every price on the site already uses, so the trade panel agrees with the
- * numbers next to it. */
+ * is ink, so cyan no longer says two things at once. A buy and a sell take the
+ * same green and red every price on the site already uses, so the trade panel
+ * agrees with the numbers next to it.
+ *
+ * THE COST OF AN INK PRIMARY, AND THE RULE THAT PAYS IT. .btn-light is ink too,
+ * and it is the workhorse: a chosen chip in a segment control, a secondary
+ * action, thirty places. Put one beside a .btn-primary and they rank the same,
+ * which is what happened in the top bar, where Pick a fight and Connect were
+ * both white and the eye picked neither. So: one ink button to a bar. Whatever
+ * the row is for gets .btn-primary and everything beside it is .btn-ghost. The
+ * rank comes from being alone rather than from being brighter, which is why
+ * this does not need a colour to fix it. (A glow could not do it anyway: the
+ * clip-path above cuts an outer box-shadow clean off, which is why even the
+ * focus ring here is inset.) */
 .btn-primary {
   background: var(--color-ink);
   color: var(--color-void);

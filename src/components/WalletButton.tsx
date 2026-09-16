@@ -201,7 +201,12 @@ export function WalletButton({ className = "" }: { className?: string }) {
         onClick={openPicker}
         disabled={hydrated && connecting}
         aria-haspopup="dialog"
-        className="btn btn-sm btn-light"
+        /* Ghost, not ink. Ink in the top bar means the one action the bar is
+         * for, and that is Pick a fight; two ink buttons side by side rank the
+         * same and the eye picks neither. Connecting is never the step somebody
+         * came to do, and every flow that needs a wallet asks for one where it
+         * is needed ("Connect to stake"), in ink, at the point of need. */
+        className="btn btn-sm btn-ghost"
       >
         {hydrated && connecting ? "Connecting..." : "Connect"}
       </button>
