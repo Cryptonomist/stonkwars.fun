@@ -299,7 +299,10 @@ export function Actions({
      * same fight for themselves, at this stake, and word of how it ends. */
     primary = (
       <>
-        <Link href={`/new?p1=${t1}&p2=${t2}&usd=${Math.max(1, Math.round(stakeUsd ?? 25))}`} className="btn btn-p1 w-full">
+        <Link
+          href={`/new?p1=${t1}&p2=${t2}&usd=${Math.max(1, Math.round(stakeUsd ?? 25))}`}
+          className="btn btn-primary w-full"
+        >
           Pick this fight yourself
         </Link>
         <FollowButton address={d.address.toBase58()} />
@@ -375,7 +378,7 @@ export function Actions({
     const name = other ? (handles?.[other] ? `@${handles[other]}` : shortAddress(other)) : null;
     const href = `/new?p1=${mine}&p2=${theirs}&usd=${again}${other ? `&invite=${other}` : ""}`;
     rematch = (
-      <Link href={href} className="btn btn-p1 w-full">
+      <Link href={href} className="btn btn-primary w-full">
         {name ? (
           <>
             Run it back vs <span className="normal-case">{name}</span> · ${again} a side

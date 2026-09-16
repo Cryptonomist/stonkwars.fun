@@ -120,7 +120,7 @@ export function BottomNav() {
         {at("/new") ? (
           <Item href="/new" label="New" icon={<NewGlyph />} current className="px-4" />
         ) : (
-          <Link href="/new" className="btn btn-sm btn-p1 mx-1 h-10 whitespace-nowrap px-4">
+          <Link href="/new" className="btn btn-sm btn-primary mx-1 h-10 whitespace-nowrap px-4">
             Pick a fight
           </Link>
         )}

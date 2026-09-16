@@ -175,7 +175,7 @@ export function StockView({ ticker }: { ticker: string }) {
           <div className="card flex min-h-10 min-w-0 items-center justify-between gap-3 px-3 py-2">
             <span className="min-w-0 truncate text-sm text-dim">No open {ticker} challenges</span>
             {stakeable ? (
-              <Link href={`/new?p1=${ticker}`} className="btn btn-sm btn-p1 shrink-0">
+              <Link href={`/new?p1=${ticker}`} className="btn btn-sm btn-primary shrink-0">
                 Fight with it
               </Link>
             ) : null}
@@ -247,7 +247,7 @@ export function StockView({ ticker }: { ticker: string }) {
               <div className="card flex min-h-10 min-w-0 items-center justify-between gap-3 px-3 py-2">
                 <span className="min-w-0 truncate text-sm text-dim">No settled {ticker} fights yet</span>
                 {stakeable ? (
-                  <Link href={`/new?p1=${ticker}`} className="btn btn-sm btn-p1 shrink-0">
+                  <Link href={`/new?p1=${ticker}`} className="btn btn-sm btn-primary shrink-0">
                     Fight with it
                   </Link>
                 ) : null}

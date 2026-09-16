@@ -465,7 +465,7 @@ export function CreateFight() {
   const action = (compact: boolean): ReactNode => {
     if (step === "connect") {
       return (
-        <button type="button" onClick={requestConnect} className={cx("btn btn-p1", compact ? "btn-sm" : "w-full")}>
+        <button type="button" onClick={requestConnect} className={cx("btn btn-primary", compact ? "btn-sm" : "w-full")}>
           Connect to stake
         </button>
       );
@@ -533,7 +533,7 @@ export function CreateFight() {
         <TxButton
           run={create}
           successTitle="Fight picked."
-          className={cx("btn-p1", compact ? "btn-sm" : "w-full")}
+          className={cx("btn-primary", compact ? "btn-sm" : "w-full")}
           label={
             /* One line on a phone: "and get the link" wrapped the label to
              * three lines at 375px, so there it is left to the success step. */
@@ -546,7 +546,7 @@ export function CreateFight() {
       );
     }
     return (
-      <button type="button" disabled className={cx("btn btn-p1", compact ? "btn-sm" : "w-full")}>
+      <button type="button" disabled className={cx("btn btn-primary", compact ? "btn-sm" : "w-full")}>
         {waitReason}
       </button>
     );

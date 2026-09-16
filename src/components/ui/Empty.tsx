@@ -13,7 +13,7 @@ import { Plate } from "./Plate";
 export type EmptyAction = { href: string; label: string; tone?: "p1" | "light" | "ghost" };
 
 const TONE: Record<NonNullable<EmptyAction["tone"]>, string> = {
-  p1: "btn-p1",
+  p1: "btn-primary",
   light: "btn-light",
   ghost: "btn-ghost",
 };

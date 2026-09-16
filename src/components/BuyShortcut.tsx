@@ -47,7 +47,7 @@ export function BuyShortcut({
         aria-haspopup="dialog"
         className={cx(
           "btn",
-          primary ? "btn-p1" : "btn-ghost",
+          primary ? "btn-primary" : "btn-ghost",
           compact || !primary ? "btn-sm" : "w-full",
           className,
         )}

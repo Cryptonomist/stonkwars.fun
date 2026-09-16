@@ -275,7 +275,7 @@ export default function HowPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-line pt-6">
-          <Link href="/new" className="btn btn-p1">
+          <Link href="/new" className="btn btn-primary">
             Pick a fight
           </Link>
           <p className="text-sm text-dim">

@@ -76,7 +76,7 @@ export default function Home() {
           <Link href="/trade" className="btn btn-ghost hidden shrink-0 sm:inline-flex">
             Buy or sell
           </Link>
-          <Link href="/new" className="btn btn-p1 hidden shrink-0 sm:inline-flex">
+          <Link href="/new" className="btn btn-primary hidden shrink-0 sm:inline-flex">
             Pick a fight
           </Link>
         </div>

@@ -134,7 +134,7 @@ export function SiteFooter() {
               stakes, settled on Solana with a receipt anyone can check.
             </p>
             <div className="flex flex-wrap items-center gap-3">
-              <Link href="/new" className="btn btn-sm btn-p1">
+              <Link href="/new" className="btn btn-sm btn-primary">
                 Pick a fight
               </Link>
               <SocialButton href={X_URL} label={`${BRAND.name} on X (${BRAND.x})`}>

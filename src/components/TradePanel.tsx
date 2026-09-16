@@ -147,7 +147,7 @@ export function TradePanel({
       role="tab"
       aria-selected={side === value}
       onClick={() => choose(value)}
-      className={cx("btn btn-sm flex-1", side === value ? (value === "buy" ? "btn-p1" : "btn-p2") : "btn-ghost")}
+      className={cx("btn btn-sm flex-1", side === value ? (value === "buy" ? "btn-buy" : "btn-sell") : "btn-ghost")}
     >
       {label}
     </button>
@@ -278,7 +278,7 @@ export function TradePanel({
           type="button"
           onClick={() => void trade()}
           disabled={busy || (!!publicKey && !s)}
-          className={cx("btn min-h-11 w-full", side === "buy" ? "btn-p1" : "btn-p2")}
+          className={cx("btn min-h-11 w-full", side === "buy" ? "btn-buy" : "btn-sell")}
         >
           {!publicKey ? "Connect to trade" : busy ? "Confirm in your wallet..." : side === "buy" ? `Buy ${symbol}` : `Sell ${symbol}`}
         </button>

@@ -361,7 +361,7 @@ export function FightsBoard() {
       ]}
       action={
         /* A phone has this button in the bar under its thumb already. */
-        <Link href="/new" className="btn btn-p1 hidden sm:inline-flex">
+        <Link href="/new" className="btn btn-primary hidden sm:inline-flex">
           Pick a fight
         </Link>
       }

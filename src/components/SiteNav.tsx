@@ -92,7 +92,7 @@ export function SiteNav() {
           </button>
           <MarketBadge className="hidden xl:inline-flex" />
           {CLUSTER !== "mainnet-beta" ? <FaucetButton className="hidden lg:inline-flex" /> : null}
-          <Link href="/new" className="btn btn-sm btn-p1 hidden whitespace-nowrap md:inline-flex">
+          <Link href="/new" className="btn btn-sm btn-primary hidden whitespace-nowrap md:inline-flex">
             Pick a fight
           </Link>
           <WalletButton />

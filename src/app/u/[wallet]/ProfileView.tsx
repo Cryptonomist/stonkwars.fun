@@ -184,7 +184,7 @@ export function ProfileView({ wallet }: { wallet: string }) {
         </div>
       </div>
       {!self ? (
-        <Link href={`/new?invite=${wallet}`} className="btn btn-sm btn-p1 w-full shrink-0 sm:w-auto">
+        <Link href={`/new?invite=${wallet}`} className="btn btn-sm btn-primary w-full shrink-0 sm:w-auto">
           Challenge this fighter
         </Link>
       ) : null}

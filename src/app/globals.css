@@ -378,9 +378,73 @@ html {
   color: var(--color-void);
 }
 
+/* A BUTTON THAT IS A SIDE, AND A BUTTON THAT IS ONLY THE NEXT STEP.
+ *
+ * .btn-p1 and .btn-p2 mean a fighter's corner: side one is cyan and side two is
+ * pink, everywhere, so the colour on a seat button is the colour on that side's
+ * health bar. The trouble is that cyan was also doing two other jobs. On the
+ * home hero, in the nav, on a stock page, it meant nothing but "press this",
+ * and in the trade panel cyan and pink meant buy and sell, which are not sides
+ * of anything.
+ *
+ * So the three jobs get three names. All of them are painted exactly as the
+ * sides are today, so nothing on the site moves: they exist so that a palette
+ * can tell them apart, which is what the calm variant below does. */
+.btn-primary {
+  background: var(--color-p1);
+  color: var(--color-void);
+}
+
+.btn-buy {
+  background: var(--color-p1);
+  color: var(--color-void);
+}
+
+.btn-sell {
+  background: var(--color-p2);
+  color: var(--color-void);
+}
+
 .btn-p1:hover:not(:disabled),
-.btn-p2:hover:not(:disabled) {
+.btn-p2:hover:not(:disabled),
+.btn-primary:hover:not(:disabled),
+.btn-buy:hover:not(:disabled),
+.btn-sell:hover:not(:disabled) {
   filter: brightness(1.1);
+}
+
+/* ── A QUIETER PALETTE, TO LOOK AT BEFORE CHOOSING ─────────────────────────
+ *
+ * Reached by adding ?palette to any URL, which puts a switch on the page. It
+ * changes no hue at all. What it changes is how much work the two side colours
+ * are asked to do:
+ *
+ *   the action on a screen goes to ink, so cyan stops meaning "press this"
+ *   a buy and a sell go to the same green and red every price on the site uses
+ *   the glows come down from 0.35 to 0.18
+ *
+ * Cyan and pink are then left doing one job each, which is the job they were
+ * picked for. Delete this block and components/PaletteLab.tsx once the choice
+ * is made either way. */
+[data-palette="calm"] {
+  --shadow-glow-p1: 0 0 24px rgb(47 224 255 / 0.18);
+  --shadow-glow-p2: 0 0 24px rgb(255 62 165 / 0.18);
+  --shadow-glow-up: 0 0 24px rgb(53 242 139 / 0.18);
+}
+
+[data-palette="calm"] .btn-primary {
+  background: var(--color-ink);
+  color: var(--color-void);
+}
+
+[data-palette="calm"] .btn-buy {
+  background: var(--color-up);
+  color: var(--color-void);
+}
+
+[data-palette="calm"] .btn-sell {
+  background: var(--color-down);
+  color: var(--color-void);
 }
 
 .btn-sm {

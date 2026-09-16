@@ -64,7 +64,7 @@ export function TradeTerminal({ ticker, side }: { ticker: string; side: Side }) 
             in a fight.
           </p>
         </div>
-        <Link href={`/new?p1=${picked}`} className="btn btn-p1 shrink-0">
+        <Link href={`/new?p1=${picked}`} className="btn btn-primary shrink-0">
           Fight with {picked}
         </Link>
       </Plate>
