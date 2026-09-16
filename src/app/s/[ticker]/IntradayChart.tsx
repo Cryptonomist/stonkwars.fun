@@ -196,8 +196,12 @@ export function IntradayChart({
       {charted ? (
         <div className="flex flex-col gap-1 text-meta text-dim">
           <p>
-            {tf.barWords} from the exchange, extended hours, and the perp when the exchange is shut. For watching; no line
-            here decides a fight.
+            {/* A daily bar covers whole sessions, so the route serves it from the
+              * exchange alone; only the intraday sizes reach for the perp. */}
+            {tf.step >= 86_400
+              ? `${tf.barWords} from the exchange.`
+              : `${tf.barWords} from the exchange, extended hours, and the perp when the exchange is shut.`}{" "}
+            For watching; no line here decides a fight.
           </p>
           {showFib ? <p>Fib levels run from this window&apos;s high (0%) to its low (100%). They move as the window does.</p> : null}
           {bars.data?.note ? <p>{bars.data.note}</p> : null}
