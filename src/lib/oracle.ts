@@ -163,8 +163,8 @@ const HEADERS = { "user-agent": "Mozilla/5.0 (compatible; stonkwars-oracle/1.0)"
  * are awake. Those bars are thinner than the middle of the day, which is worth
  * saying out loud, but they are prints on the stock's own market rather than
  * anybody's quote. */
-export async function fetchBars(symbol: string, from: number, to: number): Promise<Bars> {
-  const url = `${YAHOO}/${encodeURIComponent(symbol)}?period1=${from}&period2=${to}&interval=1m&includePrePost=true`;
+export async function fetchBars(symbol: string, from: number, to: number, interval = "1m"): Promise<Bars> {
+  const url = `${YAHOO}/${encodeURIComponent(symbol)}?period1=${from}&period2=${to}&interval=${interval}&includePrePost=true`;
   const r = await fetch(url, { headers: HEADERS, cache: "no-store", signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!r.ok) throw new Error(`${symbol}: market data HTTP ${r.status}`);
   const body = (await r.json()) as {
@@ -196,9 +196,9 @@ export async function fetchBars(symbol: string, from: number, to: number): Promi
 
 const HYPERLIQUID = "https://api.hyperliquid.xyz/info";
 
-/** One-minute candles for a perp market, as `Bars` in seconds. */
-export async function fetchPerpBars(coin: string, from: number, to: number): Promise<Bars> {
-  const key = `${coin}:${from}:${to}`;
+/** Candles for a perp market, as `Bars` in seconds. One minute unless a chart asks wider. */
+export async function fetchPerpBars(coin: string, from: number, to: number, interval = "1m"): Promise<Bars> {
+  const key = `${coin}:${from}:${to}:${interval}`;
   const had = perpBars.get(key);
   if (had) return had;
   /* An empty window has no bars in it, and asking anyway is how a request
@@ -211,7 +211,7 @@ export async function fetchPerpBars(coin: string, from: number, to: number): Pro
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       type: "candleSnapshot",
-      req: { coin, interval: "1m", startTime: from * 1_000, endTime: to * 1_000 },
+      req: { coin, interval, startTime: from * 1_000, endTime: to * 1_000 },
     }),
     cache: "no-store",
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),

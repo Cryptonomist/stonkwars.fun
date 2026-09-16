@@ -91,6 +91,8 @@ export function mergeBars(
   exchange: Bars,
   perp: Bars,
   isClosed: (t: number) => boolean,
+  /** One bucket, in seconds. A chart asking for wider bars buckets by those. */
+  stepSecs = 60,
 ): { t: number[]; c: number[]; src: ("exchange" | "perp")[] } {
   const byMinute = new Map<number, { c: number; src: "exchange" | "perp" }>();
   const take = (bars: Bars, src: "exchange" | "perp", wantClosed: boolean) => {
@@ -98,7 +100,7 @@ export function mergeBars(
     for (let i = 0; i < n; i++) {
       const close = bars.c[i];
       if (close == null || !Number.isFinite(close) || !(close > 0)) continue;
-      const minute = Math.floor(bars.t[i] / 60) * 60;
+      const minute = Math.floor(bars.t[i] / stepSecs) * stepSecs;
       if (isClosed(minute) !== wantClosed) continue;
       // Bars arrive oldest first, so a later point in the same minute is newer.
       // The two markets never share a minute: isClosed gives each to one.

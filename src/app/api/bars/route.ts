@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { STEPS } from "@/lib/chart";
 import { mergeBars } from "@/lib/livePrice";
 import { session } from "@/lib/market";
 import { fetchBars, fetchPerpBars, MAX_LOOKBACK_SECS, type Bars } from "@/lib/oracle";
@@ -27,6 +28,8 @@ export const maxDuration = 30;
  * minute bars do. */
 
 const MAX_RANGE_SECS = 6 * 3_600;
+/** A daily bar covers whole sessions, so it comes from the exchange alone. */
+const DAILY = 86_400;
 /** A range that ended this long ago has every minute final. */
 const FINAL_AFTER_SECS = 120;
 const MAX_KEPT = 200;
@@ -51,14 +54,21 @@ export async function GET(req: NextRequest) {
   const asked = Number(params.get("to"));
   if (!Number.isInteger(from) || !Number.isInteger(asked)) return bad(400, "Ask for ?t=TICKER&from=UNIX&to=UNIX");
   if (asked <= from) return bad(400, "to must be after from");
-  if (asked - from > MAX_RANGE_SECS) return bad(400, "At most 6 hours of minute bars per request");
+
+  /* One bar, in seconds: a minute unless a chart asks for a wider one, and only
+   * the sizes the market data behind this serves (lib/chart.ts STEPS). */
+  const step = params.get("step") ? Number(params.get("step")) : 60;
+  const rule = STEPS[step];
+  if (!rule) return bad(400, `step must be one of ${Object.keys(STEPS).join(", ")} seconds`);
+  if (asked - from > rule.maxRangeSecs) return bad(400, `At most ${Math.round(rule.maxRangeSecs / 3_600)} hours at ${step} second bars`);
 
   const now = Math.floor(Date.now() / 1000);
-  if (from < now - MAX_LOOKBACK_SECS) return bad(400, "Minute bars reach back 29 days");
+  const lookback = Math.min(rule.maxLookbackSecs, step === 60 ? MAX_LOOKBACK_SECS : rule.maxLookbackSecs);
+  if (from < now - lookback) return bad(400, `${step} second bars reach back ${Math.round(lookback / 86_400)} days`);
   const to = Math.min(asked, now);
   if (to <= from) return bad(400, "That range has not started yet");
 
-  const key = `${stock.ticker}:${from}:${to}`;
+  const key = `${stock.ticker}:${from}:${to}:${step}`;
   const isFinal = to < now - FINAL_AFTER_SECS;
   const cacheControl = isFinal ? "public, s-maxage=86400" : "public, s-maxage=20";
   const kept = finished.get(key);
@@ -66,10 +76,11 @@ export async function GET(req: NextRequest) {
 
   /* Which markets the range needs, minute by minute. The exchange only if some
    * minute is not shut; the perp only if some minute is and there is one. */
-  const isClosed = (t: number) => session(t * 1_000) === "closed";
-  let anyOpen = false;
+  const daily = step >= DAILY;
+  const isClosed = (t: number) => !daily && session(t * 1_000) === "closed";
+  let anyOpen = daily;
   let anyClosed = false;
-  for (let m = Math.floor(from / 60) * 60; m <= to && !(anyOpen && anyClosed); m += 60) {
+  for (let m = Math.floor(from / step) * step; m <= to && !(anyOpen && anyClosed); m += step) {
     if (isClosed(m)) anyClosed = true;
     else anyOpen = true;
   }
@@ -79,19 +90,19 @@ export async function GET(req: NextRequest) {
   let perp = EMPTY;
   try {
     [exchange, perp] = await Promise.all([
-      anyOpen ? fetchBars(stock.quote, from, to) : Promise.resolve(EMPTY),
-      anyClosed && coin ? fetchPerpBars(coin, from, to) : Promise.resolve(EMPTY),
+      anyOpen ? fetchBars(stock.quote, from, to, rule.yahoo) : Promise.resolve(EMPTY),
+      anyClosed && coin ? fetchPerpBars(coin, from, to, rule.perp) : Promise.resolve(EMPTY),
     ]);
   } catch {
     // The upstream message names the source and its status; neither helps a chart.
-    return bad(502, "Minute bars are unavailable right now");
+    return bad(502, "Bars are unavailable right now");
   }
 
-  const merged = mergeBars(exchange, perp, isClosed);
+  const merged = mergeBars(exchange, perp, isClosed, step);
   // Nothing past the end of the range, including a last-trade point stamped late.
   const body: Body = { t: [], c: [], src: [] };
   for (let i = 0; i < merged.t.length; i++) {
-    if (merged.t[i] < Math.floor(from / 60) * 60 || merged.t[i] > to) continue;
+    if (merged.t[i] < Math.floor(from / step) * step || merged.t[i] > to) continue;
     body.t.push(merged.t[i]);
     body.c.push(merged.c[i]);
     body.src.push(merged.src[i]);

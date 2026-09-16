@@ -36,12 +36,12 @@ import { Plate } from "@/components/ui/Plate";
 import { SectionHead } from "@/components/ui/SectionHead";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cx } from "@/components/ui/cx";
+import { DEFAULT_TIMEFRAME, fibLevels, sma, TIMEFRAMES, timeframeOf, type Timeframe, type TimeframeId } from "@/lib/chart";
 import { etTime, pct, usd } from "@/lib/format";
 import { nyParts, session } from "@/lib/market";
 
-const WINDOW_SECS = 6 * 3_600;
-/** A stretch this long with no bar is a gap in trading, not a quiet minute. */
-const GAP_SECS = 30 * 60;
+/** A stretch of this many bars with nothing traded is a gap, not a quiet minute. */
+const GAP_BARS = 30;
 const PAD = { top: 20, right: 72, bottom: 24, left: 8 };
 
 type Src = "exchange" | "perp";
@@ -54,14 +54,14 @@ type Bars = { from: number; to: number; t: number[]; c: number[]; src: Src[]; no
 const srcWords = (src: Src | undefined, sec: number) =>
   src === "perp" ? "Perp" : session(sec * 1_000) === "open" ? "Exchange" : "Extended hours";
 
-function useSixHours(ticker: string, enabled: boolean) {
+function useBars(ticker: string, tf: Timeframe, enabled: boolean) {
   return useQuery<Bars>({
-    queryKey: ["stock-bars", ticker],
+    queryKey: ["stock-bars", ticker, tf.id],
     enabled,
     queryFn: async () => {
       const to = Math.floor(Date.now() / 60_000) * 60;
-      const from = to - WINDOW_SECS;
-      const r = await fetch(`/api/bars?t=${encodeURIComponent(ticker)}&from=${from}&to=${to}`);
+      const from = to - tf.secs;
+      const r = await fetch(`/api/bars?t=${encodeURIComponent(ticker)}&from=${from}&to=${to}&step=${tf.step}`);
       const body = (await r.json().catch(() => ({}))) as BarsBody;
       if (!r.ok) throw new Error(body.error ?? `HTTP ${r.status}`);
       const n = Math.min(body.t?.length ?? 0, body.c?.length ?? 0);
@@ -93,7 +93,14 @@ export function IntradayChart({
   charted: boolean;
   className?: string;
 }) {
-  const bars = useSixHours(ticker, charted);
+  const [tfId, setTfId] = useState<TimeframeId>(DEFAULT_TIMEFRAME);
+  const tf = timeframeOf(tfId);
+  /* Two overlays, both drawn from what is on screen and neither an input to
+   * anything: the retracement levels of the window's own range, and a moving
+   * average over its bars. */
+  const [showFib, setShowFib] = useState(false);
+  const [showMa, setShowMa] = useState(false);
+  const bars = useBars(ticker, tf, charted);
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -135,7 +142,7 @@ export function IntradayChart({
     body = (
       <div ref={box} className="min-w-0">
         {width > 0 ? (
-          <Chart ticker={ticker} bars={bars.data} prevClose={prevClose} width={width} />
+          <Chart ticker={ticker} bars={bars.data} prevClose={prevClose} width={width} tf={tf} fib={showFib} ma={showMa} />
         ) : (
           <div className="h-50 sm:h-60" />
         )}
@@ -143,13 +150,56 @@ export function IntradayChart({
     );
   }
 
+  const chip = (on: boolean) => cx("btn btn-sm px-2", on ? "btn-light" : "btn-ghost");
+
   return (
     <Plate as="section" pad="std" className={cx("flex flex-col gap-3", className)} aria-labelledby="intraday-title">
-      <SectionHead id="intraday-title" title="Last 6 hours" count="1-minute bars · ET" />
+      <SectionHead id="intraday-title" title={`${ticker} price`} count={`${tf.barWords} · ET`} />
+      {charted ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div role="group" aria-label="Timeframe" className="flex flex-wrap gap-1">
+            {TIMEFRAMES.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                aria-pressed={f.id === tfId}
+                onClick={() => setTfId(f.id)}
+                className={chip(f.id === tfId)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div role="group" aria-label="Overlays" className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              aria-pressed={showFib}
+              onClick={() => setShowFib((v) => !v)}
+              title="Fibonacci retracements of this window's high and low"
+              className={chip(showFib)}
+            >
+              Fib
+            </button>
+            <button
+              type="button"
+              aria-pressed={showMa}
+              onClick={() => setShowMa((v) => !v)}
+              title={`Moving average of the last ${tf.maLen} bars`}
+              className={chip(showMa)}
+            >
+              MA {tf.maLen}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {body}
       {charted ? (
         <div className="flex flex-col gap-1 text-meta text-dim">
-          <p>Minute bars from the exchange, extended hours, and the perp when the exchange is shut. For watching.</p>
+          <p>
+            {tf.barWords} from the exchange, extended hours, and the perp when the exchange is shut. For watching; no line
+            here decides a fight.
+          </p>
+          {showFib ? <p>Fib levels run from this window&apos;s high (0%) to its low (100%). They move as the window does.</p> : null}
           {bars.data?.note ? <p>{bars.data.note}</p> : null}
         </div>
       ) : null}
@@ -157,7 +207,23 @@ export function IntradayChart({
   );
 }
 
-function Chart({ ticker, bars, prevClose, width }: { ticker: string; bars: Bars; prevClose: number | null; width: number }) {
+function Chart({
+  ticker,
+  bars,
+  prevClose,
+  width,
+  tf,
+  fib,
+  ma,
+}: {
+  ticker: string;
+  bars: Bars;
+  prevClose: number | null;
+  width: number;
+  tf: Timeframe;
+  fib: boolean;
+  ma: boolean;
+}) {
   const height = width < 480 ? 200 : 240;
   const plotW = Math.max(40, width - PAD.left - PAD.right);
   const plotH = height - PAD.top - PAD.bottom;
@@ -205,10 +271,22 @@ function Chart({ ticker, bars, prevClose, width }: { ticker: string; bars: Bars;
   }
 
   /* ── The line, broken at gaps ───────────────────────────────────────── */
+  const gapSecs = GAP_BARS * tf.step;
   let d = "";
   for (let i = 0; i < n; i++) {
-    const move = i === 0 || t[i] - t[i - 1] > GAP_SECS ? "M" : "L";
+    const move = i === 0 || t[i] - t[i - 1] > gapSecs ? "M" : "L";
     d += `${move}${x(t[i]).toFixed(1)},${y(c[i]).toFixed(1)}`;
+  }
+
+  /* ── The overlays, both from the bars on screen ─────────────────────── */
+  const levels = fib && n > 1 ? fibLevels(Math.max(...c), Math.min(...c)) : [];
+  const average = ma && n > tf.maLen ? sma(c, tf.maLen) : [];
+  let maPath = "";
+  for (let i = 0; i < average.length; i++) {
+    const v = average[i];
+    if (v === null) continue;
+    const move = !maPath || (i > 0 && t[i] - t[i - 1] > gapSecs) ? "M" : "L";
+    maPath += `${move}${x(t[i]).toFixed(1)},${y(v).toFixed(1)}`;
   }
   /* The day's move against the previous close, the same number the page's
    * headline prints. Measured from the first bar of the window, the line drew
@@ -219,15 +297,18 @@ function Chart({ ticker, bars, prevClose, width }: { ticker: string; bars: Bars;
 
   /* A lone bar between two gaps draws no segment, so every bar also gets a
    * dot when the line is that sparse. */
-  const lonely = (i: number) => (i === 0 || t[i] - t[i - 1] > GAP_SECS) && (i === n - 1 || t[i + 1] - t[i] > GAP_SECS);
+  const lonely = (i: number) => (i === 0 || t[i] - t[i - 1] > gapSecs) && (i === n - 1 || t[i + 1] - t[i] > gapSecs);
 
-  /* ── Hour ticks, in New York time ───────────────────────────────────── */
+  /* ── Ticks, in New York time: hours on a short window, dates on a long one ── */
   const ticks: { sec: number; label: string }[] = [];
-  const everyOther = plotW / 6 < 56;
-  for (let sec = Math.ceil(from / 3_600) * 3_600; sec <= to; sec += 3_600) {
-    const hh = nyParts(sec * 1_000).hh;
-    if (everyOther && hh % 2 === 1) continue;
-    ticks.push({ sec, label: `${hh % 12 || 12} ${hh < 12 ? "AM" : "PM"}` });
+  const byDate = tf.tick >= 86_400;
+  const every = Math.max(tf.tick, Math.ceil((to - from) / Math.max(2, Math.floor(plotW / 64)) / tf.tick) * tf.tick);
+  for (let sec = Math.ceil(from / every) * every; sec <= to; sec += every) {
+    const parts = nyParts(sec * 1_000);
+    ticks.push({
+      sec,
+      label: byDate ? `${parts.m}/${parts.d}` : `${parts.hh % 12 || 12} ${parts.hh < 12 ? "AM" : "PM"}`,
+    });
   }
 
   /* ── Where the market changes hands ─────────────────────────────────── */
@@ -293,8 +374,8 @@ function Chart({ ticker, bars, prevClose, width }: { ticker: string; bars: Bars;
 
   const summary =
     n > 1
-      ? `${ticker} over the last 6 hours: ${usd(c[0])} at ${etTime(t[0])} to ${usd(c[n - 1])} at ${etTime(t[n - 1])}, high ${usd(Math.max(...c))}, low ${usd(Math.min(...c))}.`
-      : `${ticker}: no minute bars in the last 6 hours.`;
+      ? `${ticker} over ${tf.label}: ${usd(c[0])} at ${etTime(t[0])} to ${usd(c[n - 1])} at ${etTime(t[n - 1])}, high ${usd(Math.max(...c))}, low ${usd(Math.min(...c))}.`
+      : `${ticker}: no bars in this window.`;
 
   const tipW = 176;
   const tipLeft = at !== null ? Math.min(Math.max(0, x(t[at]) - tipW / 2), width - tipW) : 0;
@@ -391,7 +472,39 @@ function Chart({ ticker, bars, prevClose, width }: { ticker: string; bars: Bars;
           </g>
         ))}
 
+        {/* Fibonacci retracements of the window's own range, under the line. */}
+        {levels.map((l) => (
+          <g key={l.ratio}>
+            <line
+              x1={PAD.left}
+              x2={PAD.left + plotW}
+              y1={y(l.price)}
+              y2={y(l.price)}
+              stroke={l.major ? "var(--color-p1)" : "var(--color-line-strong)"}
+              strokeOpacity={l.major ? 0.55 : 0.8}
+              strokeDasharray="3 5"
+            />
+            {/* 0% and 100% sit exactly on the window's high and low, which the
+              * gutter already prices, so only the levels between them are named. */}
+            {l.ratio === 0 || l.ratio === 1 ? null : (
+              <text x={PAD.left + plotW + 8} y={y(l.price) + 4} className="num fill-faint" fontSize={9}>
+                {l.label}
+              </text>
+            )}
+          </g>
+        ))}
+
         <g clipPath={`url(#${clipId})`} className={tone}>
+          {maPath ? (
+            <path
+              d={maPath}
+              fill="none"
+              stroke="var(--color-dim)"
+              strokeWidth={1}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          ) : null}
           <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
           {t.map((sec, i) =>
             lonely(i) && i !== n - 1 ? <circle key={sec} cx={x(sec)} cy={y(c[i])} r={1.5} fill="currentColor" /> : null,

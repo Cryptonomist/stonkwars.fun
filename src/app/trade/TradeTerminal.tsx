@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 
+import { IntradayChart } from "@/app/s/[ticker]/IntradayChart";
 import { TradePanel } from "@/components/TradePanel";
 import { Badge } from "@/components/ui/Badge";
 import { cx } from "@/components/ui/cx";
@@ -114,7 +115,12 @@ export function TradeTerminal({ ticker, side }: { ticker: string; side: Side }) 
           </Plate>
         </section>
 
-        <div className="min-w-0">
+        <div className="flex min-w-0 flex-col gap-6">
+          <IntradayChart
+            ticker={picked}
+            prevClose={prices.data?.quotes[picked]?.prev ? Number(prices.data.quotes[picked]!.prev) * 10 ** prices.data.quotes[picked]!.expo : null}
+            charted={byTicker(picked)?.market === "US"}
+          />
           <TradePanel key={panelKey} ticker={picked} initialSide={startSide} />
         </div>
 
