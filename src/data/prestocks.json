@@ -1,0 +1,128 @@
+[
+ {
+  "ticker": "OPENAI",
+  "name": "OpenAI",
+  "blurb": "ChatGPT and the GPT models.",
+  "mint": "PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF",
+  "decimals": 9,
+  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "pool": "4HTy7aTjPm5PTSEws2yWRDPX6gjWM6sC2dV5mv9u8JsH",
+  "poolName": "OPENAI / USDC",
+  "color": "#10a37f",
+  "seen": {
+   "liquidityUsd": 154007,
+   "volume24hUsd": 304630,
+   "trades24h": 6800,
+   "priceUsd": 1547.8793
+  },
+  "symbol": "OPENAI"
+ },
+ {
+  "ticker": "NEURALINK",
+  "name": "Neuralink",
+  "blurb": "Brain interfaces.",
+  "mint": "PrekqLJvJ3qVdXmBGDiexvwUTF4rLFDa6HWS4HJbw9S",
+  "decimals": 9,
+  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "pool": "AM5c7qjDxkNJf8u1G6YRXZ9eCHG2KbHc5T9VmzRHQzrA",
+  "poolName": "NEURALINK / USDC",
+  "color": "#a78bfa",
+  "seen": {
+   "liquidityUsd": 118928,
+   "volume24hUsd": 0,
+   "trades24h": 6384,
+   "priceUsd": 288.6868
+  },
+  "symbol": "NEURALINK"
+ },
+ {
+  "ticker": "ANTHROPIC",
+  "name": "Anthropic",
+  "blurb": "Claude, and the lab behind it.",
+  "mint": "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+  "decimals": 9,
+  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "pool": "EZyszDEx1LZDt7TsSFV8xdPi49sDKC3mdfv2MVMEQLtU",
+  "poolName": "ANTHRP / SOL",
+  "color": "#d97757",
+  "seen": {
+   "liquidityUsd": 198405,
+   "volume24hUsd": 291358,
+   "trades24h": 5642,
+   "priceUsd": 1029.5596
+  },
+  "symbol": "ANTHRP"
+ },
+ {
+  "ticker": "POLYMARKET",
+  "name": "Polymarket",
+  "blurb": "The prediction market.",
+  "mint": "Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP",
+  "decimals": 9,
+  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "pool": "DCh6beahzr11ggjtLzhXyDamPGQguoBSVaAoMA9NEaLk",
+  "poolName": "POLYMARKET / SOL",
+  "color": "#6366f1",
+  "seen": {
+   "liquidityUsd": 41033,
+   "volume24hUsd": 31337,
+   "trades24h": 3852,
+   "priceUsd": 145.621
+  },
+  "symbol": "POLYMARKET"
+ },
+ {
+  "ticker": "FIGUREAI",
+  "name": "Figure AI",
+  "blurb": "Humanoid robots. Not Figure Technology Solutions, the listed lender, which trades here as FIGR.",
+  "mint": "PreZad18qfPtbxNpMtMuAuX2zVpvkEU8DnJx56faCWd",
+  "decimals": 9,
+  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "pool": "AG8Sui3oZ9eEsNwdQfxQkQfiniHHJNFCxXgdR1Wsa8Ji",
+  "poolName": "FIGUREAI / SOL",
+  "color": "#f59e0b",
+  "seen": {
+   "liquidityUsd": 76689,
+   "volume24hUsd": 37672,
+   "trades24h": 2967,
+   "priceUsd": 170.0514
+  },
+  "symbol": "FIGUREAI"
+ },
+ {
+  "ticker": "KALSHI",
+  "name": "Kalshi",
+  "blurb": "The regulated event exchange.",
+  "mint": "PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua",
+  "decimals": 9,
+  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "pool": "4BaRDku16XNC3rtZ6MMTh7ScrrCdtzPNED84otzRHekJ",
+  "poolName": "KALSHI / USDC",
+  "color": "#38bdf8",
+  "seen": {
+   "liquidityUsd": 164576,
+   "volume24hUsd": 0,
+   "trades24h": 1603,
+   "priceUsd": 467.4741
+  },
+  "symbol": "KALSHI"
+ },
+ {
+  "ticker": "ANDURIL",
+  "name": "Anduril",
+  "blurb": "Autonomous defence systems.",
+  "mint": "PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB",
+  "decimals": 9,
+  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+  "pool": "JxzVGACm6YmsK14JAK2pgUWoJRX2q9QSwJJLwWzqTRc",
+  "poolName": "ANDURL / USDC",
+  "color": "#8a9a5b",
+  "seen": {
+   "liquidityUsd": 65232,
+   "volume24hUsd": 0,
+   "trades24h": 542,
+   "priceUsd": 117.8778
+  },
+  "symbol": "ANDURL"
+ }
+]

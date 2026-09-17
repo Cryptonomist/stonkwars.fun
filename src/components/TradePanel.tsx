@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { readableProgramError } from "@/lib/duel";
 import { sendAndConfirm } from "@/lib/send";
+import { byPreTicker } from "@/lib/prestocks";
 import { CLUSTER, tokenSymbol } from "@/lib/stocks";
 import { DEFAULT_SLIPPAGE_BPS, SLIPPAGE_CHOICES, type PayWith, type QuoteResponse, type Side } from "@/lib/swap";
 import { useHoldings } from "@/lib/useHoldings";
@@ -56,6 +57,8 @@ export function TradePanel({
   onTraded?: () => void;
 }) {
   const onMainnet = CLUSTER === "mainnet-beta";
+  /* A private company: no exchange, no faucet, and never stakeable. */
+  const preIpo = byPreTicker(ticker);
   const { connection } = useConnection();
   const { publicKey, signTransaction } = useWallet();
   const qc = useQueryClient();
@@ -284,10 +287,31 @@ export function TradePanel({
         </button>
       ) : (
         <Notice title="These are live mainnet prices, for reference.">
-          <span className="flex flex-col gap-2">
-            <span>Trading runs on Solana mainnet. On devnet, fight with free test shares instead.</span>
-            <FaucetButton tickers={[ticker]} label={`Get test ${symbol}`} className="self-start" />
-          </span>
+          {/* A private company has no test version. The faucet mints test
+            * shares of listed stocks so a fight can be had on devnet, and there
+            * is no fight to have here, so offering a faucet button would be
+            * offering something that does not exist. */}
+          {preIpo ? (
+            <span className="flex flex-col gap-2">
+              <span>
+                {preIpo.name} trades on Solana mainnet only. There is no test version of a private company, so this
+                price is the real one and the buy happens in your own wallet.
+              </span>
+              <a
+                href={`https://jup.ag/swap/USDC-${preIpo.mint}`}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-sm btn-buy self-start"
+              >
+                Buy {preIpo.name} on Jupiter
+              </a>
+            </span>
+          ) : (
+            <span className="flex flex-col gap-2">
+              <span>Trading runs on Solana mainnet. On devnet, fight with free test shares instead.</span>
+              <FaucetButton tickers={[ticker]} label={`Get test ${symbol}`} className="self-start" />
+            </span>
+          )}
         </Notice>
       )}
 

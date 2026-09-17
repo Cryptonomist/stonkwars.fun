@@ -2,11 +2,34 @@
  * it carries the full mainnet token list, which has no business in a page. */
 
 import mainnetTokens from "@/data/stocks.mainnet-beta.json";
+import prestocksJson from "@/data/prestocks.json";
 
 import { fromAtomic, PAY, type JupiterQuote, type PayWith, type QuoteSummary, type Side } from "./swap";
 
 type MainnetToken = { ticker: string; symbol: string; issuer: string; mint: string; decimals: number; tokenProgram: string };
-const TOKENS: MainnetToken[] = (mainnetTokens as { tokens: MainnetToken[] }).tokens;
+
+/* THE PRE-IPO TOKENS TRADE THROUGH THIS SAME PATH.
+ *
+ * OpenAI, Anthropic and the rest are ordinary Solana tokens, so a quote, a
+ * route and a build for them are the same job as for any listed stock, and they
+ * belong in the one registry rather than a parallel one that would drift.
+ *
+ * Being here cannot make them stakeable. STAKEABLE is drawn from ROSTER, and
+ * none of these is in ROSTER: they have no ticker, no exchange and no feed.
+ * Their mints also hand the issuer a permanent delegate and a pause switch, so
+ * escrowing them would break the one promise a fight makes. lib/prestocks.ts
+ * carries the long version. */
+type PreStockRow = { ticker: string; symbol: string; mint: string; decimals: number; tokenProgram: string };
+const PRE_IPO: MainnetToken[] = (prestocksJson as PreStockRow[]).map((p) => ({
+  ticker: p.ticker,
+  symbol: p.symbol,
+  issuer: "PreStocks",
+  mint: p.mint,
+  decimals: p.decimals,
+  tokenProgram: p.tokenProgram,
+}));
+
+const TOKENS: MainnetToken[] = [...(mainnetTokens as { tokens: MainnetToken[] }).tokens, ...PRE_IPO];
 
 /** The token a trade buys or sells for a stock: the xStocks token where there is one. */
 export function mainnetStockToken(ticker: string): MainnetToken | null {
