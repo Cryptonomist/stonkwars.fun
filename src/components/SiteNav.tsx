@@ -91,7 +91,10 @@ export function SiteNav() {
             </span>
           </button>
           <MarketBadge className="hidden xl:inline-flex" />
-          {CLUSTER !== "mainnet-beta" ? <FaucetButton className="hidden lg:inline-flex" /> : null}
+          {/* nowrap: at night the market badge reads "Exchange shut · 45 live 24/7",
+            * wider than "Market open", and the squeeze broke this label onto two
+            * lines. The search box is the row's give, not the buttons. */}
+          {CLUSTER !== "mainnet-beta" ? <FaucetButton className="hidden whitespace-nowrap lg:inline-flex" /> : null}
           <Link href="/new" className="btn btn-sm btn-primary hidden whitespace-nowrap md:inline-flex">
             Pick a fight
           </Link>

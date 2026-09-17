@@ -400,7 +400,7 @@ export function Actions({
   if (d.status === STATUS_OPEN && !expired) {
     hints.push({
       title: `Take ${t2} against ${t1}.`,
-      body: `Whichever moves more, in percent, over the round takes both stakes, paid in shares.${
+      body: `The bigger percentage move over the round takes both stakes, paid in shares.${
         testCluster ? " Devnet: free test shares from the faucet, nothing real at stake." : ""
       }`,
     });
@@ -451,7 +451,7 @@ export function Actions({
     });
   }
   if (d.status === STATUS_LIVE && now < d.endTs) {
-    hints.push({ title: `${t1} vs ${t2}.`, body: "Whichever moves more, in percent, by the bell takes both stakes." });
+    hints.push({ title: `${t1} vs ${t2}.`, body: "The bigger percentage move by the bell takes both stakes." });
   }
   if (over) {
     hints.push({
