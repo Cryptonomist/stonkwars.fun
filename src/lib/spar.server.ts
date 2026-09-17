@@ -48,7 +48,7 @@ import {
 } from "./duel";
 import { liveQuotes } from "./marketPrices.server";
 import { quoteValue } from "./pricemath";
-import { planSeat, sparRefusal, SPAR_MAX_USD, SPAR_SEAT_USD, SPAR_SEATS, SPAR_WALLET } from "./spar";
+import { planSeat, SEATS_PER_TICK, sparRefusal, SPAR_MAX_USD, SPAR_SEAT_USD, SPAR_SEATS, SPAR_WALLET } from "./spar";
 import { byTicker, CLUSTER, mixedHoursAt, stakeAssetFor, STAKEABLE, tickerForMint, tokensFor } from "./stocks";
 
 /** SOL the sparring wallet keeps for fees and the token accounts a take opens. */
@@ -312,6 +312,21 @@ export async function sparTick(
 
   const live = mine.filter((d) => d.expiresTs > now);
   const openPairs = new Set(live.map((d) => `${tickerForMint(d.creatorMint)}/${tickerForMint(d.opponentMint)}`));
-  if (live.length < SPAR_SEATS) seats.push(await openSeat(conn, openPairs, keys));
+  /* REFILL FASTER THAN THE SEATS GET TAKEN.
+   *
+   * One seat a tick was a guard against a failing seat spending in a loop, and
+   * it held while the board was quiet. It stops holding the moment somebody
+   * turns up to try the thing: a visitor who takes four seats leaves the board
+   * empty for the next four minutes, which is exactly the wrong four minutes.
+   *
+   * So a tick opens as many as the target is short, up to SEATS_PER_TICK, and
+   * stops on the first one that does not open. That keeps the original guard,
+   * because a seat that fails still ends the loop on its first failure. */
+  for (let i = 0; live.length + i < SPAR_SEATS && i < SEATS_PER_TICK; i++) {
+    const seat = await openSeat(conn, openPairs, keys);
+    seats.push(seat);
+    if (!("opened" in seat)) break;
+    openPairs.add(seat.opened);
+  }
   return { takes, seats };
 }

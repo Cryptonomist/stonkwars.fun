@@ -77,8 +77,18 @@ export function sparRoundFor(nowMs: number): "15m" | "12h" {
 
 /* ─── Its own open seats ──────────────────────────────────────────────────── */
 
-/** How many open challenges of its own it keeps up. */
-export const SPAR_SEATS = 3;
+/* How many open challenges of its own it keeps up.
+ *
+ * Three was right for a quiet board and wrong the moment anybody came to try
+ * the thing: a visitor who takes a few leaves nothing behind them, and whoever
+ * arrives next finds an empty room. Eight of the ten pairs below, so there are
+ * always a couple spare for planSeat to reach for as others expire. */
+export const SPAR_SEATS = 8;
+
+/** The most it opens in one tick, so a board emptied by a rush comes back in a
+ *  couple of minutes instead of one seat at a time. */
+export const SEATS_PER_TICK = 3;
+
 /** What each side stakes in a seat, in dollars. */
 export const SPAR_SEAT_USD = 25;
 
