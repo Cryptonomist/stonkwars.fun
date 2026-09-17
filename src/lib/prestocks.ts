@@ -54,9 +54,15 @@ export type PreStock = {
 
 export const PRESTOCKS = prestocksJson as PreStock[];
 
-/** Said on the page, and asserted in the tests, so the two cannot drift. */
+/* Said on the page, and asserted in the tests, so the two cannot drift.
+ *
+ * It used to give only the issuer's powers as the reason, which read as
+ * inconsistent the moment the rest of the site admitted that the issuers of
+ * ordinary tokenized stocks hold much the same powers. The honest answer is
+ * that a fight has no test version of a private company to use, so it would
+ * have to escrow the real token, and these mints refuse that outright. */
 export const NOT_STAKEABLE_BECAUSE =
-  "The issuer of these tokens can move them out of any wallet and can pause transfers. A fight here promises that nobody can touch a stake once it is in, so these are traded and watched, never staked.";
+  "There is no test version of a private company, so a fight would have to escrow the real token, and these mints will not have it: a 50 bps transfer fee means the escrow receives less than was staked, a transfer hook wants accounts an ordinary transfer does not pass, and the issuer can pause transfers or move them out of any wallet at will. So these are traded and watched here, never staked.";
 
 /* HOW BUSY IS BUSY ENOUGH.
  *

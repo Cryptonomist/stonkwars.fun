@@ -316,8 +316,8 @@ export function TradePanel({
       )}
 
       <p className="text-meta text-dim">
-        Routed by Jupiter. You sign in your own wallet; Stonk Wars never holds your funds. Tokenized stocks are not offered to
-        US persons by their issuers.
+        Routed by Jupiter. You sign in your own wallet; Stonk Wars never holds your funds. These tokens are not offered
+        to US persons, and the issuer&apos;s terms ask a holder to state that they are not one.
       </p>
     </>
   );

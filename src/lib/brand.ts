@@ -5,7 +5,11 @@ export const BRAND = {
   short: "STONK WARS",
   domain: "stonkwars.fun",
   x: "@stonkwarsfun",
-  tagline: "Win, and you own their stock.",
+  /* "Win, and you own their stock" said two things that are not so. Nobody
+   * owns a stock that is still theirs: the shares change hands at the bell, so
+   * the sentence has to name the handover, not a contradiction. And what moves
+   * is tokenized shares, which is the word the rest of the site uses. */
+  tagline: "Win, and their shares are yours.",
   pitch:
     "Stake shares of your tokenized stock. They stake theirs. At the bell, the bigger percentage move takes every share on the table. Signed prices decide it, anyone can settle it, and no house takes a cut.",
 } as const;

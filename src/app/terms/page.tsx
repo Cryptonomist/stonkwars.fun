@@ -81,8 +81,8 @@ export default function Terms() {
       <Section title="Who may use it">
         <p>
           You must be 18 or older, and using it must be lawful where you live. That is your judgment to make, not ours.
-          Issuers of tokenized stocks generally do not offer them to US persons, and their restrictions are theirs to
-          enforce.
+          The issuers of these tokens do not offer them to US persons, and each one&apos;s terms ask a holder to state
+          that they are not one. Those restrictions are the issuers&apos;, not ours, and theirs to enforce.
         </p>
       </Section>
 
@@ -90,6 +90,13 @@ export default function Terms() {
         <p>
           The program has not been audited. It has tests and it is deployed where anyone can read it, but software has
           bugs and this software may have some.
+        </p>
+        <p>
+          A tokenized stock is not the share. Each is an instrument its issuer sells against a holding of its own:
+          xStocks calls its tokens tracker certificates, Ondo calls its a structured note, Backpack&apos;s are an
+          entitlement in a pool held on trust, and PreStocks tokens reference exposure to a company that has never
+          listed. They follow the price. None of them makes you a shareholder of the company, and none carries a vote.
+          The site says shares because that is the word people use for them, and this is what the word means here.
         </p>
         <p>
           Every issuer of a tokenized stock keeps powers over its tokens, including ones sitting in a fight: freezing an

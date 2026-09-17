@@ -70,11 +70,11 @@ export function PreIpoDesk({ initial }: { initial: string }) {
     <div className="flex flex-col gap-6 py-6">
       <Plate as="header" notch pad="std" className="flex flex-col gap-3">
         <p className="label">Not public yet</p>
-        <h1 className="display text-hud-lg text-ink">Buy the companies that never listed</h1>
+        <h1 className="display text-hud-lg text-ink">The companies that never listed</h1>
         <p className="max-w-prose text-sm text-dim">
           OpenAI, Anthropic and Neuralink have no ticker and no exchange, so there is no bell for them to close at.
-          Tokenized on Solana, they trade every hour of every day, and you can buy them here in your own wallet. Prices
-          are live routed quotes, not an index.
+          PreStocks issues tokens that track them, and those trade on Solana every hour of every day. You can buy them
+          here in your own wallet, at live routed quotes rather than an index.
         </p>
       </Plate>
 
@@ -131,8 +131,9 @@ export function PreIpoDesk({ initial }: { initial: string }) {
             </Link>
           </Notice>
           <p className="text-meta text-dim">
-            Exposure is issued by PreStocks against a holding in the company. It is not shares in the company, it does
-            not vote, and its price is whatever this market says it is.{" "}
+            A PreStocks token tracks a private company&apos;s value. It is not shares in the company and it does not
+            vote. What stands behind it is the issuer&apos;s choice, and its terms keep that open: an interest in a fund
+            or an SPV, or a derivative referencing the company. Its price is whatever this market says it is.{" "}
             {chosen.ticker === "FIGUREAI" ? "Figure AI is the robotics company, not Figure Technology Solutions, which lists here as FIGR. " : ""}
             SpaceX is already listed on this site as{" "}
             <Link href="/s/SPCX" className="link">
