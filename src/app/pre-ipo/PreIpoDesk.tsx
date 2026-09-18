@@ -32,7 +32,7 @@ import { Plate } from "@/components/ui/Plate";
 import { SectionHead } from "@/components/ui/SectionHead";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { pct, usd } from "@/lib/format";
-import { NOT_STAKEABLE_BECAUSE, PRESTOCKS, type PreStock } from "@/lib/prestocks";
+import { dexName, NOT_STAKEABLE_BECAUSE, poolLink, PRESTOCKS, type PreStock } from "@/lib/prestocks";
 
 type Quote = { usd: number | null; change24h: number | null; trades24h: number | null; impactPct: number | null; route: string[] };
 type Prices = { at: number; probeUsd: number; prices: Record<string, Quote>; note?: string };
@@ -145,6 +145,18 @@ export function PreIpoDesk({ initial }: { initial: string }) {
             {chosen.ticker === "FIGUREAI" ? "Figure AI is the robotics company, not Figure Technology Solutions, which lists here as FIGR. " : ""}
             {chosen.ticker === "SPACEX" ? "SpaceX holds the deepest pool of the eight and the thinnest trade count, which is why it reads as quiet above: deep is not the same as busy." : ""}
           </p>
+          {/* Where the depth, the activity badge and the exhibition's race all
+              come from. Named per company rather than in general: seven of the
+              eight are Meteora pools and Figure AI's is Raydium. */}
+          {dexName(chosen.dex) ? (
+            <p className="text-meta text-dim">
+              Depth and activity read from the{" "}
+              <a href={poolLink(chosen.pool)} target="_blank" rel="noreferrer" className="link">
+                {dexName(chosen.dex)} {chosen.poolName} pool
+              </a>
+              . Prices are routed quotes across every pool, not just this one.
+            </p>
+          ) : null}
         </aside>
       </div>
     </div>

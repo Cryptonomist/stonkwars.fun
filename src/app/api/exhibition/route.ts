@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { isWindowId, legFrom, verdictOf, WINDOWS, type Exhibition, type Leg } from "@/lib/exhibition";
 import { fetchBars } from "@/lib/oracle";
-import { byPreTicker } from "@/lib/prestocks";
+import { byPreTicker, dexName } from "@/lib/prestocks";
 import { byTicker, quoteSymbolFor } from "@/lib/stocks";
 
 export const dynamic = "force-dynamic";
@@ -58,13 +58,16 @@ async function poolLeg(ticker: string, bucket: "minute" | "hour", points: number
   const rows = [...(body.data?.attributes?.ohlcv_list ?? [])]
     .sort((a, b) => a[0] - b[0])
     .filter((row) => row[0] >= from && row[0] <= to);
-  return legFrom(
+  const leg = legFrom(
     p.ticker,
     p.name,
     "pool",
     rows.map((row) => row[0]),
     rows.map((row) => (row[4] > 0 ? row[4] : null)),
   );
+  /* Name the venue this side was read from, so the card can say it rather
+   * than call everything "a Solana pool". */
+  return { ...leg, venue: dexName(p.dex) ?? undefined, pool: p.pool };
 }
 
 /** The exchange's own bars for a roster stock. */

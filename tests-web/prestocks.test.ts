@@ -4,7 +4,7 @@
 
 import { expect } from "chai";
 
-import { PRESTOCKS, activityOf, byPreTicker, NOT_STAKEABLE_BECAUSE } from "../src/lib/prestocks";
+import { PRESTOCKS, activityOf, byPreTicker, dexName, NOT_STAKEABLE_BECAUSE } from "../src/lib/prestocks";
 import { mainnetStockToken, pairFor, tradeFor } from "../src/lib/swapPairs";
 import { ROSTER, STAKEABLE } from "../src/lib/stocks";
 
@@ -29,6 +29,23 @@ describe("private companies", () => {
       expect(ROSTER.some((r) => r.ticker === p.ticker), `${p.ticker} is in ROSTER`).to.equal(false);
       expect(STAKEABLE.some((s) => s.ticker === p.ticker), `${p.ticker} is stakeable`).to.equal(false);
     }
+  });
+
+  it("names the venue each pool is on rather than assuming one", () => {
+    /* The page says where a price was read. Seven of the eight pools are on
+     * Meteora and Figure AI's is on Raydium, so a page that said "Meteora"
+     * across the board would be wrong about one of them. Every entry carries
+     * its own, and dexName turns an id nobody has mapped into a readable name
+     * rather than dropping it. */
+    for (const p of PRESTOCKS) {
+      expect(p.dex, `${p.ticker} records its dex`).to.be.a("string").and.not.equal("");
+      expect(dexName(p.dex), `${p.ticker} has a readable venue name`).to.be.a("string");
+    }
+    expect(dexName("meteora")).to.equal("Meteora");
+    expect(dexName("raydium-clmm")).to.equal("Raydium CLMM");
+    expect(dexName("some-new-amm")).to.equal("Some New Amm", "an unmapped id is tidied, not dropped");
+    expect(dexName(undefined)).to.equal(null);
+    expect(new Set(PRESTOCKS.map((p) => p.dex)).size, "they are not all on one venue").to.be.greaterThan(1);
   });
 
   it("says why, in words a page can print", () => {

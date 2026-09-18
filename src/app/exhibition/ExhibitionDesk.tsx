@@ -38,7 +38,7 @@ import {
   type Leg,
   type WindowId,
 } from "@/lib/exhibition";
-import { PRESTOCKS } from "@/lib/prestocks";
+import { poolLink, PRESTOCKS } from "@/lib/prestocks";
 import { STAKEABLE } from "@/lib/stocks";
 
 /* The listed side of the card. Every roster stock would be a thousand-long
@@ -172,7 +172,15 @@ function Side({ leg, tone }: { leg: Leg; tone: "p1" | "p2" }) {
     <div className="flex min-w-0 flex-col gap-1.5">
       <p className="flex flex-wrap items-baseline gap-2">
         <span className={cx("display text-hud-sm", tone === "p1" ? "text-p1" : "text-p2")}>{leg.ticker}</span>
-        <Badge variant="source">{leg.source === "pool" ? "Solana pool" : "Exchange"}</Badge>
+        {/* Name the venue rather than calling every pool the same thing: these
+            are not all on one DEX, and the one it read is worth linking to. */}
+        {leg.source === "pool" && leg.pool ? (
+          <a href={poolLink(leg.pool)} target="_blank" rel="noreferrer" className="link text-meta">
+            <Badge variant="source">{leg.venue ? `${leg.venue} pool` : "Solana pool"}</Badge>
+          </a>
+        ) : (
+          <Badge variant="source">{leg.source === "pool" ? "Solana pool" : "Exchange"}</Badge>
+        )}
       </p>
       <p className="num text-num-lg text-ink">{move === null ? "no trades" : pct(move, 3)}</p>
       <p className="text-meta text-dim">

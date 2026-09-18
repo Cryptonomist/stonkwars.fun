@@ -25,6 +25,11 @@ export type Leg = {
   name: string;
   /** Where the prices came from, in the words a badge uses. */
   source: "pool" | "exchange" | "perp" | "mixed";
+  /* Which venue, when it is a pool: the DEX as a person writes it, and the
+   * pool itself so the badge can link to what it read. Named per side rather
+   * than assumed, because these pools are not all on the same DEX. */
+  venue?: string;
+  pool?: string;
   /** Unix seconds, oldest first. */
   t: number[];
   /** Percent from the first priced bar. Null where that bar never traded. */

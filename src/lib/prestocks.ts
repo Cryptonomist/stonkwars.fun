@@ -57,6 +57,12 @@ export type PreStock = {
    * Taking "the biggest pool" would have priced a whole market at zero. */
   pool: string;
   poolName: string;
+  /* Which DEX that pool is on, as GeckoTerminal ids it ("meteora",
+   * "raydium-clmm"). Recorded rather than assumed: seven of the eight are
+   * Meteora pools and Figure AI's is Raydium, so a page that said "Meteora"
+   * across the board would be wrong about one of them today and could be wrong
+   * about more tomorrow. */
+  dex?: string;
   color: string;
   /** The market as it stood when the file was generated, for the gate below. */
   seen: { liquidityUsd: number; volume24hUsd: number; trades24h: number; priceUsd: number };
@@ -101,6 +107,28 @@ export const ACTIVITY_WORDS: Record<Activity, string> = {
   steady: "trades through the day",
   quiet: "trades rarely, so its price can be stale",
 };
+
+/** A DEX id as a person writes it. Unknown ids come back tidied rather than
+ *  dropped, so a new venue shows its own name instead of disappearing. */
+export function dexName(id?: string): string | null {
+  if (!id) return null;
+  const known: Record<string, string> = {
+    meteora: "Meteora",
+    "meteora-dlmm": "Meteora DLMM",
+    "raydium-clmm": "Raydium CLMM",
+    raydium: "Raydium",
+    orca: "Orca",
+    "orca-whirlpool": "Orca Whirlpool",
+  };
+  if (known[id]) return known[id];
+  return id
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/** Where to look at the pool a price came from. */
+export const poolLink = (pool: string) => `https://www.geckoterminal.com/solana/pools/${pool}`;
 
 export const byPreTicker = (ticker: string): PreStock | undefined =>
   PRESTOCKS.find((p) => p.ticker === ticker.toUpperCase());

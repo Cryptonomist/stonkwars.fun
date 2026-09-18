@@ -15,7 +15,8 @@
    "volume24hUsd": 1324711,
    "trades24h": 45985,
    "priceUsd": 1667.6872
-  }
+  },
+  "dex": "meteora"
  },
  {
   "ticker": "ANTHROPIC",
@@ -33,7 +34,8 @@
    "volume24hUsd": 1181813,
    "trades24h": 26537,
    "priceUsd": 1000.4058
-  }
+  },
+  "dex": "meteora"
  },
  {
   "ticker": "NEURALINK",
@@ -51,7 +53,8 @@
    "volume24hUsd": 0,
    "trades24h": 9245,
    "priceUsd": 288.6868
-  }
+  },
+  "dex": "meteora"
  },
  {
   "ticker": "POLYMARKET",
@@ -69,7 +72,8 @@
    "volume24hUsd": 67363,
    "trades24h": 5435,
    "priceUsd": 143.6829
-  }
+  },
+  "dex": "meteora"
  },
  {
   "ticker": "KALSHI",
@@ -87,7 +91,8 @@
    "volume24hUsd": 0,
    "trades24h": 2325,
    "priceUsd": 467.4741
-  }
+  },
+  "dex": "meteora"
  },
  {
   "ticker": "FIGUREAI",
@@ -105,7 +110,8 @@
    "volume24hUsd": 41118,
    "trades24h": 1642,
    "priceUsd": 181.2124
-  }
+  },
+  "dex": "raydium-clmm"
  },
  {
   "ticker": "ANDURIL",
@@ -123,7 +129,8 @@
    "volume24hUsd": 0,
    "trades24h": 580,
    "priceUsd": 117.8778
-  }
+  },
+  "dex": "meteora"
  },
  {
   "ticker": "SPACEX",
@@ -141,6 +148,7 @@
    "volume24hUsd": 0,
    "trades24h": 75,
    "priceUsd": 705.7352
-  }
+  },
+  "dex": "meteora"
  }
 ]
