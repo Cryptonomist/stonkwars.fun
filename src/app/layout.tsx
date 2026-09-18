@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { CommandPalette } from "@/components/CommandPalette";
 import { XLinkSheet } from "@/components/ConnectX";
 import { FightWatcher } from "@/components/FightWatcher";
+import { NetworkStrip } from "@/components/NetworkStrip";
 import { Providers } from "@/components/Providers";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -66,6 +67,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className="arena has-bottom-nav flex min-h-dvh flex-col antialiased">
         <Providers>
           <SiteNav />
+          {/* Which of the two deployments this is, and where the other half of
+            * the product lives. Renders nothing when there is no sibling. */}
+          <NetworkStrip />
           {/* The phone's bottom bar is fixed over the end of the page. Its
             * height is reserved once, under the footer (see SiteFooter), since
             * the footer always follows main: reserving it here as well would

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { Notice } from "@/components/ui/Notice";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DEVNET_SITE, FIGHTS_LIVE } from "@/lib/deployment";
 
 import { CreateFight } from "./CreateFight";
 
@@ -50,6 +52,27 @@ function Loading() {
 }
 
 export default function NewFightPage() {
+  /* On the mainnet deployment there is no program to create a fight with, and
+   * no faucet or sparring wallet either, so the picker would build a ticket
+   * nothing could accept. Send them to the site where fights actually run
+   * rather than render a button that cannot work. */
+  if (!FIGHTS_LIVE) {
+    return (
+      <div className="py-6">
+        <Notice
+          title="Fights run on the devnet site."
+          action={
+            <a href={DEVNET_SITE} className="btn btn-sm btn-primary">
+              Go and fight, free &rarr;
+            </a>
+          }
+        >
+          This deployment is for trading real tokenized stocks in your own wallet. The fight program is deployed on
+          devnet, where the shares are free and there is always somebody to fight, so nothing here needs funding.
+        </Notice>
+      </div>
+    );
+  }
   return (
     <Suspense fallback={<Loading />}>
       <CreateFight />
