@@ -49,6 +49,36 @@ export type Quotes = { quotes: Record<string, Quote>; at: number; error?: string
 export const quoteValue = (q?: Pick<Quote, "price" | "expo">): number | null =>
   q ? Number(q.price) * 10 ** q.expo : null;
 
+/* PYTH'S CONFIDENCE BAND.
+ *
+ * Pyth does not publish a price, it publishes a price and how sure its
+ * publishers are: a band either side, wide when they disagree or the market is
+ * thin, narrow when they agree. Every other source here hands over a number and
+ * no idea how much to trust it, which is the thing that makes a Pyth price
+ * different from a scraped one.
+ *
+ * It has been arriving in every quote all along, in `conf`, and being thrown
+ * away by every component that reads one. This turns it back into a number a
+ * page can show. Null for any source that does not publish a band, which is
+ * all of them but Pyth: the others set conf to "0". */
+export function confBand(q?: Quote): { usd: number; pct: number } | null {
+  if (!q || q.source !== "pyth") return null;
+  const conf = Number(q.conf);
+  const price = quoteValue(q);
+  if (!Number.isFinite(conf) || conf <= 0 || !price) return null;
+  const usd = conf * 10 ** q.expo;
+  return { usd, pct: (usd / price) * 100 };
+}
+
+/** How wide a band is, in the words a page puts beside it. The thresholds are
+ *  in basis points of the price: a tight band is the normal state for a liquid
+ *  stock in hours, and a wide one is worth saying out loud. */
+export function bandWords(pct: number): "tight" | "normal" | "wide" {
+  if (pct < 0.05) return "tight";
+  if (pct < 0.25) return "normal";
+  return "wide";
+}
+
 /** The move on the day, against the previous session's close, or null when the
  *  source did not give one. */
 export function dayChangePct(q?: Quote): number | null {

@@ -124,8 +124,16 @@ export function PreIpoDesk({ initial }: { initial: string }) {
 
         <aside className="flex min-w-0 flex-col gap-4">
           <TradePanel key={chosen.ticker} ticker={chosen.ticker} embedded />
-          <Notice title="These cannot be fought over.">
-            {NOT_STAKEABLE_BECAUSE}{" "}
+          <Notice
+            title="These cannot be fought over for stakes."
+            action={
+              <Link href={`/exhibition?a=${chosen.ticker}`} className="btn btn-sm btn-primary">
+                Put {chosen.name} in an exhibition
+              </Link>
+            }
+          >
+            {NOT_STAKEABLE_BECAUSE} They can still fight an exhibition: same prices, same window, nothing escrowed and
+            no result on chain.{" "}
             <Link href="/how" className="link">
               How fights work
             </Link>

@@ -48,7 +48,7 @@ import { fighterFrom } from "@/lib/fighterStats";
 import { etTime, pct, points, usd } from "@/lib/format";
 import { useDuels } from "@/lib/hooks";
 import { session, type Session } from "@/lib/market";
-import { sourceWords } from "@/lib/pricemath";
+import { bandWords, confBand, sourceWords } from "@/lib/pricemath";
 import { dayChangePct, quoteValue, usePrices, type Quote } from "@/lib/prices";
 import {
   byTicker,
@@ -357,6 +357,7 @@ function Header({
   const stock = byTicker(ticker)!;
   const price = quoteValue(quote);
   const change = dayChangePct(quote);
+  const band = confBand(quote);
   const us = stock.market === "US";
   const priced = now ? pricedAt(ticker, now) : null;
   const next = priced === "waits" && now ? firstPriceAt(ticker, now) : null;
@@ -402,6 +403,23 @@ function Header({
             </p>
           ) : null}
           {quote?.publishTime ? <p className="text-meta text-dim">as of {etTime(quote.publishTime)}</p> : null}
+          {/* Pyth's own confidence band, which no other source here publishes.
+              It has been in every quote all along and shown in none of them. */}
+          {band ? (
+            <p className="text-meta text-dim">
+              <Tip
+                label={
+                  <>
+                    &plusmn;<span className="num">{usd(band.usd, { cents: true })}</span> Pyth band
+                  </>
+                }
+              >
+                Pyth publishes a price and a confidence band together: how far apart the publishers behind it are. This
+                one is {bandWords(band.pct)}, {pct(band.pct, 3)} of the price. A fight settles on the price, never the
+                band; the band is how much to trust that price at this moment.
+              </Tip>
+            </p>
+          ) : null}
         </div>
       </div>
 
