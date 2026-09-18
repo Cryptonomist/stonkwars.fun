@@ -63,14 +63,6 @@
   "at": "2026-09-12",
   "tradedMinutesPerHour": 26
  },
- "SPCX": {
-  "pool": "AHNN6JmvaGG6XUoSg7sEr38gRYDB2jTbUvqXVuqaRHpq",
-  "dex": "SPCXx / USDC",
-  "liquidityUsd": 876164.9202,
-  "volume24hUsd": 1244457.53760479,
-  "at": "2026-09-12",
-  "tradedMinutesPerHour": 21
- },
  "GLD": {
   "pool": "78ReVNMLGRWmjtf2HmBoHUe2pRcsctXTTbxJnbhchyze",
   "dex": "GLDx / USDC",

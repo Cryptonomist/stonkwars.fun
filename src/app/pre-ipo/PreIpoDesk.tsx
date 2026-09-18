@@ -135,11 +135,7 @@ export function PreIpoDesk({ initial }: { initial: string }) {
             vote. What stands behind it is the issuer&apos;s choice, and its terms keep that open: an interest in a fund
             or an SPV, or a derivative referencing the company. Its price is whatever this market says it is.{" "}
             {chosen.ticker === "FIGUREAI" ? "Figure AI is the robotics company, not Figure Technology Solutions, which lists here as FIGR. " : ""}
-            SpaceX is already listed on this site as{" "}
-            <Link href="/s/SPCX" className="link">
-              SPCX
-            </Link>
-            , where it can be fought over, so it is not repeated here.
+            {chosen.ticker === "SPACEX" ? "SpaceX holds the deepest pool of the eight and the thinnest trade count, which is why it reads as quiet above: deep is not the same as busy." : ""}
           </p>
         </aside>
       </div>

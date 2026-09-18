@@ -20,12 +20,22 @@
  *
  * The list is generated from chain, not typed by hand: see the note on `pool`.
  *
- * SPACEX IS NOT HERE ON PURPOSE. SpaceX already lists on this site as SPCX,
- * tokenized by xStocks, Ondo and Backpack, and that one can be fought over. A
- * second, thinner SpaceX that could not would be a worse copy of a better
- * entry. Figure AI, by contrast, stays: the roster's FIGR is Figure Technology
- * Solutions, the listed lender, which is a different company with a confusingly
- * similar name, and the blurb says so. */
+ * SPACEX IS HERE, AND SPCX IS NOT IN THE ROSTER ANY MORE.
+ *
+ * It used to be the other way round: SpaceX was fought over as SPCX, tokenized
+ * by xStocks, Ondo and Backpack, and left off this desk as a thinner copy of a
+ * better entry. That was the right call on the merits and the wrong one on the
+ * rules. A company that has never listed is a pre-IPO company whoever wraps it,
+ * so SPCX was a non-PreStocks pre-IPO token, and the desk it belongs on is this
+ * one. It is the only such entry: all 1033 roster rows were checked.
+ *
+ * SpaceX has the deepest pool of the eight and trades about 74 times a day,
+ * which activityOf reads as quiet, so it is labelled as thin rather than
+ * presented as though it were as live as OpenAI. Deep is not busy.
+ *
+ * Figure AI stays for a different reason: the roster's FIGR is Figure
+ * Technology Solutions, the listed lender, a different company with a
+ * confusingly similar name, and the blurb says so. */
 
 import prestocksJson from "@/data/prestocks.json";
 

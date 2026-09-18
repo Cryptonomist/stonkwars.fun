@@ -1,4 +1,5 @@
-[{"ticker":"TSLA","name":"Tesla","kind":"stock","market":"US","currency":"USD","feed":"16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1","pyth":true,"source":"signed","quote":"TSLA","color":"#E82127","issuers":["xStocks","Ondo"]},
+[
+{"ticker":"TSLA","name":"Tesla","kind":"stock","market":"US","currency":"USD","feed":"16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1","pyth":true,"source":"signed","quote":"TSLA","color":"#E82127","issuers":["xStocks","Ondo"]},
 {"ticker":"NVDA","name":"NVIDIA","kind":"stock","market":"US","currency":"USD","feed":"b1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593","pyth":true,"source":"signed","quote":"NVDA","color":"#76B900","issuers":["xStocks","Ondo"]},
 {"ticker":"AAPL","name":"Apple","kind":"stock","market":"US","currency":"USD","feed":"49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688","pyth":true,"source":"signed","quote":"AAPL","color":"#A2AAAD","issuers":["xStocks","Ondo"]},
 {"ticker":"QQQ","name":"Nasdaq","kind":"etf","market":"US","currency":"USD","feed":"9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d","pyth":true,"source":"signed","quote":"QQQ","color":"#8C3FFF","issuers":["xStocks","Ondo"]},
@@ -12,7 +13,6 @@
 {"ticker":"HOOD","name":"Robinhood","kind":"stock","market":"US","currency":"USD","feed":"306736a4035846ba15a3496eed57225b64cc19230a50d14f3ed20fd7219b7849","pyth":true,"source":"signed","quote":"HOOD","color":"#CCFF00","issuers":["xStocks","Ondo","Backpack"]},
 {"ticker":"PLTR","name":"Palantir","kind":"stock","market":"US","currency":"USD","feed":"11a70634863ddffb71f2b11f2cff29f73f3db8f6d0b78c49f2b5f4ad36e885f0","pyth":true,"source":"signed","quote":"PLTR","color":"#C9CBCC","issuers":["xStocks","Ondo"]},
 {"ticker":"GME","name":"Gamestop","kind":"stock","market":"US","currency":"USD","feed":"6f9cd89ef1b7fd39f667101a91ad578b6c6ace4579d5f7f285a4b06aa4504be6","pyth":true,"source":"signed","quote":"GME","color":"#ff3ea5","issuers":["xStocks","Ondo"]},
-{"ticker":"SPCX","name":"SpaceX","kind":"stock","market":"US","currency":"USD","feed":"8a593d6edde7a3095213c88116d8840d01e93c2ddeb800bc891772eb8b93bb94","pyth":true,"source":"signed","quote":"SPCX","color":"#9aa7b8","issuers":["xStocks","Ondo","Backpack"]},
 {"ticker":"CRCL","name":"Circle","kind":"stock","market":"US","currency":"USD","feed":"92b8527aabe59ea2b12230f7b532769b133ffb118dfbd48ff676f14b273f1365","pyth":true,"source":"signed","quote":"CRCL","color":"#3D8BFF","issuers":["xStocks","Ondo"]},
 {"ticker":"AMD","name":"AMD","kind":"stock","market":"US","currency":"USD","feed":"3622e381dbca2efd1859253763b1adc63f7f9abb8e76da1aa8e638a57ccde93e","pyth":true,"source":"signed","quote":"AMD","color":"#ED1C24","issuers":["xStocks","Ondo"]},
 {"ticker":"MU","name":"Micron Technology","kind":"stock","market":"US","currency":"USD","feed":"152244dc24665ca7dd3f257b8f442dc449b6346f48235b7b229268cb770dda2d","pyth":true,"source":"signed","quote":"MU","color":"#35f28b","issuers":["xStocks","Ondo","Backpack"]},
@@ -1030,4 +1030,5 @@
 {"ticker":"ZJGLD","name":"Zijin Gold International","kind":"stock","market":"HK","currency":"HKD","feed":"8a30dc8f986bd3ddf9892a1a2f17d96afb88fa1082246635f3c208ebab2ba05c","pyth":false,"source":"signed","quote":"2259.HK","color":"#ff3ea5","issuers":["xStocks"]},
 {"ticker":"ZM","name":"Zoom Communications","kind":"stock","market":"US","currency":"USD","feed":"c9a4605e75ebd30b016e1ca23cc95b221c6b81be301ab100d6c4c623232b36e8","pyth":true,"source":"signed","quote":"ZM","color":"#c77dff","issuers":["xStocks"]},
 {"ticker":"ZS","name":"Zscaler","kind":"stock","market":"US","currency":"USD","feed":"16164a6568478238fc3102145ad51d973598850073ace86ceda7c89cb7b74598","pyth":true,"source":"signed","quote":"ZS","color":"#ff3ea5","issuers":["xStocks"]},
-{"ticker":"ZTS","name":"Zoetis","kind":"stock","market":"US","currency":"USD","feed":"c79170bfddf87b4c4ef6f1cefbe92b23eaac21ce29cbffc2bb24cab51dcf10d6","pyth":true,"source":"signed","quote":"ZTS","color":"#00c2a8","issuers":["xStocks"]}]
+{"ticker":"ZTS","name":"Zoetis","kind":"stock","market":"US","currency":"USD","feed":"c79170bfddf87b4c4ef6f1cefbe92b23eaac21ce29cbffc2bb24cab51dcf10d6","pyth":true,"source":"signed","quote":"ZTS","color":"#00c2a8","issuers":["xStocks"]}
+]

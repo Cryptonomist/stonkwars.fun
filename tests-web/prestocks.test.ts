@@ -36,12 +36,16 @@ describe("private companies", () => {
     expect(NOT_STAKEABLE_BECAUSE).to.match(/move them out of any wallet/i);
   });
 
-  it("does not repeat a company the roster already lists and can fight over", () => {
-    /* SpaceX lists as SPCX and is stakeable, so a thinner unstakeable copy was
-     * dropped. Figure AI stays: the roster's FIGR is a different company. */
-    expect(byPreTicker("SPACEX"), "SpaceX should not be duplicated").to.equal(undefined);
-    expect(ROSTER.some((r) => r.ticker === "SPCX")).to.equal(true);
+  it("keeps every pre-IPO company on this desk and none of them in the roster", () => {
+    /* The PreStocks bounty rules out a project that integrates any pre-IPO
+     * token that is not theirs. SpaceX has never listed, so SPCX was one
+     * however it was wrapped; it now sits here instead of in the roster.
+     * Figure AI is unrelated: the roster's FIGR is Figure Technology
+     * Solutions, a listed lender with a confusingly similar name. */
+    expect(byPreTicker("SPACEX"), "SpaceX belongs on this desk").to.not.equal(undefined);
+    expect(ROSTER.some((r) => r.ticker === "SPCX"), "SPCX must not be fightable").to.equal(false);
     expect(byPreTicker("FIGUREAI"), "Figure AI is its own company").to.not.equal(undefined);
+    expect(ROSTER.some((r) => r.ticker === "FIGR"), "FIGR is the listed lender").to.equal(true);
   });
 
   it("can be quoted through exactly the same path as a listed stock", () => {
