@@ -28,6 +28,7 @@ import { toast } from "@/components/ui/Toast";
 import { readableProgramError } from "@/lib/duel";
 import { sendAndConfirm } from "@/lib/send";
 import { byPreTicker } from "@/lib/prestocks";
+import { mainnetStockToken } from "@/lib/swapPairs";
 import { CLUSTER, tokenSymbol } from "@/lib/stocks";
 import { DEFAULT_SLIPPAGE_BPS, SLIPPAGE_CHOICES, type PayWith, type QuoteResponse, type Side } from "@/lib/swap";
 import { useHoldings } from "@/lib/useHoldings";
@@ -59,6 +60,8 @@ export function TradePanel({
   const onMainnet = CLUSTER === "mainnet-beta";
   /* A private company: no exchange, no faucet, and never stakeable. */
   const preIpo = byPreTicker(ticker);
+  /* The real token behind this ticker on mainnet, for the buy link below. */
+  const realMint = mainnetStockToken(ticker)?.mint ?? null;
   const { connection } = useConnection();
   const { publicKey, signTransaction } = useWallet();
   const qc = useQueryClient();
@@ -307,9 +310,30 @@ export function TradePanel({
               </a>
             </span>
           ) : (
+            /* Both doors, not one. The faucet is how somebody tries a fight in
+             * thirty seconds without funding a wallet, which is the point of
+             * running the fights on devnet at all. But the token beside it is
+             * real and trades on mainnet right now, and until this said so the
+             * only way to buy one from here was to already know that. The
+             * PreStocks branch above has offered exactly this link all along. */
             <span className="flex flex-col gap-2">
-              <span>Trading runs on Solana mainnet. On devnet, fight with free test shares instead.</span>
-              <FaucetButton tickers={[ticker]} label={`Get test ${symbol}`} className="self-start" />
+              <span>
+                Fights here run on devnet, where the shares are free. The real {symbol} trades on Solana mainnet, in
+                your own wallet.
+              </span>
+              <span className="flex flex-wrap gap-2">
+                <FaucetButton tickers={[ticker]} label={`Get test ${symbol}`} className="self-start" />
+                {realMint ? (
+                  <a
+                    href={`https://jup.ag/swap/USDC-${realMint}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-sm btn-buy self-start"
+                  >
+                    Buy the real one on Jupiter
+                  </a>
+                ) : null}
+              </span>
             </span>
           )}
         </Notice>
