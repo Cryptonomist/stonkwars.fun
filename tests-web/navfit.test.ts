@@ -16,7 +16,7 @@ const W = {
   wordmark: 151,
   fights: 64,
   trade: 59,
-  notPublic: 94,
+  preIpo: 72,
   leaderboard: 108,
   how: 117,
   searchIcon: 40,
@@ -46,7 +46,7 @@ function header(): Slot[] {
     { key: "/trade", width: W.trade, rank: 80, fold: "menu" },
     { key: "/leaderboard", width: W.leaderboard, rank: 70, fold: "menu" },
     { key: "status", width: W.status, rank: 65, fold: "hide" },
-    { key: "/pre-ipo", width: W.notPublic, rank: 55, fold: "menu" },
+    { key: "/pre-ipo", width: W.preIpo, rank: 55, fold: "menu" },
     { key: "/how", width: W.how, rank: 50, fold: "menu" },
     { key: "faucet", width: W.faucet, rank: 45, fold: "menu" },
     { key: "search-word", width: W.searchWord, rank: 20, fold: "hide" },
@@ -86,7 +86,7 @@ describe("what fits in the header", () => {
   });
 
   it("gives up the market's session and the search word before a place to go", () => {
-    /* The row at its real desktop width, everything showing, over by 105px. */
+    /* The row at its real desktop width, everything showing, over by 83px. */
     const r = fit(header(), roomForSlots(DESKTOP_ANCHORS));
     expect(r.hidden).to.include("search-word");
     expect(r.inline).to.include.members(["/fights", "/trade", "/leaderboard"]);

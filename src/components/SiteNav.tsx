@@ -22,7 +22,7 @@
  *   Leaderboard
  *   the market's session      ambient, so it goes before a place to go
  *   the faucet                a step, and the wallet menu offers it as well
- *   Not public, How it works  into MORE, where they are still one click away
+ *   Pre-IPO, How it works     into MORE, where they are still one click away
  *   the word on search        first: the glyph says the same thing in 40px
  *
  * Nothing that is a place to go is ever hidden; it folds into MORE. Only the
@@ -62,7 +62,11 @@ const SLACK = 4;
 const LINKS = [
   { href: "/fights", label: "Fights", rank: 90 },
   { href: "/trade", label: "Trade", rank: 80 },
-  { href: "/pre-ipo", label: "Not public", rank: 55 },
+  /* The nav says Pre-IPO and the page says "Not public yet". The page has room
+   * to say it plainly, in this site's own words; a nav item has to be the word
+   * somebody is already looking for, and every other market for these calls
+   * them pre-IPO, this one's URL and its source included. */
+  { href: "/pre-ipo", label: "Pre-IPO", rank: 55 },
   { href: "/leaderboard", label: "Leaderboard", rank: 70 },
   { href: "/how", label: "How it works", rank: 50 },
 ];
