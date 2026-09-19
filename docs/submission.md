@@ -32,7 +32,7 @@ ones, and the entry should lead with the first: **24/7 trading venues**, and
 
 ## Short description (280 characters, hard cap)
 
-1v1 stock fights on Solana, on any of 1,032 tokenized stocks. Stake shares of
+1v1 stock fights on Solana, on any of 1,031 tokenized stocks. Stake shares of
 the stock you back; somebody stakes theirs. The bigger percentage move by the
 bell takes both stakes, paid in shares. 45 fight 24/7/365 on real markets, with
 a public receipt anyone can check.
@@ -78,7 +78,7 @@ on the fight's receipt.
 
 **Every tokenized stock.** We pulled every issuer's token list, read each mint's
 Token-2022 extensions on chain, and kept what a program can escrow: 1,345 issuer
-tokens down to 1,032 stocks and ETFs, including 80 listed in Hong Kong and
+tokens down to 1,031 stocks and ETFs, including 80 listed in Hong Kong and
 London, each checked as still trading on its exchange, which caught a bank
 delisted in August. Allowlist-only tokens, whose accounts start frozen, are
 left out and the page says why.
@@ -178,7 +178,9 @@ Paste:
 > issuer can move or pause it and sets its transfer fee, so we never stake them
 > and say why on the page. Eligibility: the only pre-IPO tokens integrated are
 > PreStocks'. The listed-stock roster is xStocks, Ondo and Backpack tokens of
-> companies trading on an exchange, each checked against the exchange's feed.
+> companies trading on an exchange, each checked against the exchange's feed,
+> and it leaves out a listed fund sold as pre-IPO exposure (VCX) so there is
+> no doubt about it.
 
 ### Pyth: three months of Pyth Pro
 
@@ -194,7 +196,7 @@ Paste:
 > boundary, Pyth's own parsePriceFeedUpdatesUnique rule, enforced on chain. The
 > app models Pyth's publishing calendar to the second and refuses a fight whose
 > boundary could fall in Pyth's weekend gap. Pyth feed ids identify 761 of the
-> 1,032 stocks and are signed into the oracle's quotes for them. VOO's stock page
+> 1,031 stocks and are signed into the oracle's quotes for them. VOO's stock page
 > shows what only Pyth publishes: the confidence band around the price. Honest
 > limit: VOO is the one stock that settles on Pyth today, and every other stock
 > settles on our signed oracle; broader coverage, including the xStock and Ondo
@@ -228,8 +230,8 @@ took off Webster Financial, delisted when Santander bought it in August.
 
 ## Numbers
 
-- **1,032** stocks and ETFs, screened from 1,345 issuer tokens across 7
-  issuers; 122 of them ETFs and listed funds, 80 listed outside the US. Every
+- **1,031** stocks and ETFs, screened from 1,345 issuer tokens across 7
+  issuers; 121 of them ETFs, 80 listed outside the US. Every
   mint checked against the program's escrow rules, read from mainnet, and every
   stock checked as trading on its exchange on 19 September
 - **7** private companies on the PreStocks desk, priced by routed Jupiter quotes
@@ -347,9 +349,9 @@ read. Nothing on screen shows a keypair, a seed phrase or a `.env`.
    nothing rounds and that is a real result rather than a coin flip. It is not a
    dramatic one. The drama was round one. The point of round two is that it ran
    at all."*
-10. **2:32 to 2:47. How much of the market this is.** The picker scrolling 1,032
+10. **2:32 to 2:47. How much of the market this is.** The picker scrolling 1,031
     stocks and ETFs, then the Live 24/7 filter.
-    *"One thousand and thirty two tokenized stocks and ETFs. Forty five fight
+    *"One thousand and thirty one tokenized stocks and ETFs. Forty five fight
     around the clock, every day of the year, each priced by the median of up to
     nine public venues, each venue checked against its own share's price. Every
     other stock fights the moment its market opens. We never invent a price."*

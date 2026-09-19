@@ -1183,8 +1183,6 @@
 {"ticker":"UTHR","symbol":"UTHRx","issuer":"xStocks","mint":"XsrazTRfp2iGrUcZkkoB8PpM9qApe77RbohmknHh9XJ","decimals":8,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},
 {"ticker":"UUUU","symbol":"UUUUx","issuer":"xStocks","mint":"XsYHvpLWfTfqdLkPbCc4eUT21eH521BRTXBypgzpEDH","decimals":8,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},
 {"ticker":"UUUU","symbol":"UUUUon","issuer":"Ondo","mint":"ey16y4Bk92zmPSvbRznuv3RioAXbVreBkQxrKGDondo","decimals":9,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},
-{"ticker":"VCX","symbol":"VCXx","issuer":"xStocks","mint":"Xs7UsqobM3EJgMeHwdAbmDBCZH1G5WTCjatpeYcCr8x","decimals":8,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},
-{"ticker":"VCX","symbol":"VCXon","issuer":"Ondo","mint":"esgtAV7yKf7Ei3Q92VmXcEGkoqY2UqCHzZvCWhgondo","decimals":9,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},
 {"ticker":"VDE","symbol":"VDEon","issuer":"Ondo","mint":"hKVpWfYwP1VJ9BcBTPRcovcSpEkvnaN8eXwFoCMondo","decimals":9,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},
 {"ticker":"VEEV","symbol":"VEEVx","issuer":"xStocks","mint":"XspuRH5i611hbZjGtYsiaLmhnGya23UU4jnwADWr9yV","decimals":8,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},
 {"ticker":"VFS","symbol":"VFSon","issuer":"Ondo","mint":"F3V1fKLKv7H8aNdt9TC6GQ3X4LayEfGHsPi8Umaondo","decimals":9,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},

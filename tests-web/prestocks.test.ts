@@ -75,6 +75,15 @@ describe("private companies", () => {
     expect(ROSTER.some((r) => r.ticker === "FIGR"), "FIGR is the listed lender").to.equal(true);
   });
 
+  it("keeps a listed fund sold as pre-IPO exposure off the roster", () => {
+    /* PreStocks' bounty rules out any other issuer's pre-IPO exposure. VCX,
+     * the Fundrise fund, is listed on the NYSE but sold as a way into OpenAI,
+     * Anthropic and SpaceX, so it stays off (scripts/build-roster.ts, EXCLUDED)
+     * rather than leave a judge to decide what it is. */
+    expect(ROSTER.some((r) => r.ticker === "VCX"), "VCX is on the roster").to.equal(false);
+    expect(mainnetStockToken("VCX"), "VCX resolves a token").to.equal(null);
+  });
+
   it("can be quoted through exactly the same path as a listed stock", () => {
     for (const p of PRESTOCKS) {
       const token = mainnetStockToken(p.ticker);

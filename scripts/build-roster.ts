@@ -50,6 +50,19 @@ const PYTH_TICKERS = new Set((process.env.PYTH_TICKERS ?? "TSLA,QQQ,VOO").split(
 const ON_COMPOSITE = new Set(["TSLA", "QQQ"]);
 const ISSUER_ORDER = ["xStocks", "Ondo", "Backpack", "Superstate", "Securitize", "Bullish", "Remora"];
 
+/* LISTED, AND STILL LEFT OUT, WITH THE REASON.
+ *
+ * VCX, the Fundrise fund, trades on the NYSE, so it passes every test above.
+ * It is also sold as a way into private companies (its holdings include
+ * OpenAI, Anthropic and SpaceX), and PreStocks' bounty rules out integrating
+ * any other issuer's pre-IPO exposure. A listed fund is not a pre-IPO token,
+ * but a judge could fairly read it as one, and one fund out of a thousand
+ * stocks is not worth that doubt. tests-web/prestocks.test.ts fails if it
+ * comes back. */
+const EXCLUDED: Record<string, string> = {
+  VCX: "a listed fund sold as pre-IPO exposure; kept off for the PreStocks bounty",
+};
+
 /** Shown first, in this order. Everything else follows alphabetically. */
 const FEATURED = [
   "TSLA", "NVDA", "AAPL", "QQQ", "SPY", "MSFT", "GOOGL", "AMZN", "META", "MSTR", "COIN",
@@ -258,6 +271,10 @@ async function main() {
     const meta = metas[i];
     if (!meta) {
       console.error(`  no market data for ${g.ticker} (${g.quote}); left out`);
+      return;
+    }
+    if (EXCLUDED[g.ticker]) {
+      console.error(`  ${g.ticker} left out: ${EXCLUDED[g.ticker]}`);
       return;
     }
     let ticker = g.ticker;
