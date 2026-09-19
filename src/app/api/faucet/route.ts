@@ -19,6 +19,7 @@ import {
 
 import { FAUCET_TARGET_USD } from "@/lib/faucet";
 import { liveQuotes } from "@/lib/marketPrices.server";
+import { clientIp, sameSite } from "@/lib/nudgeGate.server";
 import { quoteValue } from "@/lib/pricemath";
 import { byTicker, STAKEABLE, tokensFor, type Stock } from "@/lib/stocks";
 
@@ -46,6 +47,9 @@ const MAX_STOCKS = 4;
 const STARTER = ["AAPL", "NVDA", "MSFT", "GOOGL"];
 const COOLDOWN_MS = 10_000;
 const recent = new Map<string, number>();
+/** Distinct wallets one address may fund in an hour (see POST). */
+const WALLETS_PER_IP_PER_HOUR = 8;
+const walletsByIp = new Map<string, { wallet: string; at: number }[]>();
 
 const CLUSTER_NAME = process.env.NEXT_PUBLIC_CLUSTER ?? "devnet";
 
@@ -84,6 +88,26 @@ export async function POST(req: NextRequest) {
   if (Date.now() - last < COOLDOWN_MS) {
     return NextResponse.json({ error: "Easy. Try again in a few seconds." }, { status: 429 });
   }
+
+  /* A FRESH KEYPAIR COSTS NOTHING, so "top up to" limits a wallet and not a
+   * person: a loop of new addresses could walk the faucet's SOL away during
+   * judging week, 0.05 at a time. Two fences, both in memory and so per server
+   * instance, which is enough to turn a drain into a trickle: a page of ours
+   * must be asking (a browser always sends Origin on a POST), and one address
+   * on the internet gets a handful of wallets an hour. A judge needs one. */
+  const origin = req.headers.get("origin");
+  if (process.env.NODE_ENV === "production" && (!origin || !sameSite(origin, req.headers.get("host")))) {
+    return NextResponse.json({ error: "The faucet answers the site's own pages only." }, { status: 403 });
+  }
+  const ip = clientIp(req.headers);
+  const hourAgo = Date.now() - 3_600_000;
+  const seen = (walletsByIp.get(ip) ?? []).filter((w) => w.at > hourAgo);
+  if (!seen.some((w) => w.wallet === owner.toBase58()) && seen.length >= WALLETS_PER_IP_PER_HOUR) {
+    return NextResponse.json({ error: "That is a lot of new wallets from one place. Try again in an hour." }, { status: 429 });
+  }
+  seen.push({ wallet: owner.toBase58(), at: Date.now() });
+  if (walletsByIp.size > 5_000) walletsByIp.clear();
+  walletsByIp.set(ip, seen);
   recent.set(owner.toBase58(), Date.now());
 
   /* A key that will not parse used to throw here, which a serverless host

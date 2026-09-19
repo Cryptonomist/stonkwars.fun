@@ -10,7 +10,7 @@ At the bell, whichever moved more takes both stakes. The market decides, not us.
 45 tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check.
 Every other stock fights the moment its market opens. We never invent a price.
 
-[stonkwars.fun](https://stonkwars.fun) · Built on Solana · Every tokenized stock on Solana: 1,033 of them · Entry for [Stocklana](https://hackathons.solana.com/hackathons/stocklana)
+[stonkwars.fun](https://stonkwars.fun) · Built on Solana · Every tokenized stock a fight can hold: 1,031 of them · Entry for [Stocklana](https://hackathons.solana.com/hackathons/stocklana)
 
 </div>
 
@@ -30,11 +30,11 @@ There are more tokenized stocks on Solana than any single list shows. `scripts/d
 
 | Issuer | Tokens a fight can hold |
 |---|---|
-| xStocks (Backed / Kraken) | 833 |
-| Ondo Global Markets | 412 |
+| xStocks (Backed / Kraken) | 831 |
+| Ondo Global Markets | 411 |
 | Backpack Securities (via Sunrise) | 43 |
 
-That is **1,033 stocks and ETFs**, 80 of them listed outside the US (Hong Kong, London). `scripts/build-roster.ts` leaves out, and says why:
+That is **1,031 stocks and ETFs**, 80 of them listed outside the US (Hong Kong, London). `scripts/build-roster.ts` leaves out, and says why:
 
 - tokens that only an issuer's allowlist may hold (Superstate, SECZ, BLSH): their new accounts start frozen, so a fight's escrow would be frozen from birth;
 - tokens with no supply, winding down (Remora) or halted;
@@ -42,7 +42,7 @@ That is **1,033 stocks and ETFs**, 80 of them listed outside the US (Hong Kong, 
 
 Two issuers' tokens of one stock (TSLAx and TSLAon) share one feed id, and the program refuses to pit them against each other.
 
-`scripts/xstocks-probe.ts` reads all 1,288 mints on mainnet and applies the program's escrow screen (`mint_check.rs`): **1,288 pass**. All are Token-2022; their transfer hooks have no program set; new accounts start Initialized, not Frozen; none charges a transfer fee.
+`scripts/xstocks-probe.ts` reads every mint on mainnet and applies the program's escrow screen (`mint_check.rs`): all **1,285** on the roster pass. All are Token-2022; their transfer hooks have no program set; new accounts start Initialized, not Frozen; none charges a transfer fee.
 
 ## A fight, start to finish
 
@@ -57,7 +57,7 @@ Each stock is priced by one of two sources, fixed when it is registered and copi
 
 **Pyth, trusting nobody** (VOO on this deployment). A `PriceUpdateV2` account written by the Pyth receiver after it checks Wormhole guardian signatures. Pyth prints several times a second, but every update records the publish time of the one before it, and the program accepts only `prev_publish_time < boundary <= publish_time`: the unique first price at or after the bell, the rule Pyth's own EVM contract enforces as `parsePriceFeedUpdatesUnique`.
 
-**The Stonk Wars oracle, for every other stock.** Pyth's free plan grants three US equity feeds, and Pyth's equity feeds are dark from Friday 8 PM to Sunday 8 PM New York, so TSLA and QQQ, which trade all weekend elsewhere, are priced by the oracle for new fights, and the other 1,030 stocks would otherwise be locked. The oracle answers the same question, the first price at or after the boundary, from completed one-minute bars of the stock's regular session: the close of the bar the boundary falls in, or of the first bar after it when the market was shut, converted to dollars at the same minute for a foreign listing. It signs a fixed 78-byte message (feed, boundary, price, exponent, time); the settler puts the signature in an Ed25519 program instruction in the same transaction, and the program finds it through the instructions sysvar (`quote.rs`).
+**The Stonk Wars oracle, for every other stock.** Pyth's free plan grants three US equity feeds, and Pyth's equity feeds are dark from Friday 8 PM to Sunday 8 PM New York, so TSLA and QQQ, which trade all weekend elsewhere, are priced by the oracle for new fights, and the other 1,028 stocks would otherwise be locked. The oracle answers the same question, the first price at or after the boundary, from completed one-minute bars of the stock's regular session: the close of the bar the boundary falls in, or of the first bar after it when the market was shut, converted to dollars at the same minute for a foreign listing. It signs a fixed 78-byte message (feed, boundary, price, exponent, time); the settler puts the signature in an Ed25519 program instruction in the same transaction, and the program finds it through the instructions sysvar (`quote.rs`).
 
 **24/7, on real markets.** While a US stock's exchange is shut (8 PM to 4 AM New York, weekends, holidays), the oracle prices the 45 stocks pinned in `src/data/venues247.json` by composite-v2: the median, over the three minutes from the boundary, of the one-minute closes of up to nine public venues that trade the stock around the clock (Hyperliquid, OKX, Bitget, Binance, Lighter, Backpack, Gate, MEXC, BingX), each corrected by its premium to the others over the hour before. A venue counts only if it traded in the 15 minutes before; at least 3 must count, 2 of them with real volume, or the side takes the exchange's first bar. The pins and the rule were measured on a real weekend of minutes (`docs/247-roster.md`, `docs/247-hardening.md`), and because one venue can still tip a short round (on that weekend, over a third of some stock's 15-minute rounds, against at most 2.6% of 12-hour rounds and 5.2% of 24-hour ones), a round the composite prices runs at least 12 hours. Every such price comes with a proof, each venue's request, closes and what was kept, with a sha256, drawn on the fight's receipt and recomputed for a fight's side by `/api/quote/proof`. Every other stock waits for its own market.
 
@@ -73,7 +73,7 @@ Why not the tokens' own DEX prices? Most tokenized stocks barely trade on Solana
 | Time the start | The start boundary is two seconds after the accept, so the start price did not exist when the taker signed. |
 | Round in their favour | The winner is decided by cross-multiplying integer prices, `c_end * o_start` against `o_end * c_start`, with exponents aligned. No division, no floats, no basis points in the decision. |
 | Refuse to settle | Starting and settling are permissionless. Any wallet can post the prices; `/api/quote` hands out the oracle's signed quotes for any real fight's boundaries. The result is identical whoever does it. |
-| Take the stakes | Stakes sit in token accounts owned by the fight's own PDA. They leave by exactly three paths, each naming its recipient: back to the challenger (`cancel_duel`), to the winner (`settle_duel`), or home to both (`refund_duel`). There is no admin withdrawal. |
+| Take the stakes | Stakes sit in token accounts owned by the fight's own PDA. They leave by exactly three paths, each naming its recipient: back to the challenger (`cancel_duel`), to the winner (`settle_duel`), or home to both (`refund_duel`). The one thing that can come off a payout is the platform fee, a share of the loser's stake taken inside `settle_duel`: capped at 5% in the program, **0 today**, and a raise reaches only fights created a week after it is set (`docs/platform-fee.md`). Nothing else can move a stake, and no admin instruction takes a token account. |
 | Swap the oracle mid-fight | A fight copies the oracle key and each side's source when it is created. Rotating the key or re-pointing a stock only reaches fights created afterwards. |
 | Strand a fight | A fight whose price never arrives (a halted feed, a delisting, an oracle that goes silent) refunds to both sides after a week. A fight that cannot start fairly (the market reopens more than five days later, or inside the last minute of a fixed-end round) is void at once. |
 
@@ -87,8 +87,9 @@ programs/duel/        the Anchor program (Anchor 1.1.2)
   src/quote.rs        signed quotes, found through the instructions sysvar
   src/outcome.rs      the exact, integer winner test
   src/mint_check.rs   which Token-2022 mints can sit in escrow
-  src/lib.rs          12 instructions, 3 ways out
-tests/duel.ts         37 LiteSVM tests against the built binary, real Ed25519 signatures included
+  src/lib.rs          15 instructions, 3 ways out
+  src/fee.rs          the capped platform fee (0 today)
+tests/duel.ts         41 LiteSVM tests against the built binary, real Ed25519 signatures included
 tests-web/            the quote layout (pinned against the Rust side), bar selection, market clock, stake sizing
 src/                  the Next.js app
   app/f/[duel]/       the fight page and its share card
@@ -103,7 +104,7 @@ src/                  the Next.js app
   lib/composite.ts    composite-v2: the weekend and overnight price, a median of up to nine venues' minutes, with its proof
   lib/venues247.ts    the venues it reads, their fixed requests, and data/venues247.json's pins
   lib/crankTx.ts      a fight's transactions: post, quote + start/settle, close
-  data/roster.json    the 1,033 stocks
+  data/roster.json    the 1,031 stocks
 scripts/
   data/tokens.json    every issuer's tokens, with on-chain mint facts
   build-roster.ts     tokens -> the roster: what a fight can hold and a market can price
@@ -130,15 +131,16 @@ scripts/
 | `settle_duel` | anyone | records the end prices, pays the winner both stakes |
 | `refund_duel` | anyone | void or stalled: each stake home |
 | `close_duel` | challenger | reclaim a finished fight's rent |
-| `init_config`, `set_paused`, `set_oracle`, `register_asset`, `set_asset` | admin | the stock registry and its sources; pause blocks new fights, never a payout |
+| `link_handle`, `unlink_handle` | the wallet, with the oracle's co-signature | an X handle beside a wallet, on chain |
+| `init_config`, `set_paused`, `set_oracle`, `set_fee`, `register_asset`, `set_asset` | admin | the stock registry and its sources; pause blocks new fights, never a payout |
 
-**Why the Pyth account is parsed by hand.** `pyth-solana-receiver-sdk` supports Anchor up to 0.31, and this program is on 1.1. The one account type needed is 134 bytes with a fixed layout, so `pyth.rs` reads it directly and checks every field. `scripts/pyth-layout-probe.ts` parses live mainnet and devnet accounts with the same layout, and did so after Pyth's August 2026 Core upgrade.
+**Why the Pyth account is parsed by hand.** The one account type needed is 134 bytes with a fixed layout, so `pyth.rs` reads it directly: every byte it trusts is checked in view, and the dependency tree stays at what Anchor already pulls in. (When this was written the receiver SDK stopped at Anchor 0.31; its 2.0 release of June 2026 supports Anchor 1.x, and the hand parser stayed because it is smaller and fully tested.) `scripts/pyth-layout-probe.ts` parses live mainnet and devnet accounts with the same layout, and did so after Pyth's August 2026 Core upgrade.
 
 **Token-2022.** Tokenized stocks are Token-2022 mints. The program uses the token interface throughout, so a fight can pair a classic SPL mint with a Token-2022 one, and refuses the extensions that would stop an escrow paying out: a live transfer hook and non-transferable. A fee-on-transfer mint fails at the stake, because the program checks the escrow received the full amount.
 
 ### The app
 
-Next.js 15 on the Stonk Wars look: a fighting-game ring, P1 in cyan, P2 in pink, green and red strictly for price moves, and an orange COOKED stamp for exactly one thing. The picker searches all 1,033 stocks and fetches prices only for what is on screen. On test clusters a **guest wallet** (a keypair in localStorage) and a **faucet** that tops up the two stocks in your fight let someone play within a minute of landing, with no extension and no devnet SOL required.
+Next.js 15 on the Stonk Wars look: a fighting-game ring, P1 in cyan, P2 in pink, green and red strictly for price moves, and an orange COOKED stamp for exactly one thing. The picker searches all 1,031 stocks and fetches prices only for what is on screen. On test clusters a **guest wallet** (a keypair in localStorage) and a **faucet** that tops up the two stocks in your fight let someone play within a minute of landing, with no extension and no devnet SOL required.
 
 ## Run it
 
@@ -147,8 +149,8 @@ Everything below runs in WSL/Linux with the Solana toolchain (Anchor 1.1.2, Agav
 ```bash
 npm install
 anchor build                       # programs/duel -> target/deploy/duel.so
-cargo test -p duel --lib           # 26 unit tests: parsing, the one-price rule, quotes, the outcome
-npm test                           # 37 LiteSVM tests against the binary
+cargo test -p duel --lib           # 34 unit tests: parsing, the one-price rule, quotes, the outcome, the fee
+npm test                           # 41 LiteSVM tests against the binary
 npm run test:web                   # the app's tests: quote layout, hours, the composite, the settler, stake sizing
 ```
 
@@ -157,7 +159,7 @@ npm run test:web                   # the app's tests: quote layout, hours, the c
 ```bash
 surfpool start --network devnet --no-tui --no-deploy
 solana program deploy --url localhost --program-id target/deploy/duel-keypair.json target/deploy/duel.so
-RPC=http://127.0.0.1:8899 npx tsx scripts/setup-devnet.ts        # 1,033 stocks, oracle, faucet
+RPC=http://127.0.0.1:8899 npx tsx scripts/setup-devnet.ts        # 1,031 stocks, oracle, faucet
 RPC=http://127.0.0.1:8899 npx tsx scripts/e2e-live.ts            # needs PYTH_API_KEY in .env.local
 ```
 

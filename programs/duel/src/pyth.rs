@@ -1,8 +1,10 @@
 //! Reading Pyth prices without the Pyth SDK.
 //!
-//! `pyth-solana-receiver-sdk` supports Anchor up to 0.31 and this program is on
-//! 1.1, so the one account type we need is parsed by hand. It is small, its
-//! layout is fixed by the receiver's IDL, and every byte of it is checked below.
+//! The one account type we need is parsed by hand. It is small, its layout is
+//! fixed by the receiver's IDL, every byte of it is checked below, and the
+//! dependency tree stays at what Anchor already pulls in. (When this was
+//! written `pyth-solana-receiver-sdk` stopped at Anchor 0.31; its 2.0 release
+//! supports Anchor 1.x. The parser stayed: it is smaller and fully tested.)
 //!
 //! ```text
 //! PriceUpdateV2 (Borsh, after the 8-byte discriminator)

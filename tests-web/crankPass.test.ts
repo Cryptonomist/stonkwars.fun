@@ -434,6 +434,32 @@ describe("settler pass", () => {
     expect(chain.sendCalls).to.have.length(0);
   });
 
+  /* ...and then it has to END. Parked for good used to mean exactly that: the
+   * stall refund opened on Friday 18 Sep at 10:21:49 PM and nobody pressed it,
+   * so 4yf7 sat on the board as a fight that could never start. From refundAt
+   * the settler lists it as a refund, and not a second before. */
+  it("refunds 4yf7 once its stall refund opens, and not before", async () => {
+    const chain = new StubChain();
+    const d = duel({
+      creatorFeed: byTicker("TSLA")!.feed,
+      creatorSource: SOURCE_PYTH,
+      opponentFeed: byTicker("NVDA")!.feed,
+      acceptedTs: 1_789_179_709,
+    });
+    await chain.put(d);
+    const opens = ny(18, 22, 21, 49);
+
+    const before = await listJobs(chain.conn(), opens - 1, { lookup: quoteSymbolFor });
+    expect(before.due).to.have.length(0);
+    expect(before.parked).to.have.length(1);
+
+    const after = await listJobs(chain.conn(), opens, { lookup: quoteSymbolFor });
+    expect(after.parked).to.have.length(0);
+    expect(after.due.map((j) => [j.duel.address.toBase58(), j.kind, j.why, j.since])).to.deep.equal([
+      [d.address.toBase58(), "refund", "refund", opens],
+    ]);
+  });
+
   /* The other half of the same model: Pyth prints on weekday nights, so a
    * TSLA fight taken at 10pm on a Tuesday is due within seconds, not parked
    * until Wednesday's bell. */

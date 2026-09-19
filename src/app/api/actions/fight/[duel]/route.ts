@@ -2,7 +2,7 @@ import { Connection, PublicKey, Transaction, ComputeBudgetProgram } from "@solan
 
 import { actionError, actionJson, ACTION_HEADERS } from "@/lib/actions.server";
 import { SITE_URL } from "@/lib/brand";
-import { ataFor, buildAcceptDuel, decodeDuel, isInviteOnly, PROGRAM_ID, STATUS_OPEN, type DuelView } from "@/lib/duel";
+import { ataFor, buildAcceptDuel, decodeDuel, isInviteOnly, PROGRAM_ID, STATUS_ACCEPTED, STATUS_LIVE, STATUS_OPEN, STATUS_SETTLED, type DuelView } from "@/lib/duel";
 import { shares, span } from "@/lib/format";
 import { mixedHoursAt, STAKE_DECIMALS, tickerForMint, tokenSymbol } from "@/lib/stocks";
 
@@ -76,6 +76,15 @@ export async function GET(_req: Request, { params }: Params) {
    * taker when it can be taken. */
   const mixed = open ? mixedHoursAt(t1, t2, now, d, "taker") : null;
   const takeable = open && !mixed;
+  /* A fight somebody took is not "closed": it is on, and saying so is both
+   * true and an invitation to watch it. Only a finished or expired one is. */
+  const taken = d.status === STATUS_ACCEPTED || d.status === STATUS_LIVE;
+  const closedLabel = taken ? "Taken: the round is on" : d.status === STATUS_SETTLED ? "Settled" : "Fight closed";
+  const closedWhy = taken
+    ? `Somebody took this one and the round is on. Watch it at ${SITE_URL}/f/${duel}`
+    : d.status === STATUS_SETTLED
+      ? `This fight is settled. The receipt is at ${SITE_URL}/f/${duel}`
+      : "This fight expired or was called off.";
   const round = d.durationSecs ? `${span(d.durationSecs)} round` : "to the bell";
   const stake = `${shares(d.opponentAmount, STAKE_DECIMALS)} ${tokenSymbol(t2)}`;
 
@@ -90,11 +99,11 @@ export async function GET(_req: Request, { params }: Params) {
     ]
       .filter(Boolean)
       .join(" "),
-    label: takeable ? `Take it: stake ${stake}` : mixed ? "Not now" : "Fight closed",
+    label: takeable ? `Take it: stake ${stake}` : mixed ? "Not now" : closedLabel,
     disabled: !takeable,
     ...(takeable
       ? { links: { actions: [{ type: "transaction", label: `Take it: stake ${stake}`, href: `/api/actions/fight/${duel}` }] } }
-      : { error: { message: mixed ?? "This fight has already been taken, or it expired." } }),
+      : { error: { message: mixed ?? closedWhy } }),
   });
 }
 

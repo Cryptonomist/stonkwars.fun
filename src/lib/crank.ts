@@ -218,6 +218,16 @@ export async function listJobs(
       if (kind === "settle" && now + lookahead < boundary) continue;
       const clock = clockReadyAt(duel, kind, now, lookup);
       if ("never" in clock) {
+        /* PARKED UNTIL THE STALL REFUND OPENS, THEN REFUNDED. This used to
+         * park for good and leave the refund to "anyone", which in practice
+         * was nobody: 4yf7 sat accepted for a week and then stayed on the
+         * board as a fight that could never start. refund_duel takes an
+         * accepted or live duel once STALL_REFUND_SECS have passed (lib.rs),
+         * so from refundAt this is an ordinary refund job. */
+        if (now >= clock.refundAt) {
+          due.push({ duel, kind: "refund", readyAt: now, why: "refund", since: clock.refundAt });
+          continue;
+        }
         parked.push({ duel: duel.address.toBase58(), kind, never: clock.never, refundAt: clock.refundAt });
         continue;
       }
@@ -434,7 +444,11 @@ async function throwIfAlreadyDone(conn: Connection, d: DuelView, kind: JobKind, 
   const done = `already ${kind === "start" ? "started" : kind === "settle" ? "settled" : "refunded"}; refused in preflight, nothing paid`;
   if (DONE_CODE[kind].test([e.message, ...e.logs].join("\n"))) throw new AlreadyDone(done);
   const info = await conn.getAccountInfo(d.address, "confirmed").catch(() => undefined);
-  if (info === null || (info && decodeDuel(d.address, info.data).status !== STATUS_FOR[kind])) throw new AlreadyDone(done);
+  /* "Moved on" means the status is no longer the one this job was listed from.
+   * A stall refund is listed from an accepted or live duel, not a void one, so
+   * compare against the duel as it was listed rather than the kind's usual
+   * status, or a refused stall refund would be written off as already done. */
+  if (info === null || (info && decodeDuel(d.address, info.data).status !== d.status)) throw new AlreadyDone(done);
 }
 
 /** Say whether a send failure stopped on the fight transaction itself. */

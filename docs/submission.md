@@ -10,9 +10,10 @@ three, and why not Tessera, Meteora or Clawpump.
 The published rules ask one question: **could this be a real app that people
 will actually use?** Judges look for a real user and problem, a working end to
 end demo, a reason it belongs on Solana, and quality of execution. The rules
-also say to pick one wedge and make it excellent. Ours is two of the listed
-ones, and the entry should lead with the first: **24/7 trading venues**, and
-**social trading**.
+also say to pick one wedge and make it excellent. Ours is **social trading**:
+1v1 fights on tokenized stocks, settled by the market. 24/7 pricing, the trade
+desk and the pre-IPO desk are what that wedge is built on, and the entry says
+so in that order, as the home page and the video already do.
 
 ## Names and links
 
@@ -27,7 +28,7 @@ ones, and the entry should lead with the first: **24/7 trading venues**, and
 | Oracle (devnet) | `EoFpiFFsSodkwam5bx2zugSgioxmK5CCcxyc3bZCpAzy` |
 | Settler (devnet) | `7UoQ9CBJTomyTBHpYVivjKrTghWe8N4vCSj7gE7yHVyY` (the crank wallet; every unattended settlement pays from it) |
 | Repository | https://github.com/Cryptonomist/stonkwars.fun (private; see Decisions) |
-| Wedge | Trading: 24/7 venues · Consumer: social trading |
+| Wedge | Consumer: social trading (1v1 stock fights), on 24/7 pricing |
 | Author | @crypt0nomist, solo |
 
 ## Short description (280 characters, hard cap)
@@ -39,10 +40,10 @@ a public receipt anyone can check.
 
 ## Long description
 
-> **Budget: 4,736 characters.** The form's Full Description field is reported to
+> **Budget: 4,818 characters.** The form's Full Description field is reported to
 > be a 5,000 character hard cap that truncates silently. That cap is a research
 > finding rather than something confirmed against the live form, so check it
-> before pasting. There are 264 characters of headroom.
+> before pasting. There are 182 characters of headroom.
 > `python3 scripts/description-budget.py` counts this section and the short one.
 
 **The problem.** Every group chat has the argument: *NVDA eats TSLA this week.*
@@ -99,7 +100,9 @@ Solana's Ed25519 program in the same transaction. The oracle is trusted about
 the market and the app says so; it cannot touch a stake, and every quote it
 signs is public. The winner is decided by cross-multiplying integer prices, so
 nothing rounds. Settling is permissionless. Stakes sit in accounts owned by the
-fight's own PDA and leave by exactly three paths; there is no admin withdrawal.
+fight's own PDA and leave by exactly three paths. No admin instruction can
+touch one; the only deduction is a platform fee capped at 5% in the program,
+set to 0.
 
 **Your name on your wins.** Connecting X writes your handle beside your wallet
 on chain, and it takes two signatures: yours, proving the wallet, and the
@@ -134,7 +137,7 @@ Meteora and Raydium pools, nine venues' public minute bars and Yahoo bars.
   counterparty, paid out in shares rather than cash, settled permissionlessly by
   anyone, and exposed as a standard Solana Action any client can take. The 24/7
   part exists only because the share is a token.
-- **Quality of execution.** 735 tests across three suites, every 24/7 price
+- **Quality of execution.** 739 tests across three suites, every 24/7 price
   published with a proof anyone can recompute, and the limits below stated in
   the app before anybody stakes.
 
@@ -247,9 +250,9 @@ took off Webster Financial, delisted when Santander bought it in August.
   market read behind the oracle: the stock's exchange, and the median of its
   24/7 venues, with a proof for every price
 - **15** program instructions, **3** ways for a stake to leave escrow, **0**
-  admin withdrawals
+  admin instructions that can touch one; a platform fee capped at 5%, set to 0
 - **34** Rust unit tests · **41** LiteSVM tests against the built binary, with
-  real Ed25519 signatures · **660** web tests, counted from the runners on 19
+  real Ed25519 signatures · **664** web tests, counted from the runners on 19
   September · live end-to-end fights whose every on-chain price matched its
   source, asked again independently
 - **1** transaction to open a fight, **1** to take it, **0** to settle it: the
@@ -382,8 +385,8 @@ counts print themselves rather than reading them out.
 2. **0:15 to 0:50. The one price** (`programs/duel/src/pyth.rs`). The
    PriceUpdateV2 layout comment, the owner check, the Full verification check,
    the boundary condition. *"Pyth prices VOO. The account is
-   parsed by hand, because the receiver SDK stops at Anchor 0.31 and this
-   program is on 1.1, so every byte is checked in view. Each update carries the
+   parsed by hand, 134 bytes with a fixed layout, so every byte the program
+   trusts is checked in view and the dependency tree stays small. Each update carries the
    publish time of the one before it, so the program demands previous below the
    boundary and this one at or after it. Exactly one update in existence
    satisfies that. It is Pyth's own `parsePriceFeedUpdatesUnique` rule enforced

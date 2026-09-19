@@ -93,10 +93,19 @@ function EventPlate({ d, now }: { d: DuelView; now: number }) {
     const isWinner = won === s;
     const isLoser = won !== undefined && !isWinner;
     return (
-      <div className={cx("flex min-w-0 items-center gap-2 sm:gap-3", s === "p2" && "flex-row-reverse")}>
+      /* ON A PHONE THE TICKER SITS OVER ITS MOVE, NOT BESIDE IT. Side by side,
+       * a 390px screen had room for the move, the W and the COOKED stamp and
+       * then cut the loser's ticker to "I...", on the first thing anyone sees.
+       * Stacked, each corner needs only the width of its widest line. */
+      <div
+        className={cx(
+          "flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3",
+          s === "p2" ? "items-end sm:flex-row-reverse" : "items-start",
+        )}
+      >
         <span
           className={cx(
-            "display min-w-0 truncate text-hud-sm normal-case sm:text-hud-lg",
+            "display max-w-full min-w-0 truncate text-hud-sm normal-case sm:text-hud-lg",
             s === "p1" ? "text-p1" : "text-p2",
             isLoser && "opacity-50",
           )}
@@ -168,7 +177,8 @@ function EventPlate({ d, now }: { d: DuelView; now: number }) {
 
           <HealthBars p1Move={m1} p2Move={m2} roundSecs={roundSecs} ko={live || !won ? null : won === "p1" ? "p2" : "p1"} />
 
-          <p className="min-w-0 truncate text-meta text-dim">
+          {/* Wraps on a phone rather than cutting "took $24" to "took $...". */}
+          <p className="min-w-0 text-meta text-dim sm:truncate">
             {live ? (
               <>
                 <span className="text-ink">{lead ?? "Waiting for the first live prices"}</span>
@@ -178,7 +188,13 @@ function EventPlate({ d, now }: { d: DuelView; now: number }) {
               <>
                 <span className="text-ink">
                   {winner} cooked {won === "p1" ? t2 : t1}
-                  {gap !== null ? ` by ${points(gap)} percentage points` : ""}
+                  {gap !== null ? ` by ${points(gap)} ` : ""}
+                  {gap !== null ? (
+                    <>
+                      <span className="sm:hidden">pts</span>
+                      <span className="hidden sm:inline">percentage points</span>
+                    </>
+                  ) : null}
                 </span>
                 {take ? (
                   <>

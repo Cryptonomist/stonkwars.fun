@@ -49,11 +49,11 @@ export default function Home() {
       <h1 className="sr-only">{BRAND.name}: 1v1 tokenized stock fights on Solana</h1>
       <section className="flex flex-col gap-3 py-6" aria-label="Main event">
         <MainEvent />
-        <div className="flex min-w-0 items-center gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-3 sm:flex-nowrap">
           {/* On a phone the pitch is one line ending in a way to the rules, so
             * the first screen keeps its room for fight rows. */}
-          <p className="flex min-w-0 flex-1 items-baseline gap-2 text-meta text-dim sm:hidden">
-            <span className="min-w-0 truncate">
+          <p className="flex min-w-0 basis-full items-baseline gap-2 text-meta text-dim sm:hidden">
+            <span className="min-w-0">
               {/* Leads with what a visitor can do, not with the cluster. It
                 * still says the shares are test shares; /how and Terms carry
                 * the word devnet, which is where a disclosure belongs. */}

@@ -11,7 +11,7 @@ export const BRAND = {
    * is tokenized shares, which is the word the rest of the site uses. */
   tagline: "Win, and their shares are yours.",
   pitch:
-    "Stake shares of your tokenized stock. They stake theirs. At the bell, the bigger percentage move takes every share on the table. Signed prices decide it, anyone can settle it, and no house takes a cut.",
+    "Stake shares of your tokenized stock. They stake theirs. At the bell, the bigger percentage move takes every share on the table. Signed prices decide it, anyone can settle it, and there is no house on the other side.",
 } as const;
 
 /* The origin this deployment actually answers on, which is not always the one

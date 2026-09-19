@@ -127,19 +127,21 @@ export function PreIpoDesk({ initial }: { initial: string }) {
 
         <aside className="flex min-w-0 flex-col gap-4">
           <TradePanel key={chosen.ticker} ticker={chosen.ticker} embedded />
-          <Notice
-            title="These cannot be fought over for stakes."
-            action={
-              <Link href={`/exhibition?a=${chosen.ticker}`} className="btn btn-sm btn-primary">
-                Put {chosen.name} in an exhibition
-              </Link>
-            }
-          >
+          {/* The button sits UNDER the words, not beside them. Notice lays its
+            * `action` in a row with the text, and in this narrow column a long
+            * button squeezed the reason into a strip about 120px wide, on the
+            * page a PreStocks judge opens first. */}
+          <Notice title="These cannot be fought over for stakes.">
             {NOT_STAKEABLE_BECAUSE} They can still fight an exhibition: same prices, same window, nothing escrowed and
             no result on chain.{" "}
             <Link href="/how" className="link">
               How fights work
             </Link>
+            <span className="mt-3 block">
+              <Link href={`/exhibition?a=${chosen.ticker}`} className="btn btn-sm btn-primary">
+                Put {chosen.name} in an exhibition
+              </Link>
+            </span>
           </Notice>
           <p className="text-meta text-dim">
             A PreStocks token tracks a private company&apos;s value. It is not shares in the company and it does not
