@@ -12,7 +12,8 @@
  * THE FILES. Each logo in public/integrations is the owner's own file, from
  * their site, brand kit or GitHub, fetched on 19 September 2026:
  *   helius.svg      helius.dev/brand (Helius-Icon.svg)
- *   jupiter.svg     jup.ag/svg/jupiter-logo.svg
+ *   jupiter.svg     jup.ag/svg/jupiter-logo.svg (twice: Jupiter routes the
+ *                   trades, and Jupiter Wallet connects like any other)
  *   prestocks.svg   prestocks.com/icon.svg
  *   xstocks.svg     xStocks media kit, the white symbol
  *   ondo.svg        ondo.finance, the white wordmark (Ondo asks for the full
@@ -77,4 +78,8 @@ export const INTEGRATIONS: Integration[] = [
 
   { name: "Phantom", href: "https://phantom.com", group: "Wallets", role: "Connect and sign, desktop or phone", logo: file("phantom.svg", 128, 128) },
   { name: "Solflare", href: "https://www.solflare.com", group: "Wallets", role: "Connect and sign, desktop or phone", logo: file("solflare.svg", 290, 290) },
+  /* Found through the Wallet Standard like the others, and its in-app
+   * browser is recognised on a phone (lib/mobile.ts), but the site has no
+   * link that opens it from a phone's own browser, so the line says less. */
+  { name: "Jupiter Wallet", href: "https://jup.ag", group: "Wallets", role: "Connect and sign, extension or in-app", logo: file("jupiter.svg", 33, 32) },
 ];
