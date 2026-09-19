@@ -20,14 +20,14 @@ import { useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { useQuery } from "@tanstack/react-query";
 
-import { FightRow, isLate } from "@/components/FightRow";
+import { FightRow, isLate, neverPriced } from "@/components/FightRow";
 import { Empty } from "@/components/ui/Empty";
 import { Notice } from "@/components/ui/Notice";
 import { SkeletonRows } from "@/components/ui/Skeleton";
 import { allDuels, OFFSET_STATUS, PROGRAM_ID, STATUS_ACCEPTED, STATUS_LIVE, STATUS_OPEN, type DuelView } from "@/lib/duel";
-import { isDeadHeat, isDecided, isRosterFight } from "@/lib/derive";
 import { useDuels } from "@/lib/hooks";
 import { usePrices } from "@/lib/prices";
+import { ringOrder } from "@/lib/ringOrder";
 import { CLUSTER, isListedDuel, tickerForMint } from "@/lib/stocks";
 import { useNow } from "@/lib/useNow";
 
@@ -42,11 +42,11 @@ const MINTS_LEN = 64;
 
 /** How many fights on chain are staked in something other than two listed
  *  stocks. Null until read, and never read on mainnet, which has no test mints. */
-function useHiddenTestFights() {
+function useHiddenTestFights(wanted: boolean) {
   const { connection } = useConnection();
   return useQuery<number>({
     queryKey: ["duel-mints"],
-    enabled: CLUSTER !== "mainnet-beta",
+    enabled: wanted && CLUSTER !== "mainnet-beta",
     queryFn: async () => {
       const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
         commitment: "confirmed",
@@ -70,33 +70,34 @@ function useHiddenTestFights() {
   });
 }
 
-/** The ring's order: live by bell, taken, open by newest, fights the settler
- *  is late on (FightRow isLate), then results. A stalled fight is still in
- *  play, but it is not what somebody opening the board came to see. */
-export function ringOrder(duels: DuelView[], now: number, limit: number): DuelView[] {
-  const roster = duels.filter(isRosterFight);
-  const late = roster.filter((d) => isLate(d, now)).sort((a, b) => b.acceptedTs - a.acceptedTs);
-  const moving = roster.filter((d) => !isLate(d, now));
-  const live = moving.filter((d) => d.status === STATUS_LIVE).sort((a, b) => a.endTs - b.endTs);
-  const taken = moving.filter((d) => d.status === STATUS_ACCEPTED).sort((a, b) => b.acceptedTs - a.acceptedTs);
-  const open = moving
-    .filter((d) => d.status === STATUS_OPEN && (!now || d.expiresTs > now))
-    .sort((a, b) => b.createdTs - a.createdTs);
-  const active = [...live, ...taken, ...open, ...late].slice(0, limit);
-  const finished = roster
-    .filter((d) => isDecided(d) || isDeadHeat(d))
-    .sort((a, b) => b.endTs - a.endTs)
-    .slice(0, Math.max(0, limit - active.length));
-  return [...active, ...finished];
-}
+/* STUCK: a fight the settler is late on, or one that can never start at all.
+ *
+ * The second was missing, and it showed. A fight whose start price will never
+ * exist is taken but going nowhere; it can only ever be refunded. It sorted
+ * with the fights waiting for their start, so "TSLA vs NVDA, taken, can never
+ * start" sat near the top of the front page, which is the first thing a judge
+ * opening the site sees and the one row on it that looks broken. */
+export const isStuck = (d: DuelView, now: number) => isLate(d, now) || neverPriced(d, now);
 
-export function LiveBoard({ limit = 12, columns = 1 }: { limit?: number; columns?: 1 | 2 }) {
+/* `showHidden` is off by default. "16 test-token fights hidden across all
+ * tabs" is a useful line for somebody auditing the chain and noise on a front
+ * page, where it read like a developer note left in. /fights has its own way
+ * to show test fights; the front page and the 404 no longer spend a read on it. */
+export function LiveBoard({
+  limit = 12,
+  columns = 1,
+  showHidden = false,
+}: {
+  limit?: number;
+  columns?: 1 | 2;
+  showHidden?: boolean;
+}) {
   const duels = useDuels("all", allDuels());
-  const hidden = useHiddenTestFights();
+  const hidden = useHiddenTestFights(showHidden);
   const now = useNow();
 
   const all = duels.data ?? [];
-  const shown = ringOrder(all, now, limit);
+  const shown = ringOrder(all, now, limit, isStuck);
   // Only what is still in play needs a live price: a finished fight shows its own.
   const priced = shown.filter((d) => d.status === STATUS_OPEN || d.status === STATUS_ACCEPTED || d.status === STATUS_LIVE);
   const prices = usePrices(priced.flatMap((d) => [tickerForMint(d.creatorMint), tickerForMint(d.opponentMint)]));

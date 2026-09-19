@@ -54,7 +54,10 @@ export default function Home() {
             * the first screen keeps its room for fight rows. */}
           <p className="flex min-w-0 flex-1 items-baseline gap-2 text-meta text-dim sm:hidden">
             <span className="min-w-0 truncate">
-              {CLUSTER !== "mainnet-beta" ? "Test shares on devnet. " : ""}Bigger move takes both.
+              {/* Leads with what a visitor can do, not with the cluster. It
+                * still says the shares are test shares; /how and Terms carry
+                * the word devnet, which is where a disclosure belongs. */}
+              {CLUSTER !== "mainnet-beta" ? "Free test shares. " : ""}Bigger move takes both.
             </span>
             <Link href="/how" className="link shrink-0">
               How
@@ -65,7 +68,7 @@ export default function Home() {
             bell takes both stakes, paid in shares.
             {/* Said where the stake is first mentioned, so nobody reads the
               * line as asking for their money. */}
-            {CLUSTER !== "mainnet-beta" ? " On Solana devnet: real market prices, free test shares, nothing real at stake." : ""}
+            {CLUSTER !== "mainnet-beta" ? " Real market prices, free test shares, nothing real at stake." : ""}
           </p>
           {/* While the exchange is shut, the way straight to a fight that runs now. */}
           <LiveNowLink />
@@ -110,6 +113,29 @@ export default function Home() {
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6" aria-label="Rails">
+          {/* EXHIBITION BOUTS, ONE CLICK FROM THE FRONT PAGE. They were only
+            * reachable from /pre-ipo, so anybody who never opened that page
+            * never learned the private companies could fight at all. Static on
+            * purpose: a live result here would put two market reads, one of
+            * them rate limited, on every load of the busiest page. */}
+          <Plate as="section" pad="std" className="flex flex-col gap-3" aria-labelledby="exhibition-cta">
+            <p id="exhibition-cta" className="h-section">
+              Exhibition bouts
+            </p>
+            <p className="text-sm text-dim">
+              OpenAI, Anthropic and SpaceX can never be staked here. Put one against a listed stock over the same window
+              and see who would have won. Real prices, nothing on the line.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/exhibition?a=OPENAI&b=NVDA" className="btn btn-sm btn-light">
+                OpenAI vs NVDA
+              </Link>
+              <Link href="/pre-ipo" className="btn btn-sm btn-ghost">
+                The private companies
+              </Link>
+            </div>
+          </Plate>
+
           <Plate as="section" pad="std" className="flex flex-col gap-3" aria-labelledby="trade-cta">
             <p id="trade-cta" className="h-section">
               Own the shares first
