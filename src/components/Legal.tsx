@@ -28,16 +28,32 @@ export function LegalPage({
       <p className="text-meta text-dim">Last updated {updated}</p>
       <p className="mt-6 text-ink">{intro}</p>
       <div className="mt-10 flex flex-col gap-10">{children}</div>
+      {/* Each legal page points at the other, the way a policy and its terms
+        * do everywhere else: an invitation to read it, with a word on what it
+        * covers, not a remark that it exists. */}
       <p className="mt-16 border-t border-line pt-6 text-sm text-dim">
         Questions:{" "}
         <a className="link" href="mailto:hello@stonkwars.fun">
           hello@stonkwars.fun
         </a>
-        . The other document is{" "}
-        <Link className="link" href={title === "Privacy" ? "/terms" : "/privacy"}>
-          {title === "Privacy" ? "the terms" : "the privacy policy"}
-        </Link>
-        .
+        .{" "}
+        {title === "Privacy" ? (
+          <>
+            Please also read the{" "}
+            <Link className="link" href="/terms">
+              terms
+            </Link>
+            , which govern your use of Stonk Wars.
+          </>
+        ) : (
+          <>
+            Please also read the{" "}
+            <Link className="link" href="/privacy">
+              privacy policy
+            </Link>
+            , which covers what is collected and what the chain makes public.
+          </>
+        )}
       </p>
     </article>
   );

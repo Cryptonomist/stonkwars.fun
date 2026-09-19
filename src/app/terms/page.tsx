@@ -12,7 +12,7 @@ export default function Terms() {
   return (
     <LegalPage
       title="Terms"
-      updated="September 13, 2026"
+      updated="September 19, 2026"
       intro="Stonk Wars is a demonstration of peer-to-peer escrow on Solana. Using it means accepting what follows. If you do not, do not use it."
     >
       <Section title="What this is">
