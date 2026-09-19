@@ -39,10 +39,10 @@ a public receipt anyone can check.
 
 ## Long description
 
-> **Budget: 4,648 characters.** The form's Full Description field is reported to
+> **Budget: 4,736 characters.** The form's Full Description field is reported to
 > be a 5,000 character hard cap that truncates silently. That cap is a research
 > finding rather than something confirmed against the live form, so check it
-> before pasting. There are 352 characters of headroom.
+> before pasting. There are 264 characters of headroom.
 > `python3 scripts/description-budget.py` counts this section and the short one.
 
 **The problem.** Every group chat has the argument: *NVDA eats TSLA this week.*
@@ -116,8 +116,9 @@ that are real: every price lands as a hit, a run of them is a combo, the bell
 is a knockout. A guest wallet and a faucet put a stranger in a fight within a
 minute, no extension and no SOL.
 
-Built on Anchor, Pyth, Solana's Ed25519 program and LiteSVM, over the issuers'
-own token lists, nine venues' public minute bars and Yahoo bars.
+Built on Anchor, Pyth and Wormhole, Helius, Jupiter, Solana's Ed25519 program
+and LiteSVM, over xStocks', Ondo's, Backpack's and PreStocks' own token lists,
+Meteora and Raydium pools, nine venues' public minute bars and Yahoo bars.
 
 ## Against the four things judges look for
 

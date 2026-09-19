@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { BuiltWith } from "@/components/BuiltWith";
 import { MarketBadge } from "@/components/MarketBadge";
 import { Wordmark } from "@/components/Logo";
 import { Badge } from "@/components/ui/Badge";
@@ -152,6 +153,9 @@ export function SiteFooter() {
             ))}
           </nav>
         </div>
+
+        {/* What it is built with, and what for. */}
+        <BuiltWith />
 
         {/* What holds the money, and on which chain. */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-line py-5">
