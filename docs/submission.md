@@ -1,8 +1,11 @@
 # Stocklana: submission package
 
 Everything the form asks for, in one place. Hackathon: Stocklana, "something
-innovative with stocks on Solana". Submissions close **Friday 18 September 2026,
-4:00pm ET**. Judging runs through 2 October.
+innovative with stocks on Solana". Submissions close **Friday 25 September 2026,
+4:00pm ET** (extended from the 18th). Judging runs through 2 October.
+
+**Tracks: Main, PreStocks, Pyth.** See "Sponsor tracks" below for why those
+three, and why not Tessera, Meteora or Clawpump.
 
 The published rules ask one question: **could this be a real app that people
 will actually use?** Judges look for a real user and problem, a working end to
@@ -18,6 +21,8 @@ ones, and the entry should lead with the first: **24/7 trading venues**, and
 | Project | **Stonk Wars** (`stonkwars.fun`) |
 | One-liner | Your stock vs theirs. Winner takes both. |
 | Live demo | https://stonkwars.fun (Solana devnet, real market prices) |
+| Pre-IPO desk | https://stonkwars.fun/pre-ipo (8 PreStocks companies, mainnet prices) |
+| Exhibition bouts | https://stonkwars.fun/exhibition (private companies vs listed stocks, nothing staked) |
 | Program (devnet) | `Hxr3N4cSJXTzPqiaUrdnKKyYSzMrAPkrGk5MzJhazc3D` |
 | Oracle (devnet) | `EoFpiFFsSodkwam5bx2zugSgioxmK5CCcxyc3bZCpAzy` |
 | Settler (devnet) | `7UoQ9CBJTomyTBHpYVivjKrTghWe8N4vCSj7gE7yHVyY` (the crank wallet; every unattended settlement pays from it) |
@@ -27,17 +32,17 @@ ones, and the entry should lead with the first: **24/7 trading venues**, and
 
 ## Short description (280 characters, hard cap)
 
-1v1 stock fights on Solana, on any of 1,033 tokenized stocks. Stake shares of
+1v1 stock fights on Solana, on any of 1,032 tokenized stocks. Stake shares of
 the stock you back; somebody stakes theirs. The bigger percentage move by the
-bell takes both stakes, paid in shares. 45 fight 24/7/365 on real markets, with
+bell takes both stakes, paid in shares. 44 fight 24/7/365 on real markets, with
 a public receipt anyone can check.
 
 ## Long description
 
-> **Budget: 4,580 characters.** The form's Full Description field is reported to
+> **Budget: 4,526 characters.** The form's Full Description field is reported to
 > be a 5,000 character hard cap that truncates silently. That cap is a research
 > finding rather than something confirmed against the live form, so check it
-> before pasting. There are 420 characters of headroom.
+> before pasting. There are 474 characters of headroom.
 > `python3 scripts/description-budget.py` counts this section and the short one.
 
 **The problem.** Every group chat has the argument: *NVDA eats TSLA this week.*
@@ -53,7 +58,7 @@ tokenized stocks make that possible: nobody hands a friend "my Tesla shares" at
 a brokerage.
 
 **Fights that do not wait for a bell.** This is the part that could not exist
-off chain. 45 tokenized stocks fight 24/7/365 on real markets, with a public
+off chain. 44 tokenized stocks fight 24/7/365 on real markets, with a public
 receipt anyone can check. Every other stock fights the moment its market opens.
 We never invent a price. In market hours the price is the stock's own market,
 4am to 8pm New York time. Outside them it is the median of the one-minute
@@ -63,37 +68,37 @@ Lighter.
 
 A median is only as honest as its inputs, so we measured before trusting any.
 A stock gets the badge only if three venues with real volume traded it within
-15 minutes through 90% of last weekend's minutes, each checked against the
-share itself. That caught one venue's CL, crude oil where ours is
-Colgate-Palmolive. Then we attacked the rule with those minutes. Each venue is
-corrected for its premium to the others and the price is the median of three
-minutes, yet one venue could still change over a third of some stock's
-15-minute rounds, but at most 2.6% of 12-hour ones and 5.2% of 24-hour ones.
-So a round priced
-this way runs at least 12 hours, and a shorter one queues for the open. Every
-price's proof, venue by venue with a sha256, is on the fight's own receipt.
+15 minutes through 90% of a weekend's minutes, each checked against the share
+itself; that caught one venue's CL, crude oil where ours is Colgate-Palmolive.
+Then we attacked the rule. Even corrected for each venue's premium, one venue
+could tip a third of some stock's 15-minute rounds but at most 2.6% of 12-hour
+ones, so a round priced this way runs at least 12 hours and a shorter one waits
+for the open. Every price's proof, venue by venue with a sha256, is on the
+fight's receipt.
 
 **Every tokenized stock.** We pulled every issuer's token list, read each mint's
 Token-2022 extensions on chain, and kept what a program can escrow: 1,345 issuer
-tokens down to 1,033 stocks and ETFs, including 80 listed in Hong Kong and
+tokens down to 1,032 stocks and ETFs, including 80 listed in Hong Kong and
 London. Allowlist-only tokens, whose accounts start frozen, are left out and the
-page says why. `scripts/watch-listings.ts` asks the issuers what they publish
-today and screens anything new the same way, because a stock listing on Solana
-every week is the normal state now.
+page says why.
 
-**Why nobody can rig it.** Each stock has one price authority, copied onto every
+**Companies that never listed.** OpenAI, Anthropic, SpaceX and five more trade
+here as PreStocks tokens, around the clock. Their mints carry a transfer fee and
+a transfer hook an escrow cannot honour, so they are never staked. Instead they
+fight exhibition bouts: OpenAI against NVDA over the same window, real pool
+prices, nothing staked and nothing on chain. Every stock page also links to the
+real token on mainnet through Jupiter.
+
+**Why nobody can rig it.** Each stock has one price authority, frozen onto every
 fight at creation. VOO is priced by Pyth updates verified on Solana against
-Wormhole guardian signatures, and the program accepts only the unique first
-price at or after each boundary (Pyth's own `parsePriceFeedUpdatesUnique` rule).
-Every other stock is priced by the Stonk Wars oracle: a price signed off chain
-and checked on chain by Solana's Ed25519 program in the same transaction. The
-oracle is trusted about the market and the app says so on every fight that uses
-it; it cannot touch a stake, cannot reach a fight created before it was named,
-and every quote it signs is public in the transaction that used it. The winner
-is decided by cross-multiplying integer prices, so nothing rounds. Settling is
-permissionless. Stakes sit in token accounts owned by the fight's own PDA and
-leave by exactly three named paths. No admin withdrawal exists, and pausing
-cannot block a payout.
+Wormhole guardian signatures, taking only the unique first price at or after
+each boundary, and its page shows Pyth's own confidence band. Every other stock
+is priced by the Stonk Wars oracle, signed off chain and checked on chain by
+Solana's Ed25519 program in the same transaction. The oracle is trusted about
+the market and the app says so; it cannot touch a stake, and every quote it
+signs is public. The winner is decided by cross-multiplying integer prices, so
+nothing rounds. Settling is permissionless. Stakes sit in accounts owned by the
+fight's own PDA and leave by exactly three paths; there is no admin withdrawal.
 
 **Your name on your wins.** Connecting X writes your handle beside your wallet
 on chain, and it takes two signatures: yours, proving the wallet, and the
@@ -117,18 +122,95 @@ own token lists, nine venues' public minute bars and Yahoo bars.
 
 - **A real user and problem.** The argument in the group chat, and the fact that
   no venue on Earth will take that bet between two named people on a stock.
-- **A working end to end demo.** Live on devnet with real market prices. A
-  stranger is in a fight inside a minute with no extension and no SOL. The proof
-  below is a fight nobody touched.
+- **A working end to end demo.** Live on devnet with real market prices, walked
+  cold on 18 September: press Take on an open seat, connect, press "Get test",
+  press "Take it", and both stakes are in on chain with a receipt, in about four
+  clicks. The faucet also sends devnet SOL for fees. Eight open seats are kept
+  up at all hours by the sparring wallet. The proof below is a fight nobody
+  touched.
 - **Why it belongs on Solana.** Stakes are held by a program rather than a
   counterparty, paid out in shares rather than cash, settled permissionlessly by
   anyone, and exposed as a standard Solana Action any client can take. The 24/7
   part exists only because the share is a token.
-- **Quality of execution.** 647 tests across three suites, every 24/7 price
+- **Quality of execution.** 734 tests across three suites, every 24/7 price
   published with a proof anyone can recompute, and the limits below stated in
   the app before anybody stakes.
 
-## What was built in the window (Sept 11 to 18)
+## How a judge should try it
+
+Paste this into the form's notes or the top of the demo field, so nobody gets
+stuck on the one step that trips people up:
+
+> Fights run on Solana devnet with free test shares. **Switch your wallet to
+> devnet first** (Phantom: Settings, Developer Settings, turn on Testnet Mode,
+> then choose Solana Devnet, not Solana Testnet), then
+> open https://stonkwars.fun, press Take on any open seat, press "Get test" for
+> free shares and fee SOL, and press "Take it". No wallet? Pick "Guest wallet".
+> A wallet left on mainnet still lands the fight on devnet, but may warn that
+> the transaction will fail, because it simulates on the wrong network. Rounds
+> are 15 minutes during US market hours and 12 hours outside them; the Main
+> Event on the front page is a finished fight with its full receipt.
+
+The Phantom steps were checked against Phantom's own help page, "Turn on devnet
+or testnet mode in Phantom" (help.phantom.com), on 19 September.
+
+## Sponsor tracks
+
+Up to three can be picked. Every claim below was checked against the code or
+the chain on 18 and 19 September.
+
+### PreStocks: $10,000 ($5k, $3k, $2k)
+
+Their brief: "unique, well-executed ideas that drive value for PreStocks." Their
+one rule: "projects that integrate any non-PreStocks pre-IPO tokens will be
+ineligible for this bounty."
+
+Paste:
+
+> PreStocks tokens are the only way to hold OpenAI, Anthropic or SpaceX, and
+> they trade around the clock in Solana pools. Stonk Wars gives them two things.
+> A pre-IPO desk: all eight companies with live routed Jupiter quotes, what $100
+> moves each price, how busy each market really is, and a link to buy in your
+> own wallet. And exhibition bouts: put OpenAI against NVDA over the same hour,
+> day or week and see who would have won, on the real pool prices. They are
+> exhibitions because the mints carry a transfer fee and a transfer hook an
+> escrow cannot honour, so we never stake them and say why on the page.
+> Eligibility: no other issuer's pre-IPO token is integrated. SpaceX was moved
+> off the listed-stock roster onto the PreStocks desk for exactly that reason.
+
+### Pyth: three months of Pyth Pro
+
+Their brief: "Build a Solana application where live financial data does real
+work." Judged on how central Pyth data is, the soundness of the integration, and
+whether the app exists after the hackathon.
+
+Paste:
+
+> Pyth decides fights on chain here, not just on a chart. VOO fights settle on
+> Pyth price updates verified on Solana against Wormhole guardian signatures,
+> and the program accepts only the unique first update at or after each
+> boundary, Pyth's own parsePriceFeedUpdatesUnique rule, enforced on chain. The
+> app models Pyth's publishing calendar to the second and refuses a fight whose
+> boundary could fall in Pyth's weekend gap. Pyth feed ids identify 760 of the
+> 1,032 stocks and are signed into the oracle's quotes for them. The stock page
+> shows what only Pyth publishes: the confidence band around each price. Honest
+> limit: our plan reads a handful of equity feeds, so most stocks settle on our
+> signed oracle; broader coverage, including the xStock and Ondo feeds, is where
+> we would take this with Pyth Pro.
+
+### Not entered, and why
+
+- **Tessera ($6,000).** Its T-Tokens are another issuer's pre-IPO tokens.
+  Integrating them would make the entry ineligible for PreStocks' $10,000.
+- **Meteora ($5,000), "Best Use of Meteora DBC."** It asks for something built on
+  their bonding curve. We read Meteora pools for prices, which is not building
+  on DBC, so it would be an off-target entry.
+- **Clawpump ($5,000), "Stocknized Agent."** A launchpad for AI agents that
+  requires launching a token with a stock-paired pool. Stonk Wars is not an
+  agent, and a token launched mid-judging would cut against the main track.
+  $WARS waits until after judging.
+
+## What was built in the window (Sept 11 to 25)
 
 All of it. The duel program and its tests, the Next.js app and brand, the
 oracle and its off-hours pricing (pools, then perps, then the nine-venue median), the settler, the Solana Action,
@@ -136,12 +218,22 @@ the share cards, X handle linking, the devnet deployment. Wallet plumbing (the
 React 19 connect button, phone wallet hand-off, honest transaction confirmation)
 is carried over from the same author's Commish.
 
+Added in the extension week: the PreStocks pre-IPO desk and exhibition bouts,
+Jupiter buy links to every stock's real mainnet token, Pyth's confidence band on
+the stock page, the pool venue named per company, a sparring wallet that keeps
+eight seats open, and SpaceX moved from the roster to the PreStocks desk so the
+entry stays eligible for that bounty.
+
 ## Numbers
 
-- **1,033** stocks and ETFs, screened from 1,345 issuer tokens across 7
+- **1,032** stocks and ETFs, screened from 1,345 issuer tokens across 7
   issuers; 122 ETFs, 80 listed outside the US. Every mint checked against the
-  program's escrow rules, read from mainnet
-- **45** fight 24/7/365, each pinned to **6 to 9** public venues, **3** or
+  program's escrow rules, read from mainnet. SpaceX moved to the pre-IPO desk,
+  since it has never listed and the PreStocks bounty excludes any other
+  issuer's pre-IPO token
+- **8** private companies on the PreStocks desk, priced by routed Jupiter quotes
+  across every pool, 7 of them read from Meteora pools and 1 from Raydium
+- **44** fight 24/7/365, each pinned to **6 to 9** public venues, **3** or
   more of them with real volume, measured minute by minute on the weekend of 12
   September. A round those venues price runs **12** hours or more, where one
   venue could change at most **2.6%** of any measured stock's 12-hour rounds
@@ -150,11 +242,12 @@ is carried over from the same author's Commish.
   (trustless) and a signed oracle (public, checkable, labelled). **2** kinds of
   market read behind the oracle: the stock's exchange, and the median of its
   24/7 venues, with a proof for every price
-- **14** program instructions, **3** ways for a stake to leave escrow, **0**
+- **15** program instructions, **3** ways for a stake to leave escrow, **0**
   admin withdrawals
-- **26** Rust unit tests · **37** LiteSVM tests against the built binary, with
-  real Ed25519 signatures · **584** web tests · live end-to-end fights whose
-  every on-chain price matched its source, asked again independently
+- **34** Rust unit tests · **41** LiteSVM tests against the built binary, with
+  real Ed25519 signatures · **659** web tests, counted from the runners on 19
+  September · live end-to-end fights whose every on-chain price matched its
+  source, asked again independently
 - **1** transaction to open a fight, **1** to take it, **0** to settle it: the
   deployed settler does that, and anyone else can press the button too
 
@@ -187,6 +280,14 @@ cranks nothing, prints each status change as `(nobody here did that)`, and then
 reads back the fee payer of every transaction that touched the duel.
 
 ## Pitch video: 3 minutes
+
+> **Status, 19 September.** Filmed and cut as `stonkwars-demo-FINAL.mp4`, 2:04,
+> from the V01 to V14 voiceover script rather than the beat plan below, which
+> is kept as the original plan. Its closing line and card were corrected on 17
+> September to "Win, and their shares are yours." It predates the PreStocks
+> desk and exhibition bouts, so those are carried by the write-up and the site.
+> A separate 95 second crawl, `stonkwars-crawl-16x9-v3.mp4`, is ready as a
+> teaser.
 
 Two rounds filmed at two different times, and the video says which is which out
 loud. Round one during market hours on Monday, where a real move makes a real
@@ -245,9 +346,9 @@ read. Nothing on screen shows a keypair, a seed phrase or a `.env`.
    nothing rounds and that is a real result rather than a coin flip. It is not a
    dramatic one. The drama was round one. The point of round two is that it ran
    at all."*
-10. **2:32 to 2:47. How much of the market this is.** The picker scrolling 1,033
+10. **2:32 to 2:47. How much of the market this is.** The picker scrolling 1,032
     stocks and ETFs, then the Live 24/7 filter.
-    *"One thousand and thirty three tokenized stocks and ETFs. Forty five fight
+    *"One thousand and thirty two tokenized stocks and ETFs. Forty four fight
     around the clock, every day of the year, each priced by the median of up to
     nine public venues, each venue checked against its own share's price. Every
     other stock fights the moment its market opens. We never invent a price."*
@@ -303,7 +404,7 @@ counts print themselves rather than reading them out.
    *"`sourceAt` picks the market in a few lines. A listing outside the US gets
    its own exchange's session. A US stock from four in the morning to eight at
    night gets its own market. Shut, and pinned in `venues247.json`, it gets the
-   composite: forty five stocks. Neither, and it waits for the opening.*
+   composite: forty four stocks. Neither, and it waits for the opening.*
    *The composite reads the one-minute candles of up to nine public venues,
    perpetual futures and tokenized shares, by requests fixed in the proof. The
    pins came from a real weekend: three venues with real volume, fresh in ninety
@@ -363,7 +464,7 @@ counts print themselves rather than reading them out.
   tokenized shares. The mint screen was run against mainnet.
 - The oracle is a trusted key for the stocks Pyth does not price here. Its
   quotes are public and checkable after the fact, not preventable.
-- Off-hours, the price is not the share's own market. For the 45 it is the
+- Off-hours, the price is not the share's own market. For the 44 it is the
   median of perpetual futures and tokenized shares on up to nine venues,
   instruments with their own basis, and it can differ from where the stock next
   opens. A weekend round measures how those markets moved, read the same way for
@@ -385,7 +486,7 @@ counts print themselves rather than reading them out.
 - History expires. Hyperliquid serves about 3 days of one-minute candles and
   Gate about 6, so an older proof cannot be recomputed in full; the other venues
   keep 25 days or more.
-- The list of 45 is pinned in `src/data/venues247.json` from those minutes.
+- The list of 44 is pinned in `src/data/venues247.json` from those minutes.
   Rebuilding it with `scripts/build-247.ts` on another weekend will move it.
   Whether every venue answers from the deployment's region, and each venue's
   terms, still have to be checked; a venue that does not answer makes a price
@@ -402,7 +503,14 @@ counts print themselves rather than reading them out.
 - The program is not audited.
 - Every issuer keeps the power to freeze an account, pause transfers, or move
   tokens out of any account. A fight inherits that over what it holds.
-- Tokenized stocks are generally offered to non-US persons only.
+- The issuers of these tokens do not offer them to US persons, and each one's
+  terms ask a holder to state that they are not one.
+- Exhibition bouts are not on chain: no program runs, nothing is staked, and the
+  result counts for nothing. A side with no trades in the window is a
+  no-contest, never a stale winner; SpaceX's deepest pool had not traded since
+  January when it was checked.
+- Pyth's confidence band shows only where a stock is live-priced by Pyth, which
+  on the current plan is VOO.
 
 ## Decisions and the run-up to Friday
 
@@ -414,7 +522,9 @@ Settled with the owner on 13 September:
    Foundation appointees who cannot be granted access in advance, so the GitHub
    link is worth nothing to them while the repo is private. Either accept that
    and lean on the demo, or make it public before Friday. The code carries no
-   secrets (`.env*`, `keys/` and program keypairs are ignored).
+   secrets (`.env*`, `keys/` and program keypairs are ignored), and the history
+   was scanned on every branch on 18 September: no key file, keypair array or
+   secret value was ever committed.
 2. **Author.** Solo, @crypt0nomist. The form invites teammates by platform
    username and has no field for an X handle, so it goes in the description.
 3. **How AI was used.** No rule requires disclosure and there is no field for
@@ -445,8 +555,11 @@ Still to do:
 - **Submit early and keep editing.** Edits are allowed until submissions close
   and the form saves drafts, so filing a complete entry as soon as the demo link
   is stable removes the deadline risk entirely. Videos can land after.
-- **Monday, during market hours:** run a real fight on the Pyth path. It is the
-  one price source this build has never exercised, because the whole build
-  happened over a weekend, and Monday is the last chance before filming.
-- **Film round one Monday** while the market is open, so the pitch video has a
-  move worth watching.
+- **Pick the tracks: Main, PreStocks, Pyth.** Not Tessera, Meteora or Clawpump.
+- **Decide on the repo.** Make it public, or leave the GitHub field empty. A
+  private link shows judges a 404.
+- **Get real people fighting this week.** Friends from CT, with their X handles
+  on the leaderboard, answer "will people actually use it" better than anything
+  else that can be built in a week.
+- **Run a VOO fight during market hours** if one has not yet gone end to end on
+  the Pyth path; it is the Pyth track's main claim.
