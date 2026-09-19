@@ -458,6 +458,13 @@ describe("settler pass", () => {
     expect(after.due.map((j) => [j.duel.address.toBase58(), j.kind, j.why, j.since])).to.deep.equal([
       [d.address.toBase58(), "refund", "refund", opens],
     ]);
+
+    /* Listing it is half the job. The runner once compared every refund with
+     * STATUS_VOID and wrote this one off as "somebody else got there", so the
+     * whole pass is run here and a transaction has to leave. */
+    const results = await crankOnce({ ...ctx(chain, { quoteSymbol: quoteSymbolFor }), now: opens });
+    expect(results.map((r) => [r.duel, r.kind, r.state])).to.deep.equal([[d.address.toBase58(), "refund", "sent"]]);
+    expect(chain.forwarded).to.have.length(1);
   });
 
   /* The other half of the same model: Pyth prints on weekday nights, so a

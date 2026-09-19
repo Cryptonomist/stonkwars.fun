@@ -755,7 +755,11 @@ export async function crankJob(opts: JobOptions, job: CrankJob, deadlineMs: numb
         if (info === null) return { state: "done", detail: "the duel account is gone" };
         // A failed read is not a verdict: build from the listed view, and let preflight judge.
         const duel = info ? decodeDuel(job.duel.address, info.data) : job.duel;
-        if (duel.status !== STATUS_FOR[job.kind]) {
+        /* Against the status the job was LISTED from, not the kind's usual one:
+         * a stall refund is listed from an accepted or live duel, and comparing
+         * it with STATUS_VOID called every one of them "somebody else got
+         * there" without sending anything. */
+        if (duel.status !== job.duel.status) {
           return { state: "done", detail: `status is now ${duel.status}; somebody else got there` };
         }
         const signature =
