@@ -9,10 +9,11 @@
  *
  * A new mint is not admitted for being new, and never for its symbol: anybody
  * can mint a token called DKNG. It has to come from an issuer's own published
- * list, pass the escrow screen the program enforces (mint_check.rs: no live
- * transfer hook, no transfer fee, accounts that do not start frozen), and have
- * a price the oracle can actually read. Anything that fails says why and waits
- * for a person.
+ * list, pass the escrow screen (no live transfer hook, which mint_check.rs
+ * refuses; no transfer fee, which would fail the stake's balance check in
+ * lib.rs; accounts that do not start frozen, which the escrow could not be paid
+ * into), and have a price the oracle can actually read. Anything that fails
+ * says why and waits for a person.
  *
  * This registers nothing. Admitting a stock is `register_asset`, an admin
  * instruction, and it stays that way. */

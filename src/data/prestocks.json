@@ -131,24 +131,5 @@
    "priceUsd": 117.8778
   },
   "dex": "meteora"
- },
- {
-  "ticker": "SPACEX",
-  "name": "SpaceX PreStocks",
-  "blurb": "Falcon, Starship and Starlink.",
-  "symbol": "SPACEX",
-  "mint": "PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh",
-  "decimals": 9,
-  "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-  "pool": "9DuT2XuEWrRA1VSRVmNdiwPoSr357PEL2Zh6m3ZWBXEV",
-  "poolName": "SPACEX / USDC",
-  "color": "#c9d1d9",
-  "seen": {
-   "liquidityUsd": 213433,
-   "volume24hUsd": 0,
-   "trades24h": 75,
-   "priceUsd": 705.7352
-  },
-  "dex": "meteora"
  }
 ]

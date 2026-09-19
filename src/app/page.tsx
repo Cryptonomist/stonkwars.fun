@@ -123,8 +123,8 @@ export default function Home() {
               Exhibition bouts
             </p>
             <p className="text-sm text-dim">
-              OpenAI, Anthropic and SpaceX can never be staked here. Put one against a listed stock over the same window
-              and see who would have won. Real prices, nothing on the line.
+              OpenAI, Anthropic and Anduril have not listed yet, and their tokens can never be staked here. Put one against
+              a listed stock over the same window and see who would have won. Real prices, nothing on the line.
             </p>
             <div className="flex flex-wrap gap-2">
               <Link href="/exhibition?a=OPENAI&b=NVDA" className="btn btn-sm btn-light">

@@ -154,6 +154,17 @@ async function describe(symbol: string): Promise<Meta | null> {
     if (!r.ok) return null;
     const meta = ((await r.json()) as { chart?: { result?: { meta?: Record<string, unknown> }[] } }).chart?.result?.[0]?.meta;
     if (!meta?.regularMarketPrice) return null;
+    /* A PRICE IS NOT A LISTING. A delisted stock keeps its last price here
+     * for good: Webster Financial (WBS) was delisted from the NYSE when
+     * Santander's purchase closed on 20 August 2026, still showed $77.57 a
+     * month later, and so stayed on the roster as a stock a fight could be
+     * made on and never priced. What makes it a market is that it trades, so a
+     * stock with no trade in ten days is left out and named. */
+    const last = Number(meta.regularMarketTime ?? 0);
+    if (Date.now() / 1000 - last > 10 * 86_400) {
+      console.error(`  ${symbol} has not traded since ${new Date(last * 1000).toISOString().slice(0, 10)}; left out`);
+      return null;
+    }
     return {
       type: String(meta.instrumentType ?? ""),
       currency: String(meta.currency ?? ""),

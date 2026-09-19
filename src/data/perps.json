@@ -76,6 +76,13 @@
   "markVsMarket": 0.0033486814566764476,
   "at": "2026-09-12"
  },
+ "SPCX": {
+  "coin": "xyz:SPCX",
+  "notional24h": 60153791.70959994,
+  "minutesPerHour": 59,
+  "markVsMarket": 0.007406917531909295,
+  "at": "2026-09-12"
+ },
  "CRCL": {
   "coin": "xyz:CRCL",
   "notional24h": 28439142.623481013,

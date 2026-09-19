@@ -3,9 +3,10 @@
 /* EXHIBITION BOUTS.
  *
  * A private company cannot be staked here. Its mint carries a permanent
- * delegate, a transfer fee and a transfer hook, so a program whose whole
- * promise is that nobody can touch a stake cannot hold one (lib/prestocks.ts).
- * That left eight companies as a desk to look at and nothing to do with them.
+ * delegate, a pause switch and a transfer fee the issuer sets, so a program
+ * whose whole promise is that nobody can touch a stake cannot hold one
+ * (lib/prestocks.ts). That left a desk of companies to look at and nothing to
+ * do with them.
  *
  * This is the thing to do with them. Two sides, one window, the bigger
  * percentage move wins, and nothing is escrowed because there is nothing to

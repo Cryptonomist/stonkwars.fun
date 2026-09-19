@@ -194,13 +194,13 @@ const RULES: Rule[] = [
     id: "stake-safety",
     label: "Stake safety",
     q: "Can anyone take the stakes?",
-    a: "Not through this program. Stakes sit in token accounts owned by the fight's own address, and the program has exactly three ways to move them: back to the challenger before the fight starts, to the winner, or home to both. There is no admin withdrawal. The admin can register stocks, pause new fights and name the oracle for new fights, and cannot touch a stake. A fight whose prices never come is refunded in full. The one thing no program can undo is the token itself: each issuer of a tokenized stock can freeze its own tokens and pause transfers, and most can move them out of any account, including one holding a stake. That power is the issuer's, and it is why pre-IPO tokens are traded here and never staked.",
+    a: "Not through this program. Stakes sit in token accounts owned by the fight's own address, and the program has exactly three ways to move them: back to the challenger before the fight starts, to the winner, or home to both. There is no admin withdrawal. The admin can register stocks, pause new fights and name the oracle for new fights, and cannot touch a stake. A fight whose prices never come is refunded in full. The one thing no program can undo is the token itself: each issuer of a tokenized stock can freeze its own tokens and pause transfers, and most can move them out of any account, including one holding a stake. That power is the issuer's, and nothing built on top can remove it. Pre-IPO tokens are never staked for a different reason: there is no test version of a private company, so a fight would have to escrow the real token, and those mints rule that out.",
   },
   {
     id: "real-money",
     label: "Real money",
     q: "Is this real money?",
-    a: "The live demo runs on Solana devnet with test shares and real market prices. The real tokens are another matter: their issuers do not offer them to US persons, and each one's terms ask a holder to state that they are not one. Know the rules where you live.",
+    a: "The live demo runs on Solana devnet with test shares and real market prices. The real tokens are another matter: their issuers do not offer them to US persons, and their terms restrict them to holders who are not. Know the rules where you live.",
   },
 ];
 

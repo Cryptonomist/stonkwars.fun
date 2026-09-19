@@ -12,8 +12,9 @@ export const maxDuration = 30;
 /* AN EXHIBITION BOUT: /api/exhibition?a=OPENAI&b=NVDA&w=24h
  *
  * FOR WATCHING ONLY, AND THAT IS THE POINT. A PreStocks company cannot be
- * staked here (see lib/prestocks.ts: permanent delegate, transfer fee, transfer
- * hook), so it can never be in a real fight. An exhibition lets it fight
+ * staked here (see lib/prestocks.ts: permanent delegate, pause switch, a
+ * transfer fee the issuer sets), so it can never be in a real fight. An
+ * exhibition lets it fight
  * anyway with nothing on the table: the prices are real, the result is not on
  * chain, no program runs and no stake moves.
  *
@@ -34,15 +35,17 @@ const MAX_KEPT = 120;
 /* GeckoTerminal's OHLCV, at the bucket the window asks for.
  *
  * THE WINDOW IS ENFORCED HERE, NOT ASSUMED. `limit` returns the last N bars
- * that EXIST, which for a thin pool is not the last N hours: SpaceX's most
- * recent 26 hour bars ran from 21 to 23 January, eight months before they were
- * asked for. Taking them as a 24 hour race would have drawn a stale price as a
- * current one and named a winner on it. So anything outside the window is
- * dropped, and a side with nothing left becomes a no-contest, which is the
- * true answer: it did not trade. */
+ * that EXIST, which for a thin pool is not the last N hours: the most recent
+ * 26 hour bars of PreStocks' SpaceX pool ran from 21 to 23 January, eight
+ * months before they were asked for. Taking them as a 24 hour race would have
+ * drawn a stale price as a current one and named a winner on it. (SpaceX has
+ * since been left off the desk: it listed on Nasdaq as SPCX, and the roster
+ * carries it.) So anything outside the window is dropped, and a side with
+ * nothing left becomes a no-contest, which is the true answer: it did not
+ * trade. */
 async function poolLeg(ticker: string, bucket: "minute" | "hour", points: number, from: number, to: number): Promise<Leg> {
   const p = byPreTicker(ticker);
-  if (!p) throw new Error(`${ticker} is not a listed private company`);
+  if (!p) throw new Error(`${ticker} is not one of the private companies on the desk`);
   const url =
     `https://api.geckoterminal.com/api/v2/networks/solana/pools/${p.pool}` +
     `/ohlcv/${bucket}?aggregate=1&limit=${Math.min(points, 1000)}`;

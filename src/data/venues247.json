@@ -387,6 +387,17 @@
       { "venue": "mexc", "instrument": "SOXS_USDT", "from": 1789452900 },
       { "venue": "bingx", "instrument": "NCSKSOXS12USD-USDT", "from": 1789452900 }
     ],
+    "SPCX": [
+      { "venue": "hyperliquid", "instrument": "xyz:SPCX", "from": 1789452900 },
+      { "venue": "okx", "instrument": "SPCX-USDT-SWAP", "from": 1789452900 },
+      { "venue": "bitget", "instrument": "SPCXUSDT", "from": 1789452900 },
+      { "venue": "binance", "instrument": "SPCXBUSDT", "from": 1789452900 },
+      { "venue": "lighter", "instrument": "194", "from": 1789452900 },
+      { "venue": "backpack", "instrument": "SPCX.US_USDC_PERP", "from": 1789452900 },
+      { "venue": "gate", "instrument": "SPCX_USDT", "from": 1789452900 },
+      { "venue": "mexc", "instrument": "SPCXSTOCK_USDT", "from": 1789452900 },
+      { "venue": "bingx", "instrument": "NCSKSPCX2USD-USDT", "from": 1789452900 }
+    ],
     "SPY": [
       { "venue": "okx", "instrument": "SPY-USDT-SWAP", "from": 1789452900 },
       { "venue": "bitget", "instrument": "SPYUSDT", "from": 1789452900 },

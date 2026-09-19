@@ -38,7 +38,7 @@ describe("exhibition bouts", () => {
   it("takes the last traded price as the close, not the last bar", () => {
     /* A pool can report an empty final minute. Taking that as the close would
      * void a bout that plainly had a winner. */
-    const l = leg("SPACEX", [50, 52, null, null]);
+    const l = leg("ANDURIL", [50, 52, null, null]);
     expect(l.last).to.equal(52);
     expect(movePct(l.first, l.last)).to.be.closeTo(4, 1e-9);
   });

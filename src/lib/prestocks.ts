@@ -1,9 +1,9 @@
 /* COMPANIES THAT ARE NOT PUBLIC YET.
  *
- * OpenAI, Anthropic, SpaceX and a few others have no ticker, no exchange and no
- * closing bell, because they have never listed. PreStocks tokenizes exposure to
- * them on Solana, and those tokens trade around the clock in ordinary pools. So
- * they can be watched and bought here like anything else.
+ * OpenAI, Anthropic and the other companies on this desk have no ticker, no
+ * exchange and no closing bell, because they have not listed. PreStocks
+ * tokenizes exposure to them on Solana, and those tokens trade around the clock
+ * in ordinary pools. So they can be watched and bought here like anything else.
  *
  * THEY CANNOT BE FOUGHT OVER, AND THE REASON IS NOT SQUEAMISHNESS.
  *
@@ -14,28 +14,49 @@
  * us, can take the stakes out or stop the fight finishing. For a mint with a
  * permanent delegate that promise is simply untrue, so these are never staked
  * and never escrowed. (There are two more reasons the code would have to solve
- * even if the first were fine: a 50 bps transfer fee, so escrow would receive
- * less than was staked, and a transfer hook whose accounts an ordinary
- * transfer_checked does not pass.)
+ * even if the first were fine. The issuer takes a transfer fee and sets its
+ * rate: 50 bps in epoch 1038, with 100 bps already scheduled from epoch 1039,
+ * so escrow would receive less than was staked, by an amount the issuer can
+ * change. And the mints carry a transfer-hook extension: no hook program is set
+ * today, but the same key can set one, and every transfer would then need
+ * accounts an ordinary transfer_checked does not pass. One key holds all of it,
+ * on all seven mints: fee, hook, pause, freeze and delegate.)
  *
- * The list is generated from chain, not typed by hand: see the note on `pool`.
+ * NOTHING SAID ON THE PAGE NAMES THE FEE RATE, AND THAT IS DELIBERATE. It read
+ * "a 50 bps transfer fee" until a check found 100 bps waiting in the mint's
+ * newer fee setting. Both were true, a day apart. The issuer can change it
+ * again, so the page says there is a fee and who sets it, and a test fails if a
+ * number creeps back in.
  *
- * SPACEX IS HERE, AND SPCX IS NOT IN THE ROSTER ANY MORE.
+ * The list is generated, not typed by hand: scripts/build-prestocks.mjs takes
+ * the companies and mints from PreStocks' own API, decimals and token program
+ * from each mint on chain, and the pool from GeckoTerminal (see `pool`).
  *
- * It used to be the other way round: SpaceX was fought over as SPCX, tokenized
- * by xStocks, Ondo and Backpack, and left off this desk as a thinner copy of a
- * better entry. That was the right call on the merits and the wrong one on the
- * rules. A company that has never listed is a pre-IPO company whoever wraps it,
- * so SPCX was a non-PreStocks pre-IPO token, and the desk it belongs on is this
- * one. It is the only such entry: all 1033 roster rows were checked.
+ * SPACEX IS NOT HERE, AND THAT IS DELIBERATE. SpaceX has listed: it trades on
+ * Nasdaq as SPCX, the roster carries it, and xStocks, Ondo and Backpack tokenize
+ * it, so it can be fought over like any listed stock. PreStocks still lists a
+ * SpaceX token, but putting it on a desk of companies that have not listed
+ * would be a false label as well as a thinner, unstakeable copy of a better
+ * entry.
  *
- * SpaceX has the deepest pool of the eight and trades about 74 times a day,
- * which activityOf reads as quiet, so it is labelled as thin rather than
- * presented as though it were as live as OpenAI. Deep is not busy.
+ * It was once moved here, and SPCX taken off the roster, on the premise that
+ * SpaceX had never listed and so SPCX broke the PreStocks bounty's rule against
+ * other issuers' pre-IPO tokens. The premise was false: the venue evidence in
+ * scripts/data had described SPCX as "Class A common stock (Nasdaq: SPCX)" the
+ * whole time. Whether a company has listed is a fact to check against an
+ * exchange listing, never a name to match against a list of private companies.
+ *
+ * THE NEXT ONE. OpenAI and Anthropic both filed confidentially to go public in
+ * June 2026, and Anthropic was reported in September to be aiming for November.
+ * The day one of these lists, this desk is wrong about it. It leaves the way
+ * SpaceX did: add it to EXCLUDE in scripts/build-prestocks.mjs and
+ * regenerate, and the roster picks up its ticker once the issuers tokenize
+ * the listed share. The page says "not listed yet" rather than "never listed"
+ * for exactly this reason.
  *
  * Figure AI stays for a different reason: the roster's FIGR is Figure
  * Technology Solutions, the listed lender, a different company with a
- * confusingly similar name, and the blurb says so. */
+ * confusingly similar name, and the pre-IPO desk says so beside it. */
 
 import prestocksJson from "@/data/prestocks.json";
 
@@ -58,7 +79,7 @@ export type PreStock = {
   pool: string;
   poolName: string;
   /* Which DEX that pool is on, as GeckoTerminal ids it ("meteora",
-   * "raydium-clmm"). Recorded rather than assumed: seven of the eight are
+   * "raydium-clmm"). Recorded rather than assumed: six of the seven are
    * Meteora pools and Figure AI's is Raydium, so a page that said "Meteora"
    * across the board would be wrong about one of them today and could be wrong
    * about more tomorrow. */
@@ -78,14 +99,14 @@ export const PRESTOCKS = prestocksJson as PreStock[];
  * that a fight has no test version of a private company to use, so it would
  * have to escrow the real token, and these mints refuse that outright. */
 export const NOT_STAKEABLE_BECAUSE =
-  "There is no test version of a private company, so a fight would have to escrow the real token, and these mints will not have it: a 50 bps transfer fee means the escrow receives less than was staked, a transfer hook wants accounts an ordinary transfer does not pass, and the issuer can pause transfers or move them out of any wallet at will. So these are traded and watched here, never staked.";
+  "There is no test version of a private company, so a fight would have to escrow the real token, and these mints rule that out: the issuer takes a transfer fee and can change its rate, so the escrow would receive less than was staked, and it can switch on a transfer hook, pause transfers or move them out of any wallet at will. So these are traded and watched here, never staked.";
 
 /* HOW BUSY IS BUSY ENOUGH.
  *
  * A price is only honest if the market actually traded near the moment it
- * claims. SpaceX holds the deepest pool of the eight and trades about a hundred
- * times a day, roughly once every thirteen minutes; OpenAI trades that often
- * every minute. Deep is not the same as busy, and only busy makes a price.
+ * claims. A deep pool is not the same as a busy one: when this file was last
+ * generated, Kalshi's pool was one of the deepest here and traded about a
+ * twentieth as often as OpenAI's. Only busy makes a price.
  *
  * So the badge is drawn from trades, not from liquidity, and the thin ones say
  * so rather than being quietly presented as though they were the same thing. */

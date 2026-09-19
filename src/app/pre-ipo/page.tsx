@@ -4,10 +4,10 @@ import { PreIpoDesk } from "./PreIpoDesk";
 
 export const metadata: Metadata = {
   title: "Not public yet",
-  /* Not "buy OpenAI". What is bought is a PreStocks token issued against a
-   * holding in the company, which is what the page says in its own fine print.
-   * A description promising the share and a page saying it is not the share
-   * cannot both be right. */
+  /* Not "buy OpenAI". What is bought is a PreStocks token that tracks the
+   * company's value, and the page's own fine print says it is not the share and
+   * that what stands behind it is the issuer's choice. A description promising
+   * the share and a page saying it is not the share cannot both be right. */
   description:
     "Buy tokens that track OpenAI, Anthropic, Neuralink and other private companies, on Solana at any hour. Live routed quotes, in your own wallet.",
 };

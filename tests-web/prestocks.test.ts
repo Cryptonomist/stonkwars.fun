@@ -32,7 +32,7 @@ describe("private companies", () => {
   });
 
   it("names the venue each pool is on rather than assuming one", () => {
-    /* The page says where a price was read. Seven of the eight pools are on
+    /* The page says where a price was read. Six of the seven pools are on
      * Meteora and Figure AI's is on Raydium, so a page that said "Meteora"
      * across the board would be wrong about one of them. Every entry carries
      * its own, and dexName turns an id nobody has mapped into a readable name
@@ -51,16 +51,26 @@ describe("private companies", () => {
   it("says why, in words a page can print", () => {
     expect(NOT_STAKEABLE_BECAUSE).to.match(/pause/i);
     expect(NOT_STAKEABLE_BECAUSE).to.match(/move them out of any wallet/i);
+    expect(NOT_STAKEABLE_BECAUSE).to.match(/transfer fee/i);
   });
 
-  it("keeps every pre-IPO company on this desk and none of them in the roster", () => {
-    /* The PreStocks bounty rules out a project that integrates any pre-IPO
-     * token that is not theirs. SpaceX has never listed, so SPCX was one
-     * however it was wrapped; it now sits here instead of in the roster.
-     * Figure AI is unrelated: the roster's FIGR is Figure Technology
-     * Solutions, a listed lender with a confusingly similar name. */
-    expect(byPreTicker("SPACEX"), "SpaceX belongs on this desk").to.not.equal(undefined);
-    expect(ROSTER.some((r) => r.ticker === "SPCX"), "SPCX must not be fightable").to.equal(false);
+  it("never names a fee rate the issuer can change", () => {
+    /* The page said "a 50 bps transfer fee". The mints held 50 bps in epoch
+     * 1038 and 100 bps scheduled from epoch 1039, so the sentence was true for
+     * one more day. The issuer holds the fee authority and can move it again,
+     * so the page names who sets the fee, never a rate. */
+    expect(NOT_STAKEABLE_BECAUSE).to.not.match(/\d\s*(bps|basis points?|%|percent)/i);
+  });
+
+  it("does not repeat a company the roster already lists and can fight over", () => {
+    /* SpaceX has listed: it trades on Nasdaq as SPCX, the roster carries it and
+     * it can be fought over, so PreStocks' thinner, unstakeable SpaceX token is
+     * left off a desk of companies that have not listed. It was once moved here
+     * on the false premise that SpaceX had never listed; this pins it back.
+     * Figure AI stays: the roster's FIGR is Figure Technology Solutions, a
+     * listed lender with a confusingly similar name. */
+    expect(byPreTicker("SPACEX"), "SpaceX should not be duplicated on the desk").to.equal(undefined);
+    expect(ROSTER.some((r) => r.ticker === "SPCX"), "SPCX is a listed stock and fightable").to.equal(true);
     expect(byPreTicker("FIGUREAI"), "Figure AI is its own company").to.not.equal(undefined);
     expect(ROSTER.some((r) => r.ticker === "FIGR"), "FIGR is the listed lender").to.equal(true);
   });

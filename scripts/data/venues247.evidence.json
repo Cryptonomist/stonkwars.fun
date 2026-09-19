@@ -120,6 +120,7 @@
   "SNXX",
   "SOXL",
   "SOXS",
+  "SPCX",
   "SPY",
   "TSLA",
   "TSM"
@@ -1737,6 +1738,17 @@
     {"venue":"gate","instrument":"SOXX_USDT","symbol":"SOXX","anchor":false,"name":"Gate stock perp (contract_type stocks)","identity":{"bps":10.5,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SOXX.json"},"weekend":{"cap":2880,"liveHours":48},"verdict":"refused","why":"not fetched: the stock cannot reach the badge (at most 1 anchor and 4 markets could be 90% fresh)"},
     {"venue":"mexc","instrument":"SOXX_USDT","symbol":"SOXX","anchor":false,"name":"MEXC Stock zone, SOXX_USDT PERPETUAL","identity":{"bps":8.2,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SOXX.json"},"weekend":{"cap":2880,"liveHours":48},"verdict":"refused","why":"not fetched: the stock cannot reach the badge (at most 1 anchor and 4 markets could be 90% fresh)"},
     {"venue":"bingx","instrument":"NCSKSOXX2USD-USDT","symbol":"SOXX","anchor":false,"name":"BingX single-stock perp (NCSK), SOXX-USDT","identity":{"bps":9.3,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SOXX.json"},"weekend":{"cap":2880,"liveHours":48},"verdict":"refused","why":"not fetched: the stock cannot reach the badge (at most 1 anchor and 4 markets could be 90% fresh)"}
+  ]},
+  "SPCX": {"badge":true,"anchors90":5,"markets90":8, "markets": [
+    {"venue":"hyperliquid","instrument":"xyz:SPCX","symbol":"SPCX","anchor":true,"name":"annotation: SPCX references 1 share of Space Exploration Technologies Corp. Class A common stock (Nasdaq: SPCX)","identity":{"bps":6,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2880,"traded":2131,"source":"sw247/hl/xyz_SPCX.json"},"verdict":"badge","why":"pinned, counts towards the badge"},
+    {"venue":"okx","instrument":"SPCX-USDT-SWAP","symbol":"SPCX","anchor":true,"name":"OKX stock swap (instCategory 3)","identity":{"bps":1.3,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2880,"traded":2332,"source":"build247/weekend/okx__SPCX-USDT-SWAP.json"},"verdict":"badge","why":"pinned, counts towards the badge"},
+    {"venue":"bitget","instrument":"SPCXUSDT","symbol":"SPCX","anchor":true,"name":"Bitget RWA perp (isRwa YES)","identity":{"bps":1.8,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2880,"traded":1974,"source":"build247/weekend/bitget__SPCXUSDT.json"},"verdict":"badge","why":"pinned, counts towards the badge"},
+    {"venue":"binance","instrument":"SPCXBUSDT","symbol":"SPCX","anchor":true,"name":"Binance spot SPCXB (TICKER + B, no category flag)","identity":{"bps":4,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2880,"traded":2840,"source":"build247/weekend/binance__SPCXBUSDT.json"},"verdict":"badge","why":"pinned, counts towards the badge"},
+    {"venue":"lighter","instrument":"194","symbol":"SPCX","anchor":true,"name":"Lighter perp SPCX (no category flag)","identity":{"bps":2,"pairs":60,"tradedPairs":56,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2746,"traded":1701,"source":"cr_data/v/lighter_SPCX.json"},"verdict":"badge","why":"pinned, counts towards the badge"},
+    {"venue":"backpack","instrument":"SPCX.US_USDC_PERP","symbol":"SPCX","anchor":true,"name":"Backpack perp (rwaMarketType STOCK)","identity":{"bps":7,"pairs":58,"tradedPairs":17,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2349,"traded":350,"source":"cr_data/v/backpackperp_SPCX.json"},"verdict":"input","why":"pinned as an input, under 90% fresh"},
+    {"venue":"gate","instrument":"SPCX_USDT","symbol":"SPCX","anchor":false,"name":"Gate stock perp (contract_type stocks)","identity":{"bps":2.7,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2880,"traded":2819,"source":"build247/weekend/gate__SPCX_USDT.json"},"verdict":"badge","why":"pinned, counts towards the badge"},
+    {"venue":"mexc","instrument":"SPCXSTOCK_USDT","symbol":"SPCX","anchor":false,"name":"MEXC Stock zone, SPCX_USDT PERPETUAL","identity":{"bps":1.1,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2880,"traded":2877,"source":"build247/weekend/mexc__SPCXSTOCK_USDT.json"},"verdict":"badge","why":"pinned, counts towards the badge"},
+    {"venue":"bingx","instrument":"NCSKSPCX2USD-USDT","symbol":"SPCX","anchor":false,"name":"BingX single-stock perp (NCSK), SPCX-USDT","identity":{"bps":1.7,"pairs":60,"tradedPairs":60,"source":"cexr/yahoo/SPCX.json"},"weekend":{"fresh":2880,"traded":2880,"source":"build247/weekend/bingx__NCSKSPCX2USD-USDT.json"},"verdict":"badge","why":"pinned, counts towards the badge"}
   ]},
   "SPOT": {"badge":false,"anchors90":0,"markets90":0, "markets": [
     {"venue":"gate","instrument":"SPOT_USDT","symbol":"SPOT","anchor":false,"name":"Gate stock perp (contract_type stocks)","identity":{"bps":7.2,"pairs":60,"tradedPairs":4,"source":"cexr/yahoo/SPOT.json"},"weekend":{"cap":1132,"liveHours":10},"verdict":"refused","why":"at most 39.3% fresh: traded in 10 of 48 weekend hours"},

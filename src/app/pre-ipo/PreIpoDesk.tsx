@@ -3,7 +3,10 @@
 /* COMPANIES THAT ARE NOT PUBLIC YET.
  *
  * The rest of this site is listed stocks: a ticker, an exchange, a closing
- * bell. These seven have none of that and never have. They exist here because
+ * bell. These seven have none of that yet. "Yet" is doing work: the headline
+ * once said "never listed", which is a prediction, and SpaceX was on this desk
+ * until it listed as SPCX. See lib/prestocks.ts for what happens when the next
+ * one does. They exist here because
  * somebody tokenized exposure to them on Solana, and those tokens trade in
  * ordinary pools at three in the morning on a Sunday, which is the one thing
  * this whole product was built around.
@@ -70,7 +73,7 @@ export function PreIpoDesk({ initial }: { initial: string }) {
     <div className="flex flex-col gap-6 py-6">
       <Plate as="header" notch pad="std" className="flex flex-col gap-3">
         <p className="label">Not public yet</p>
-        <h1 className="display text-hud-lg text-ink">The companies that never listed</h1>
+        <h1 className="display text-hud-lg text-ink">The companies that have not listed yet</h1>
         <p className="max-w-prose text-sm text-dim">
           OpenAI, Anthropic and Neuralink have no ticker and no exchange, so there is no bell for them to close at.
           PreStocks issues tokens that track them, and those trade on Solana every hour of every day. You can buy them
@@ -143,11 +146,10 @@ export function PreIpoDesk({ initial }: { initial: string }) {
             vote. What stands behind it is the issuer&apos;s choice, and its terms keep that open: an interest in a fund
             or an SPV, or a derivative referencing the company. Its price is whatever this market says it is.{" "}
             {chosen.ticker === "FIGUREAI" ? "Figure AI is the robotics company, not Figure Technology Solutions, which lists here as FIGR. " : ""}
-            {chosen.ticker === "SPACEX" ? "SpaceX holds the deepest pool of the eight and the thinnest trade count, which is why it reads as quiet above: deep is not the same as busy." : ""}
           </p>
           {/* Where the depth, the activity badge and the exhibition's race all
-              come from. Named per company rather than in general: seven of the
-              eight are Meteora pools and Figure AI's is Raydium. */}
+              come from. Named per company rather than in general: six of the
+              seven are Meteora pools and Figure AI's is Raydium. */}
           {dexName(chosen.dex) ? (
             <p className="text-meta text-dim">
               Depth and activity read from the{" "}
