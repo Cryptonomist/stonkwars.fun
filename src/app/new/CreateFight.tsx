@@ -57,6 +57,7 @@ import {
   offHoursWords,
   openingWords,
   pricedAt,
+  byTicker,
   queueAt,
   sourceFromChain,
   STAKE_DECIMALS,
@@ -68,6 +69,7 @@ import {
   type SideSource,
 } from "@/lib/stocks";
 import { MIN_OFFHOURS_ROUND_SECS } from "@/lib/composite";
+import { pythDownFor } from "@/lib/pythHealth";
 import {
   allDayPair,
   ctaStep,
@@ -206,7 +208,10 @@ export function CreateFight() {
     return { mixed: q && "refused" in q ? q.refused : null, queued: q && "queued" in q ? q : null };
   };
   const gate = p1 && p2 && now ? blockedAt(now, p1, p2) : { mixed: null, queued: null };
-  const mixedHours = gate.mixed;
+  /* ...or Pyth is not answering us for a stock Pyth prices (pythHealth.ts): a
+   * fight made now could never start. Same notice, same disabled button. */
+  const pythSides = [p1, p2].filter((t): t is string => !!t && byTicker(t)?.source === "pyth");
+  const mixedHours = gate.mixed ?? (now ? pythDownFor(pythSides, prices.data?.quotes, now) : null);
   const queued = gate.queued;
 
   /* EACH ROUND CHIP, AS IT WOULD GO NOW.

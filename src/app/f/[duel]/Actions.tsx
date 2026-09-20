@@ -57,6 +57,7 @@ import {
   OUTCOME_TIE,
   START_DELAY_SECS,
   STALL_REFUND_SECS,
+  SOURCE_PYTH,
   STATUS_ACCEPTED,
   STATUS_LIVE,
   STATUS_OPEN,
@@ -67,6 +68,8 @@ import {
 } from "@/lib/duel";
 import { hm, shares, shortAddress, usd } from "@/lib/format";
 import { useProfiles, useSend, useTokenBalance } from "@/lib/hooks";
+import { usePrices } from "@/lib/prices";
+import { pythDownFor } from "@/lib/pythHealth";
 import { neverSides, neverWords, refundWords, roundClock, shutSides } from "@/lib/roundClock";
 import { CLUSTER, decimalsForMint, firstPriceAt, mixedHoursAt, openingWords, queueAt, tokenSymbol } from "@/lib/stocks";
 import { useNudgeStatus } from "@/lib/useSettlerNudge";
@@ -137,7 +140,17 @@ export function Actions({
    * start the two sides days apart. It stays takeable once the hours line up
    * again, and the sentence says when. This is the render's clock, which can
    * be seconds old, so the take asks again at the click. */
-  const mixedHours = canTake && now ? mixedHoursAt(t1, t2, now, d, "taker") : null;
+  /* Or Pyth is not answering for a side this fight prices by Pyth: taking it
+   * now would leave both stakes waiting on a start price nobody can post
+   * (pythHealth.ts). Asked only while the fight can be taken. */
+  const pythSides = [d.creatorSource === SOURCE_PYTH ? t1 : null, d.opponentSource === SOURCE_PYTH ? t2 : null].filter(
+    (t): t is string => !!t,
+  );
+  const pythPrices = usePrices(canTake ? pythSides : []);
+  const mixedHours =
+    canTake && now
+      ? (mixedHoursAt(t1, t2, now, d, "taker") ?? pythDownFor(pythSides, pythPrices.data?.quotes, now))
+      : null;
   /* Whether that is a wait with an end: the first moment a take is fair,
    * before the challenge expires, for everyone looking, not only a taker. */
   const queue = d.status === STATUS_OPEN && !expired && now ? queueAt(t1, t2, now, d, "taker") : null;
