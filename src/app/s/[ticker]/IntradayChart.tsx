@@ -149,6 +149,12 @@ export function IntradayChart({
   const [showMa, setShowMa] = useState(false);
   const [showVwap, setShowVwap] = useState(false);
   const bars = useBars(ticker, tf, charted);
+  const steppedOut = useRef(false);
+  useEffect(() => {
+    if (steppedOut.current || !bars.data) return;
+    steppedOut.current = true;
+    if (tfId === DEFAULT_TIMEFRAME && bars.data.t.length === 0) setTfId("1W");
+  }, [bars.data, tfId]);
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 

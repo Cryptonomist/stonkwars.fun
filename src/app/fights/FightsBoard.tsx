@@ -76,7 +76,7 @@ type UrlTab = TabId | typeof AUTO;
 const URL_TABS: readonly UrlTab[] = [AUTO, "live", "open", "final", "mine", "called"];
 
 const TAB_LABEL: Record<TabId, string> = {
-  live: "Live",
+  live: "In the ring",
   open: "Open",
   final: "Final",
   mine: "Mine",

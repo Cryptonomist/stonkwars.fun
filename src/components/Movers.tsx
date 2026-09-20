@@ -86,7 +86,7 @@ export function Movers({ rows = 8 }: { rows?: number }) {
             href={`/s/${s.ticker}`}
             className="-mx-2 flex h-9 min-w-0 items-center gap-1.5 px-2 transition-colors hover:bg-panel-3 focus-visible:-outline-offset-2 @xs:gap-2"
           >
-            <span className="display w-11 shrink-0 truncate text-hud-xs text-ink @sm:w-14">{s.ticker}</span>
+            <span className="display w-14 shrink-0 text-hud-xs text-ink">{s.ticker}</span>
             <span className="flex w-11 shrink-0">
               {tradesAroundTheClock(s.ticker) ? <Badge variant="neutral">24/7</Badge> : null}
             </span>
@@ -95,9 +95,9 @@ export function Movers({ rows = 8 }: { rows?: number }) {
               values={closes[s.ticker] ?? []}
               width={40}
               height={14}
-              tone="move"
+              tone="ink"
               label={sparkLabel(s.ticker, closes[s.ticker])}
-              className="ml-auto @[22rem]:ml-0"
+              className="ml-auto opacity-50 @[22rem]:ml-0"
             />
             <FlashNum value={price} className="num min-w-14 shrink-0 text-right text-meta text-dim @sm:min-w-18">
               {price !== null ? usd(price) : "--"}

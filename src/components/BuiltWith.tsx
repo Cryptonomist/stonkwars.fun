@@ -65,7 +65,7 @@ function Row({ it }: { it: Integration }) {
           </span>
           {wordmark ? null : <span className="truncate text-sm font-semibold text-ink">{it.name}</span>}
         </span>
-        <span className="text-meta leading-snug text-dim transition-colors group-hover:text-ink/80">{it.role}</span>
+        <span className="hidden text-meta leading-snug text-dim transition-colors group-hover:text-ink/80 sm:block">{it.role}</span>
       </a>
     </li>
   );
@@ -79,18 +79,18 @@ export function BuiltWith() {
           <h2 id="built-with" className="label text-ink">
             Built with the Solana ecosystem
           </h2>
-          <p className="max-w-xl text-sm text-dim">
+          <p className="hidden max-w-xl text-sm text-dim sm:block">
             Stonk Wars is Solana all the way down: the chain that holds the stakes, the prices that settle them, the stocks
             people stake, the routes they trade on and the wallets they sign with.
           </p>
         </div>
-        <span className="micro num text-faint">{INTEGRATIONS.length} integrations</span>
+        <span className="micro num text-dim">{INTEGRATIONS.length} integrations</span>
       </div>
 
       <div className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-5">
         {GROUP_ORDER.map((g) => (
           <div key={g} className="flex min-w-0 flex-col gap-2">
-            <h3 className="micro text-faint">{g}</h3>
+            <h3 className="micro text-dim">{g}</h3>
             <ul className="flex flex-col gap-1">
               {INTEGRATIONS.filter((it) => it.group === g).map((it) => (
                 <Row key={it.name} it={it} />
@@ -100,7 +100,7 @@ export function BuiltWith() {
         ))}
       </div>
 
-      <p className="text-meta text-faint">
+      <p className="text-meta text-dim">
         Logos belong to their owners. Each names something Stonk Wars is built on or works with, not an endorsement or a
         partnership.
       </p>

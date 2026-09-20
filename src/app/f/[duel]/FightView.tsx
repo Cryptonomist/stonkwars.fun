@@ -428,7 +428,9 @@ function StatusStrip({
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <SoundToggle />
         <Link href="/fights" className="label inline-flex h-10 items-center px-2 transition-colors hover:text-ink sm:h-8">
-          All fights<span aria-hidden="true">&nbsp;&rarr;</span>
+          <span className="sm:hidden">All</span>
+          <span className="hidden sm:inline">All fights</span>
+          <span aria-hidden="true">&nbsp;&rarr;</span>
         </Link>
       </div>
     </div>

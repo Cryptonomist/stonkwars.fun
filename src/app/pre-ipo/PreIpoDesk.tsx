@@ -73,7 +73,7 @@ export function PreIpoDesk({ initial }: { initial: string }) {
     <div className="flex flex-col gap-6 py-6">
       <Plate as="header" notch pad="std" className="flex flex-col gap-3">
         <p className="label">Not public yet</p>
-        <h1 className="display text-hud-lg text-ink">The companies that have not listed yet</h1>
+        <h1 className="h-page text-ink">The companies that have not listed yet</h1>
         <p className="max-w-prose text-sm text-dim">
           OpenAI, Anthropic and Neuralink have no ticker and no exchange, so there is no bell for them to close at.
           PreStocks issues tokens that track them, and those trade on Solana every hour of every day. You can buy them
@@ -97,10 +97,10 @@ export function PreIpoDesk({ initial }: { initial: string }) {
                   className={cx("row flex min-h-11 min-w-0 flex-col gap-1 px-3 py-3 text-left", on && "bg-panel-2")}
                 >
                   <span className="flex min-w-0 items-baseline gap-3">
-                    <span className="display shrink-0 text-base font-black" style={{ color: p.color }}>
-                      {p.name}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-meta text-dim">{p.blurb}</span>
+                    <span className="display shrink-0 text-base font-black text-ink">{p.name}</span>
+                    {/* From 640px: on a phone it truncated to "Cha..." and "(". */}
+                    <span className="hidden min-w-0 flex-1 truncate text-meta text-dim sm:block">{p.blurb}</span>
+                    <span className="min-w-0 flex-1 sm:hidden" />
                     <span className="num shrink-0 text-sm text-ink">
                       {q.isLoading ? <Skeleton className="h-4 w-16" /> : quote?.usd == null ? "no quote" : usd(quote.usd)}
                     </span>
@@ -113,10 +113,10 @@ export function PreIpoDesk({ initial }: { initial: string }) {
                       {quote?.change24h == null ? "" : pct(quote.change24h)}
                     </span>
                   </span>
-                  <span className="flex flex-wrap items-center gap-2 text-micro text-dim">
+                  <span className="flex flex-wrap items-center gap-2 text-meta text-dim">
                     <Badge>24/7</Badge>
-                    <span className={depth.tone === "warn" ? "text-cooked" : "text-dim"}>{depth.word}</span>
-                    {quote?.route?.length ? <span className="text-faint">via {quote.route.join(" + ")}</span> : null}
+                    <span className={cx("num", depth.tone === "warn" ? "font-semibold text-ink" : "text-dim")}>{depth.word}</span>
+                    {quote?.route?.length ? <span className="text-dim">via {quote.route.join(" + ")}</span> : null}
                   </span>
                 </button>
               );
@@ -126,7 +126,11 @@ export function PreIpoDesk({ initial }: { initial: string }) {
         </section>
 
         <aside className="flex min-w-0 flex-col gap-4">
-          <TradePanel key={chosen.ticker} ticker={chosen.ticker} embedded />
+          {/* In a Plate, as the ticket is on /trade: bare, it read as loose
+            * controls floating beside the list. */}
+          <Plate pad="std">
+            <TradePanel key={chosen.ticker} ticker={chosen.ticker} embedded />
+          </Plate>
           {/* The button sits UNDER the words, not beside them. Notice lays its
             * `action` in a row with the text, and in this narrow column a long
             * button squeezed the reason into a strip about 120px wide, on the

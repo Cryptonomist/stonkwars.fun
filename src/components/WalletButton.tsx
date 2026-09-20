@@ -88,7 +88,11 @@ export function WalletButton({ className = "" }: { className?: string }) {
   const handoff = available.find((w) => w.readyState === WalletReadyState.Loadable);
 
   const needsMobileHelp =
-    hydrated && !connected && platform !== "desktop" && !insideWallet && installed.length === 0;
+    hydrated &&
+    !connected &&
+    platform !== "desktop" &&
+    !insideWallet &&
+    installed.every((w) => w.adapter.name === GuestWalletName);
 
   /* The wallet's own error text is written for developers ("WalletConnectionError:
    * User rejected the request"), so the page says what happened in its words. */
@@ -224,10 +228,38 @@ export function WalletButton({ className = "" }: { className?: string }) {
             </Notice>
           ) : null}
 
+          {available.length > 0 ? (
+            <ul className="flex flex-col gap-px bg-line">
+              {available.map((w) => (
+                <li key={w.adapter.name}>
+                  <button
+                    type="button"
+                    onClick={() => choose(w.adapter.name)}
+                    className="row flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left focus-visible:-outline-offset-2"
+                  >
+                    {w.adapter.icon ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={w.adapter.icon} alt="" width={24} height={24} className="shrink-0" />
+                    ) : null}
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate text-sm font-semibold text-ink">
+                        {w.adapter.name === GuestWalletName ? "Guest wallet" : w.adapter.name}
+                      </span>
+                      {w.adapter.name === GuestWalletName ? (
+                        <span className="text-meta text-dim">A test key kept in this browser. Devnet only.</span>
+                      ) : w.readyState === WalletReadyState.Loadable ? (
+                        <span className="text-meta text-dim">Opens the wallet app</span>
+                      ) : null}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {needsMobileHelp ? (
             <>
               <p className="text-sm text-dim">
-                Phone browsers cannot hold a wallet. Open this page inside a wallet app and it connects there.
+                Have Phantom or Solflare? A phone browser cannot reach it, so open this page inside the wallet app and it connects there.
               </p>
               {handoff ? (
                 <button type="button" onClick={() => choose(handoff.adapter.name)} className="btn btn-sm btn-light w-full">
@@ -256,33 +288,6 @@ export function WalletButton({ className = "" }: { className?: string }) {
                 ))}
               </ul>
             </>
-          ) : available.length > 0 ? (
-            <ul className="flex flex-col gap-px bg-line">
-              {available.map((w) => (
-                <li key={w.adapter.name}>
-                  <button
-                    type="button"
-                    onClick={() => choose(w.adapter.name)}
-                    className="row flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left focus-visible:-outline-offset-2"
-                  >
-                    {w.adapter.icon ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={w.adapter.icon} alt="" width={24} height={24} className="shrink-0" />
-                    ) : null}
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm font-semibold text-ink">
-                        {w.adapter.name === GuestWalletName ? "Guest wallet" : w.adapter.name}
-                      </span>
-                      {w.adapter.name === GuestWalletName ? (
-                        <span className="text-meta text-dim">A test key kept in this browser. Devnet only.</span>
-                      ) : w.readyState === WalletReadyState.Loadable ? (
-                        <span className="text-meta text-dim">Opens the wallet app</span>
-                      ) : null}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
           ) : null}
         </div>
       </Sheet>

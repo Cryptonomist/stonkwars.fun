@@ -32,7 +32,7 @@ import {
   STATUS_SETTLED,
   type DuelView,
 } from "@/lib/duel";
-import { pct, pctPair, points, shares } from "@/lib/format";
+import { pct, pctPair, points, shares, usd } from "@/lib/format";
 import { loadGoogleFont } from "@/lib/ogFont";
 import { PALETTE } from "@/lib/palette";
 import { movePct } from "@/lib/pricemath";
@@ -120,7 +120,9 @@ async function render(d: DuelView | null): Promise<ImageResponse> {
   const p1Cooked = settled && d!.outcome === OUTCOME_OPPONENT;
   const p2Cooked = settled && d!.outcome === OUTCOME_CREATOR;
   const take = d && settled ? loserTake(d) : null;
-  const tookLine = take ? `TOOK ${shares(take.shares, take.decimals)} ${tokenSymbol(take.ticker)}` : "";
+  const tookLine = take
+    ? `TOOK ${shares(take.shares, take.decimals)} ${tokenSymbol(take.ticker)}${take.usd ? ` · ${usd(take.usd)}` : ""}`
+    : "";
   const margin = m1 !== null && m2 !== null && settled ? `Won by ${points(Math.abs(m1 - m2))} pts` : "";
 
   const status = !d

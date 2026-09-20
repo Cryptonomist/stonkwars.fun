@@ -407,16 +407,19 @@ function Header({
               It has been in every quote all along and shown in none of them. */}
           {band ? (
             <p className="text-meta text-dim">
+              {/* `label` is the bubble and the children are the trigger. They
+                  were once the other way round, and the explanation rendered
+                  as a paragraph in the header, pushing the price off its line. */}
               <Tip
                 label={
                   <>
-                    &plusmn;<span className="num">{usd(band.usd, { cents: true })}</span> Pyth band
+                    Pyth publishes a price and a confidence band together: how far apart the publishers behind it are.
+                    This one is {bandWords(band.pct)}, {pct(band.pct, 3)} of the price. A fight settles on the price,
+                    never the band; the band is how much to trust that price at this moment.
                   </>
                 }
               >
-                Pyth publishes a price and a confidence band together: how far apart the publishers behind it are. This
-                one is {bandWords(band.pct)}, {pct(band.pct, 3)} of the price. A fight settles on the price, never the
-                band; the band is how much to trust that price at this moment.
+                &plusmn;<span className="num">{usd(band.usd, { cents: true })}</span> Pyth band
               </Tip>
             </p>
           ) : null}

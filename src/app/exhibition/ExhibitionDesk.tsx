@@ -20,7 +20,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/Badge";
 import { cx } from "@/components/ui/cx";
@@ -64,13 +64,25 @@ export function ExhibitionDesk({ initialA, initialB }: { initialA?: string; init
   });
 
   const data = q.data && !("error" in q.data) ? q.data : null;
+
+  /* ONCE, AND ONLY FOR THE DEFAULT. With the exchange shut a listed stock has
+   * no bars in the last 24 hours, so the default window was a no-contest from
+   * Friday night to Monday morning, which is where the front page's featured
+   * link landed. The first answer falls back to the week; a window the visitor
+   * picks themselves is never overridden. */
+  const fellBack = useRef(false);
+  useEffect(() => {
+    if (fellBack.current || !data) return;
+    fellBack.current = true;
+    if (w === "24h" && data.verdict.kind === "no-contest") setW("7d");
+  }, [data, w]);
   const failed = q.data && "error" in q.data ? q.data.error : q.isError ? "Could not read a market." : null;
 
   return (
     <div className="flex flex-col gap-6 py-6">
       <Plate as="header" notch pad="std" className="flex flex-col gap-3">
         <p className="label">Exhibition</p>
-        <h1 className="display text-hud-lg text-ink">Let the private ones fight</h1>
+        <h1 className="h-page text-ink">Let the private ones fight</h1>
         <p className="max-w-prose text-sm text-dim">
           OpenAI cannot be staked, so it has never been in the ring. Put it against a listed stock over the same window
           and see who would have won. Real prices, no stake, nothing on chain.
@@ -153,7 +165,7 @@ function Picker({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cx(
-          "min-h-11 w-full rounded-sm border border-line bg-panel-2 px-3 text-base",
+          "input select-plate min-h-11 text-base",
           tone === "p1" ? "text-p1" : "text-p2",
         )}
       >
@@ -229,10 +241,18 @@ function Race({ a, b }: { a: Leg; b: Leg }) {
   const zero = H - ((0 - lo) / span) * H;
   return (
     <figure className="flex flex-col gap-2">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full" role="img" aria-label={`${a.ticker} against ${b.ticker}`}>
-        <line x1="0" y1={zero} x2={W} y2={zero} stroke="currentColor" className="text-line" strokeDasharray="4 4" />
-        <path d={path(a)} fill="none" strokeWidth="2.5" className="text-p1" stroke="currentColor" />
-        <path d={path(b)} fill="none" strokeWidth="2.5" className="text-p2" stroke="currentColor" />
+      {/* Stretched to the plate: at its own aspect ratio the race sat letterboxed
+        * in the middle third of a wide screen. Strokes keep their width. */}
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="h-48 w-full"
+        role="img"
+        aria-label={`${a.ticker} against ${b.ticker}`}
+      >
+        <line x1="0" y1={zero} x2={W} y2={zero} stroke="currentColor" className="text-line" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+        <path d={path(a)} fill="none" strokeWidth="2" className="text-p1" stroke="currentColor" vectorEffect="non-scaling-stroke" />
+        <path d={path(b)} fill="none" strokeWidth="2" className="text-p2" stroke="currentColor" vectorEffect="non-scaling-stroke" />
       </svg>
       <figcaption className="text-meta text-dim">
         Percent from each side&apos;s own first price in the window. Drawn from market bars, for watching: no result here

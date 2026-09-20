@@ -149,7 +149,7 @@ export function LiveBoard({
     <div className="flex flex-col gap-2">
       <div className={columns === 2 ? "grid gap-2 md:grid-cols-2" : "flex flex-col gap-2"}>
         {shown.map((d) => (
-          <FightRow key={d.address.toBase58()} d={d} now={now} quotes={prices.data} />
+          <FightRow key={d.address.toBase58()} d={d} now={now} quotes={prices.data} compact />
         ))}
       </div>
       {hiddenNote}

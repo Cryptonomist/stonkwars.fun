@@ -68,7 +68,10 @@ export function TradePanel({
 
   const [side, setSide] = useState<Side>(initialSide);
   const [pay, setPay] = useState<PayWith>("USDC");
-  const [amount, setAmount] = useState(initialAmount ?? "25");
+  /* 25 is dollars. Opened straight on Sell (the phone bar, "Sell" beside a
+   * holding) it was read as 25 SHARES, a $9,000 sale of TSLA as the first thing
+   * on screen; a sell starts from the small amount choose() uses. */
+  const [amount, setAmount] = useState(initialAmount ?? (initialSide === "buy" ? "25" : "0.05"));
   const [debounced, setDebounced] = useState(amount);
   const [slippageBps, setSlippageBps] = useState<number>(DEFAULT_SLIPPAGE_BPS);
   const [busy, setBusy] = useState(false);
@@ -248,7 +251,10 @@ export function TradePanel({
               </span>
             </Row>
             <Row label="Price impact">
-              <span className={cx("num", s.priceImpactPct >= 1 ? "text-down" : "")}>{s.priceImpactPct.toFixed(2)}%</span>
+              {/* Ink and weight, not red: red here means a price fell. */}
+              <span className={cx("num", s.priceImpactPct >= 1 ? "font-semibold text-ink" : "")}>
+                {s.priceImpactPct.toFixed(2)}%{s.priceImpactPct >= 1 ? " · high" : ""}
+              </span>
             </Row>
             {s.fee ? (
               <Row label="Stonk Wars fee">

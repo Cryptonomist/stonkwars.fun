@@ -112,7 +112,7 @@ export function Corner({
       <div className={cx("flex min-w-0 max-w-full items-baseline gap-2", right && "flex-row-reverse")}>
         <Role d={d} side={side} />
         {wallet ? (
-          <span className="md:hidden">
+          <span className="shrink-0 whitespace-nowrap md:hidden">
             <Record wallet={wallet} />
           </span>
         ) : null}
@@ -154,7 +154,14 @@ export function Corner({
       <div className={cx("relative mt-2 flex min-w-0 max-w-full flex-col gap-1.5 md:mt-3 md:gap-2", right && "items-end")}>
         <p className="num text-meta text-ink md:text-sm">
           {shares(amount, decimals)} <span className="normal-case">{tokenSymbol(ticker)}</span>
-          {worth !== null ? <span className="text-dim"> · {usd(worth)}</span> : null}
+          {/* On a phone the dollars take their own line, so a narrow corner
+            * never ends a line on an orphaned dot. */}
+          {worth !== null ? (
+            <span className="block text-dim md:inline">
+              <span className="hidden md:inline"> · </span>
+              {usd(worth)}
+            </span>
+          ) : null}
         </p>
         <PriceToBeat d={d} side={side} quote={quote} shut={shut} never={never} late={late} other={other} />
       </div>
@@ -206,7 +213,7 @@ function Record({ wallet }: { wallet: string }) {
   const record = useMemo(() => (duels.data ? recordFor(wallet, duels.data) : null), [duels.data, wallet]);
   if (!record || record.fights === 0) return null;
   return (
-    <span className="micro num shrink-0 text-dim" title={`${record.wins} ${record.wins === 1 ? "win" : "wins"}, ${record.losses} ${record.losses === 1 ? "loss" : "losses"}${record.ties ? `, ${record.ties} ${record.ties === 1 ? "dead heat" : "dead heats"}` : ""}`}>
+    <span className="micro num shrink-0 whitespace-nowrap text-dim" title={`${record.wins} ${record.wins === 1 ? "win" : "wins"}, ${record.losses} ${record.losses === 1 ? "loss" : "losses"}${record.ties ? `, ${record.ties} ${record.ties === 1 ? "dead heat" : "dead heats"}` : ""}`}>
       {record.wins}W-{record.losses}L
     </span>
   );

@@ -328,11 +328,11 @@ function TradeBar({
         role="region"
         aria-label={`Buy or sell ${symbol}`}
         hidden={hidden}
-        className="rope fixed inset-x-0 z-35 bg-panel-2 shadow-overlay"
+        className="rope on-panel-2 fixed inset-x-0 z-35 bg-panel-2 shadow-overlay"
         style={{ bottom: "calc(var(--bottom-nav-h) + env(safe-area-inset-bottom))" }}
       >
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
-          <button type="button" onClick={onBuy} aria-haspopup="dialog" className="btn btn-primary flex-1">
+          <button type="button" onClick={onBuy} aria-haspopup="dialog" className="btn btn-buy flex-1">
             Buy <span className="normal-case">{symbol}</span>
           </button>
           <button type="button" onClick={onSell} aria-haspopup="dialog" className="btn btn-ghost flex-1">
