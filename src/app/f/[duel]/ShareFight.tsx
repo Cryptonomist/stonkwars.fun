@@ -95,7 +95,11 @@ export function ShareFight({
     return null;
   }
 
-  const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  /* X keeps a link's card for days, keyed by URL. A fight first posted while
+   * open would unfurl as "Open challenge" even after the K.O., so the result
+   * is posted under its own URL and gets its own, final card. */
+  const postUrl = d.status === STATUS_SETTLED ? `${url}?r=ko` : url;
+  const intent = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(postUrl)}`;
   const copy = () => {
     if (!navigator.clipboard) {
       toast.push({ title: "Could not copy.", body: "The link is in the address bar." });

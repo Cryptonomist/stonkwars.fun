@@ -12,6 +12,7 @@ import { TopFighters } from "@/components/TopFighters";
 import { Plate } from "@/components/ui/Plate";
 import { SectionHead } from "@/components/ui/SectionHead";
 import { Wire } from "@/components/Wire";
+import { YourCorner } from "@/components/YourCorner";
 import { BRAND } from "@/lib/brand";
 import { CLUSTER } from "@/lib/stocks";
 
@@ -84,6 +85,12 @@ export default function Home() {
           </Link>
         </div>
       </section>
+
+      {/* Whatever is this wallet's, before the board that is everybody's. Renders
+        * nothing without a wallet, so a stranger's first screen is unchanged. */}
+      <div className="mb-6 empty:hidden">
+        <YourCorner />
+      </div>
 
       <SiteTally />
 

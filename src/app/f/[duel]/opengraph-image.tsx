@@ -32,11 +32,14 @@ import {
   STATUS_SETTLED,
   type DuelView,
 } from "@/lib/duel";
-import { pct, pctPair, points, shares, usd } from "@/lib/format";
+import { pct, pctPair, points, shares, shortAddress, usd } from "@/lib/format";
 import { loadGoogleFont } from "@/lib/ogFont";
 import { PALETTE } from "@/lib/palette";
 import { movePct } from "@/lib/pricemath";
+import { isSparWallet } from "@/lib/spar";
 import { decimalsForMint, isListedDuel, tickerForMint, tokenSymbol } from "@/lib/stocks";
+
+import { readVouchedHandle, serverConnection } from "../../u/[wallet]/readHandle";
 
 export const runtime = "nodejs";
 export const alt = "A Stonk Wars fight";
@@ -120,6 +123,20 @@ async function render(d: DuelView | null): Promise<ImageResponse> {
   const p1Cooked = settled && d!.outcome === OUTCOME_OPPONENT;
   const p2Cooked = settled && d!.outcome === OUTCOME_CREATOR;
   const take = d && settled ? loserTake(d) : null;
+
+  /* WHO FOUGHT. A card posted on X named two tickers and nobody: the winner
+   * could not be seen winning and the loser could not be tagged from it. Each
+   * corner now says whose it is: the handle the chain vouches for, else the
+   * short address, else nothing for a seat nobody has taken. Both reads are
+   * bounded (readHandle.ts), so a slow node costs the names, never the card. */
+  const nameOf = async (wallet: PublicKey | null): Promise<string> => {
+    if (!wallet || wallet.equals(PublicKey.default)) return "";
+    const address = wallet.toBase58();
+    if (isSparWallet(address)) return "Sparring wallet";
+    const handle = await readVouchedHandle(serverConnection(), wallet, 1_500);
+    return handle ? `@${handle}` : shortAddress(address);
+  };
+  const [n1, n2] = d && !retired ? await Promise.all([nameOf(d.creator), nameOf(d.opponent)]) : ["", ""];
   const tookLine = take
     ? `TOOK ${shares(take.shares, take.decimals)} ${tokenSymbol(take.ticker)}${take.usd ? ` · ${usd(take.usd)}` : ""}`
     : "";
@@ -151,7 +168,7 @@ async function render(d: DuelView | null): Promise<ImageResponse> {
     "Stonk Wars VS COOKED x staked to take it TOOK Won by pts Fight Open challenge · take the other side " +
     "Fight on · starts at the next price Round live Final · settled on Solana Dead heat · both stakes home Void Cooked";
   // The card uppercases most of its text, so the subset needs both cases.
-  const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}${labels}${RETIRED}${status}${taunt}${stakes}${tookLine}${margin}0123456789.+-%$ ·`;
+  const raw = `${BRAND.short}${BRAND.domain}${t1}${t2}${labels}${RETIRED}${status}${taunt}${stakes}${tookLine}${margin}${n1}${n2}0123456789.+-%$ ·@_`;
   const text = `${raw}${raw.toUpperCase()}${raw.toLowerCase()}`;
   const [display, stencil] = await Promise.all([
     loadGoogleFont("Big Shoulders", 900, text),
@@ -179,6 +196,11 @@ async function render(d: DuelView | null): Promise<ImageResponse> {
      * so it stays inside its corner. */
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: align, width: 430, flexShrink: 0 }}>
+        {(left ? n1 : n2) ? (
+          <div style={{ fontSize: 34, color: C.ink, textTransform: "none", marginBottom: 10, opacity: cooked ? 0.6 : 1 }}>
+            {left ? n1 : n2}
+          </div>
+        ) : null}
         <div style={{ fontSize: ticker.length >= 5 ? 150 : 180, lineHeight: 0.9, color: left ? C.p1 : C.p2, opacity: cooked ? 0.5 : 1 }}>
           {ticker}
         </div>

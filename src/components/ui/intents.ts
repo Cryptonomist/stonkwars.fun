@@ -70,3 +70,54 @@ export function watchFight(address: string): void {
     /* Storage refused. The fight still loads; it just will not be followed. */
   }
 }
+
+/* WHEN THIS WALLET WAS LAST HERE, AND WHAT IT HAS BEEN TOLD (lib/sinceLastVisit).
+ *
+ * Kept per wallet, in this browser, like everything else here: there are no
+ * accounts, so there is nowhere else for it to live, and a fighter on a new
+ * device simply starts fresh. Both swallow every storage failure, as above. */
+
+const LAST_SEEN_PREFIX = "stonk:lastSeen:";
+const TOLD_KEY = "stonk:told";
+const TOLD_LIMIT = 200;
+
+/** Unix seconds this wallet was last seen in this browser, or null. */
+export function lastSeen(wallet: string): number | null {
+  if (typeof window === "undefined" || !wallet) return null;
+  try {
+    const n = Number(window.localStorage.getItem(LAST_SEEN_PREFIX + wallet));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+export function markSeen(wallet: string, at = Math.floor(Date.now() / 1000)): void {
+  if (typeof window === "undefined" || !wallet) return;
+  try {
+    window.localStorage.setItem(LAST_SEEN_PREFIX + wallet, String(at));
+  } catch {
+    /* Storage refused: the next visit will look like a first one, and say nothing. */
+  }
+}
+
+/** Notice ids already shown, so a result is never told twice across visits. */
+export function toldNotices(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(TOLD_KEY) ?? "[]");
+    return new Set(Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function markTold(ids: string[]): void {
+  if (typeof window === "undefined" || !ids.length) return;
+  try {
+    const next = [...new Set([...ids, ...toldNotices()])].slice(0, TOLD_LIMIT);
+    window.localStorage.setItem(TOLD_KEY, JSON.stringify(next));
+  } catch {
+    /* Storage refused: at worst a result is mentioned again. */
+  }
+}

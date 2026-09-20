@@ -68,6 +68,7 @@ import {
 } from "@/lib/duel";
 import { hm, shares, shortAddress, usd } from "@/lib/format";
 import { useProfiles, useSend, useTokenBalance } from "@/lib/hooks";
+import { NextSeat } from "@/components/NextSeat";
 import { usePrices } from "@/lib/prices";
 import { pythDownFor } from "@/lib/pythHealth";
 import { neverSides, neverWords, refundWords, roundClock, shutSides } from "@/lib/roundClock";
@@ -391,7 +392,7 @@ export function Actions({
     const name = other ? (handles?.[other] ? `@${handles[other]}` : shortAddress(other)) : null;
     const href = `/new?p1=${mine}&p2=${theirs}&usd=${again}${other ? `&invite=${other}` : ""}`;
     rematch = (
-      <Link href={href} className="btn btn-primary w-full">
+      <Link href={href} className="btn btn-ghost w-full">
         {name ? (
           <>
             Run it back vs <span className="normal-case">{name}</span> · ${again} a side
@@ -496,6 +497,12 @@ export function Actions({
         ) : null}
         {winLine ? <p className="text-meta text-ink">{winLine}</p> : null}
         {winLine ? <FeeNote createdTs={d.createdTs} className="text-meta text-dim" /> : null}
+        {/* THE SECOND FIGHT BEFORE THE REMATCH. A seat that can be taken this
+          * second, one tap away; the rematch is a full ticket and then a wait
+          * on somebody who is never told, which is where a first session died.
+          * During a live round a fighter gets the same seat as a quiet line. */}
+        {over ? <NextSeat except={d.address.toBase58()} now={now} /> : null}
+        {d.status === STATUS_LIVE && iFought ? <NextSeat except={d.address.toBase58()} now={now} variant="quiet" /> : null}
         {rematch}
         {secondary}
         {hints.map((h) => (
