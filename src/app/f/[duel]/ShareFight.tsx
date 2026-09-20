@@ -20,15 +20,18 @@
  * public previewer to send anyone to. */
 
 import { useEffect, useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 import { Plate } from "@/components/ui/Plate";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { toast } from "@/components/ui/Toast";
 import { cx } from "@/components/ui/cx";
 import { BRAND } from "@/lib/brand";
-import { OUTCOME_CREATOR, SOURCE_PYTH, STATUS_LIVE, STATUS_OPEN, STATUS_SETTLED, type DuelView } from "@/lib/duel";
-import { pct, shares } from "@/lib/format";
+import { isInviteOnly, OUTCOME_CREATOR, SOURCE_PYTH, STATUS_LIVE, STATUS_OPEN, STATUS_SETTLED, type DuelView } from "@/lib/duel";
+import { loserTake } from "@/lib/derive";
+import { shares, usd } from "@/lib/format";
 import { useProfiles } from "@/lib/hooks";
+import { calloutPrefix, koPostText } from "@/lib/shareText";
 import { STAKE_DECIMALS, tokenSymbol } from "@/lib/stocks";
 
 export function ShareFight({
@@ -49,6 +52,7 @@ export function ShareFight({
   className?: string;
 }) {
   const { data: handles } = useProfiles();
+  const me = useWallet().publicKey?.toBase58();
   const [origin, setOrigin] = useState("");
   const [loaded, setLoaded] = useState(false);
   useEffect(() => setOrigin(window.location.origin), []);
@@ -61,20 +65,29 @@ export function ShareFight({
   let text = "";
   if (d.status === STATUS_OPEN) {
     title = "Send it to someone";
+    /* A challenge addressed to one wallet tags it, when it has linked a handle. */
+    const called = isInviteOnly(d) ? calloutPrefix(handles?.[d.invitee.toBase58()]) : "";
     text = d.taunt
-      ? `${d.taunt}\n\n${t1} vs ${t2}. I staked ${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)}. Take the other side:`
-      : `I'm staking ${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)} that ${t1} beats ${t2}. Take the other side:`;
+      ? `${called}${d.taunt}\n\n${t1} vs ${t2}. I staked ${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)}. Take the other side:`
+      : `${called}I'm staking ${shares(d.creatorAmount, STAKE_DECIMALS)} ${tokenSymbol(t1)} that ${t1} beats ${t2}. Take the other side:`;
   } else if (d.status === STATUS_SETTLED && m1 !== null && m2 !== null) {
     title = "Post the K.O.";
     const creatorWon = d.outcome === OUTCOME_CREATOR;
     const [win, lose, mw, ml] = creatorWon ? [t1, t2, m1, m2] : [t2, t1, m2, m1];
     const winner = (creatorWon ? d.creator : d.opponent).toBase58();
-    const handle = handles?.[winner];
-    const by = d.creatorSource === SOURCE_PYTH && d.opponentSource === SOURCE_PYTH ? "by Pyth " : "";
-    /* pct rather than toFixed(2): this is the sentence that gets posted, and
-     * "NVDA -0.00%" in public reads as a broken site rather than a quiet
-     * weekend. */
-    text = `${lose} got cooked. ${win} ${pct(mw)} vs ${lose} ${pct(ml)}, settled ${by}on Solana.${handle ? ` @${handle} took both stakes.` : ""}`;
+    const loser = (creatorWon ? d.opponent : d.creator).toBase58();
+    const take = loserTake(d);
+    text = koPostText({
+      win,
+      lose,
+      mw,
+      ml,
+      byPyth: d.creatorSource === SOURCE_PYTH && d.opponentSource === SOURCE_PYTH,
+      winnerHandle: handles?.[winner],
+      loserHandle: handles?.[loser],
+      tookUsd: take?.usd ? usd(take.usd) : null,
+      viewer: me === winner ? "winner" : me === loser ? "loser" : "other",
+    });
   } else if (d.status === STATUS_LIVE) {
     title = "Share the fight";
     text = `${t1} vs ${t2} is live on ${BRAND.name}. Watch it:`;

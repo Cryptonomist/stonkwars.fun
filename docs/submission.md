@@ -137,7 +137,7 @@ Meteora and Raydium pools, nine venues' public minute bars and Yahoo bars.
   counterparty, paid out in shares rather than cash, settled permissionlessly by
   anyone, and exposed as a standard Solana Action any client can take. The 24/7
   part exists only because the share is a token.
-- **Quality of execution.** 745 tests across three suites, every 24/7 price
+- **Quality of execution.** 751 tests across three suites, every 24/7 price
   published with a proof anyone can recompute, and the limits below stated in
   the app before anybody stakes.
 
@@ -252,7 +252,7 @@ took off Webster Financial, delisted when Santander bought it in August.
 - **15** program instructions, **3** ways for a stake to leave escrow, **0**
   admin instructions that can touch one; a platform fee capped at 5%, set to 0
 - **34** Rust unit tests · **41** LiteSVM tests against the built binary, with
-  real Ed25519 signatures · **670** web tests, counted from the runners on 19
+  real Ed25519 signatures · **676** web tests, counted from the runners on 19
   September · live end-to-end fights whose every on-chain price matched its
   source, asked again independently
 - **1** transaction to open a fight, **1** to take it, **0** to settle it: the

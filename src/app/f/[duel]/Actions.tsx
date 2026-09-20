@@ -431,7 +431,11 @@ export function Actions({
     });
   }
   if (d.status === STATUS_OPEN && !canTake && !isCreator && isInviteOnly(d) && !expired) {
-    hints.push({ title: `This one is for ${shortAddress(d.invitee.toBase58())}.`, body: "Only that wallet can take it." });
+    const invited = d.invitee.toBase58();
+    hints.push({
+      title: `This one is for ${handles?.[invited] ? `@${handles[invited]}` : shortAddress(invited)}.`,
+      body: "Only that wallet can take it.",
+    });
   }
   if (d.status === STATUS_OPEN && expired) {
     hints.push({ title: "This challenge expired.", body: "Nobody can take it now. The challenger can send the stake home." });
@@ -472,7 +476,7 @@ export function Actions({
       body: iLost
         ? "Same two stocks, double the stake, and you can take them back."
         : iFought
-          ? "They will want it back."
+          ? "You are up. Put it back on the line: the open seats are right below."
           : "Open the same fight yourself, at twice the stake.",
     });
   }

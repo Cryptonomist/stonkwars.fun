@@ -101,7 +101,7 @@ export function Leaderboard() {
   const ranked = useMemo(() => allRanked.filter((r) => !isSparWallet(r.wallet)), [allRanked]);
   const sparHidden = ranked.length < allRanked.length;
   const highlights = useMemo(() => highlightsByWallet(scoped, STAKE_DECIMALS), [scoped]);
-  const best = useMemo(() => records(scoped), [scoped]);
+  const best = useMemo(() => records(scoped, isSparWallet), [scoped]);
   const byAddress = useMemo(() => new Map((all ?? []).map((d) => [d.address.toBase58(), d])), [all]);
 
   const settled = scoped.filter((d) => d.status === STATUS_SETTLED).length;

@@ -314,7 +314,7 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
             className={cx(spectating ? "order-3" : "order-1", "lg:sticky lg:top-20 lg:z-10 lg:order-none")}
           />
           <ShareFight d={d} t1={t1} t2={t2} m1={m1} m2={m2} fresh={fresh} className="order-4 lg:order-none" />
-          <MoreFights address={address} now={now} className="order-6 lg:order-none" />
+          <MoreFights address={address} now={now} className={cx(finished ? "order-2" : "order-6", "lg:order-none")} />
         </aside>
       </div>
     </div>

@@ -455,7 +455,7 @@ export type Records = {
   longestStreak: { wallet: string; best: number } | null;
 };
 
-export function records(duels: DuelView[]): Records {
+export function records(duels: DuelView[], skipWallet?: (wallet: string) => boolean): Records {
   let closest: Records["closest"] = null;
   let biggestMove: Records["biggestMove"] = null;
   for (const d of duels) {
@@ -478,6 +478,8 @@ export function records(duels: DuelView[]): Records {
 
   let longestStreak: Records["longestStreak"] = null;
   for (const [wallet, r] of recordsByWallet(duels)) {
+    /* A wallet left off the ranks (the sparring wallet) holds no record either. */
+    if (skipWallet?.(wallet)) continue;
     if (r.best > 0 && (!longestStreak || r.best > longestStreak.best)) longestStreak = { wallet, best: r.best };
   }
   return { closest, biggestMove, longestStreak };
