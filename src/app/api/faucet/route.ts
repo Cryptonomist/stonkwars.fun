@@ -31,7 +31,7 @@ export const maxDuration = 60;
 
 /* TEST CLUSTERS ONLY. Tops a wallet up to about $250 of the test stocks it
  * asks for (the two in the fight it is about to make or take, usually), and to
- * 0.05 SOL, so someone with an empty wallet can fight within a minute.
+ * SOL_FLOOR, so someone with an empty wallet can fight within a minute.
  *
  * "Top up to", not "add": a second press gives nothing until the wallet has
  * spent some, which is the rate limit that survives a serverless restart. The
@@ -39,7 +39,18 @@ export const maxDuration = 60;
  * authority over TEST mints and nothing else. */
 
 const TARGET_USD = FAUCET_TARGET_USD;
-const SOL_FLOOR = 0.05 * LAMPORTS_PER_SOL;
+/* MEASURED, NOT GUESSED. Wallets that arrived, linked an X handle and fought
+ * once spent 0.00924 SOL on average and 0.01522 at worst, so the old 0.05
+ * floor left more than three quarters of every drip parked in a wallet that
+ * never spent it. At 0.025 the worst real case still has half again as much as
+ * it needed, and the same faucet balance reaches roughly twice as many people,
+ * which is what a recruiting push actually runs out of.
+ *
+ * Safe to cut because this tops a wallet UP TO the floor rather than adding:
+ * anyone who does run short is topped back up on the next press, ten seconds
+ * later, and the fight screen already offers them that button when their
+ * balance is short. */
+const SOL_FLOOR = 0.025 * LAMPORTS_PER_SOL;
 const MAX_STOCKS = 4;
 /** What a wallet gets when it does not say. Every one trades around the
  *  clock, so a first fight picked from them on an evening or a weekend starts
@@ -91,7 +102,7 @@ export async function POST(req: NextRequest) {
 
   /* A FRESH KEYPAIR COSTS NOTHING, so "top up to" limits a wallet and not a
    * person: a loop of new addresses could walk the faucet's SOL away during
-   * judging week, 0.05 at a time. Two fences, both in memory and so per server
+   * judging week, a drip at a time. Two fences, both in memory and so per server
    * instance, which is enough to turn a drain into a trickle: a page of ours
    * must be asking (a browser always sends Origin on a POST), and one address
    * on the internet gets a handful of wallets an hour. A judge needs one. */
