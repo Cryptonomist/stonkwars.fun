@@ -342,6 +342,56 @@ reads back the fee payer of every transaction that touched the duel.
 > A separate 95 second crawl, `stonkwars-crawl-16x9-v4.mp4`, is ready as a
 > teaser.
 
+### The re-cut, 21 September: three inserts, about 45 seconds
+
+The existing cut runs 2:04 and ends as though nobody had ever played it. Three
+inserts take it to about 2:49 and close on the one thing no other entry can
+copy: people showed up. Nothing else in the cut needs reshooting.
+
+**Check the numbers on the day you record.** Run
+`npx tsx scripts/submission-numbers.ts` and read the figures off it. They will
+have moved, and a number the chain contradicts is worse than no number.
+
+**Insert A, after the roster beat. The pre-IPO desk, about 16 seconds.**
+Screen: `/pre-ipo`, the seven cards, then an exhibition bout opening with
+OpenAI against NVDA and the price line moving.
+
+> *"Seven companies that have not listed yet trade here too. OpenAI, Anthropic,
+> Anduril. Their issuer can freeze them or move them out of your wallet, so we
+> never let you stake one. They fight exhibitions instead. Real prices, nothing
+> on the line."*
+
+**Insert B, straight after A. The trade desk, about 11 seconds.**
+Screen: a stock page, then the buy panel with a live Jupiter quote.
+
+> *"And every stock here links to the real token on mainnet, routed through
+> Jupiter. The fight and the thing it is about are one tap apart."*
+
+**Insert C, the new closer, about 18 seconds.** This goes immediately before
+the wordmark, so the last thing a judge hears is the leaderboard.
+Screen: the leaderboard scrolling real handles, holding long enough to read
+several, then the day's fight count.
+
+> *"This morning this was a demo with one name on the leaderboard. We posted
+> once, offering a token to anyone who linked their X and finished a fight. A
+> hundred and thirty-three fights later, sixty-five people have their handle on
+> chain beside their record."*
+
+Then the existing close: *"Your stock against theirs. Winner takes both. Stonk
+Wars."*
+
+**Say the reward out loud, exactly as insert C does.** The temptation is "and
+then people came", which is stronger for about four seconds and indefensible
+afterwards: the post is public, and a judge who finds the incentive behind an
+unqualified claim discounts the whole video. Naming it costs three seconds and
+buys the rest. It is also the more interesting sentence, because what the
+reward bought was attendance and what the chain recorded is what they did once
+they were there.
+
+**If the recording slips past 21 September**, change "this morning" to the
+right day and re-read the numbers. Do not leave a relative day in the voiceover
+and hope.
+
 Two rounds filmed at two different times, and the video says which is which out
 loud. Round one during market hours on Monday, where a real move makes a real
 result. Round two is the Saturday night round, where the point is not the size
