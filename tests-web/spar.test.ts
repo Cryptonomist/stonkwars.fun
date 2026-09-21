@@ -9,7 +9,7 @@ import { PublicKey } from "@solana/web3.js";
 
 import { STATUS_ACCEPTED, STATUS_OPEN } from "../src/lib/duel";
 import { nyToMs } from "../src/lib/market";
-import { planSeat, sparRefusal, sparRoundFor, SPAR_MAX_ROUND_SECS, SPAR_SEAT_PAIRS } from "../src/lib/spar";
+import { planSeat, sparRefusal, sparRoundFor, SPAR_MAX_ROUND_SECS, SPAR_OPEN_GRACE_SECS, SPAR_SEAT_PAIRS } from "../src/lib/spar";
 import { byTicker, mixedHoursAt, stakeAssetFor } from "../src/lib/stocks";
 
 const SPAR = PublicKey.unique();
@@ -24,6 +24,7 @@ const challenge = (over: Partial<Parameters<typeof sparRefusal>[0]> = {}) => ({
   expiresTs: NOW + 3_600,
   durationSecs: 900,
   endTs: 0,
+  createdTs: NOW,
   ...over,
 });
 
@@ -35,9 +36,35 @@ describe("the sparring wallet", () => {
     expect(SPAR_MAX_ROUND_SECS).to.equal(86_400);
   });
 
-  it("leaves alone what is not addressed to it, or open to anyone", () => {
+  it("leaves alone what is addressed to somebody else, however long it sits", () => {
     expect(sparRefusal(challenge({ invitee: PublicKey.unique() }), NOW, SPAR.toBase58())).to.match(/not addressed/);
-    expect(sparRefusal(challenge({ invitee: PublicKey.default }), NOW, SPAR.toBase58())).to.match(/not addressed/);
+    const old = challenge({ invitee: PublicKey.unique(), createdTs: NOW - 86_400 });
+    expect(sparRefusal(old, NOW, SPAR.toBase58())).to.match(/not addressed/);
+  });
+
+  /* A crowd arrived, made a challenge each and took none of each other's, so an
+   * open seat now gets two minutes for a person and is then swept up rather
+   * than left to rot. See SPAR_OPEN_GRACE_SECS. */
+  it("gives an open seat two minutes for a person, then takes it", () => {
+    const open = (age: number) => challenge({ invitee: PublicKey.default, createdTs: NOW - age });
+    expect(sparRefusal(open(0), NOW, SPAR.toBase58())).to.match(/somebody else's/);
+    expect(sparRefusal(open(SPAR_OPEN_GRACE_SECS - 1), NOW, SPAR.toBase58())).to.match(/somebody else's/);
+    expect(sparRefusal(open(SPAR_OPEN_GRACE_SECS), NOW, SPAR.toBase58())).to.equal(null);
+    expect(sparRefusal(open(3_600), NOW, SPAR.toBase58())).to.equal(null);
+  });
+
+  it("still never sweeps up one of its own open seats, whatever its age", () => {
+    const mine = challenge({ invitee: PublicKey.default, creator: SPAR, createdTs: NOW - 3_600 });
+    expect(sparRefusal(mine, NOW, SPAR.toBase58())).to.match(/own/);
+  });
+
+  it("holds every other rule against a swept-up open seat", () => {
+    const swept = (over: Partial<Parameters<typeof sparRefusal>[0]>) =>
+      sparRefusal(challenge({ invitee: PublicKey.default, createdTs: NOW - 3_600, ...over }), NOW, SPAR.toBase58());
+    expect(swept({ durationSecs: 0, endTs: NOW + 7_200 })).to.match(/24 hours/);
+    expect(swept({ durationSecs: SPAR_MAX_ROUND_SECS + 1 })).to.match(/24 hours/);
+    expect(swept({ expiresTs: NOW })).to.match(/expired/);
+    expect(swept({ status: STATUS_ACCEPTED })).to.match(/not open/);
   });
 
   it("never takes its own challenge, a taken or expired one, one longer than a day, or a fixed-end round", () => {

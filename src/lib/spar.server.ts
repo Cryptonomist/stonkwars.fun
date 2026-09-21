@@ -54,6 +54,9 @@ import { byTicker, CLUSTER, mixedHoursAt, stakeAssetFor, STAKEABLE, tickerForMin
 /** SOL the sparring wallet keeps for fees and the token accounts a take opens. */
 const SOL_FLOOR = 0.05 * LAMPORTS_PER_SOL;
 
+/** Challenges it will take in one pass. See the note in sparTick. */
+const TAKES_PER_TICK = 4;
+
 export type SparResult = { duel: string; ok: true; signature: string } | { duel: string; ok: false; skipped: string };
 
 function keyFrom(raw: string | undefined, name: string): Keypair | null {
@@ -302,9 +305,15 @@ export async function sparTick(
     }
   }
 
+  /* FOUR A TICK, NOT TWO. Two was a guard against a failing take spending in a
+   * loop, and it held while the only challenges it saw were addressed to it.
+   * Now that it sweeps up open seats as well (SPAR_OPEN_GRACE_SECS) a busy
+   * morning hands it a backlog, and at two a minute the ones at the back go
+   * stale before it reaches them. The loop below still stops at the first
+   * failure, so a bad minute costs four attempts and not a wallet. */
   const takes: SparResult[] = [];
-  const addressed = open.filter((d) => !sparRefusal(d, now, spar)).sort((a, b) => a.expiresTs - b.expiresTs);
-  for (const d of addressed.slice(0, 2)) takes.push(await takeForSpar(conn, d, keys));
+  const takeable = open.filter((d) => !sparRefusal(d, now, spar)).sort((a, b) => a.expiresTs - b.expiresTs);
+  for (const d of takeable.slice(0, TAKES_PER_TICK)) takes.push(await takeForSpar(conn, d, keys));
 
   const seats: SeatResult[] = [];
   const mine = open.filter((d) => d.creator.toBase58() === spar && !isInviteOnly(d));

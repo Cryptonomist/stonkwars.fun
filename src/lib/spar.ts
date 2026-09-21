@@ -52,18 +52,40 @@ export const SPAR_WALLET: string | null = CLUSTER === "devnet" ? parse(process.e
 
 export const isSparWallet = (wallet: string | null | undefined): boolean => !!SPAR_WALLET && wallet === SPAR_WALLET;
 
+/* HOW LONG AN OPEN CHALLENGE IS LEFT FOR A PERSON.
+ *
+ * It used to take only challenges addressed to it, and leave open ones alone
+ * on the reasoning that an open seat is a visitor's to take. That held while
+ * the only people here were the ones who built it. The first morning a crowd
+ * arrived it broke in the obvious way: they linked X, made a challenge each,
+ * and sat looking at a board where nothing happened, because everybody was
+ * making challenges and nobody was taking them. Fights sat open for twenty
+ * minutes and their makers left.
+ *
+ * So it still leaves an open challenge alone for two minutes, which is a
+ * person's chance to take it, and then it takes it rather than let it rot. A
+ * fight against the sparring wallet is disclosed as one and kept off the
+ * ranks; a fight that never started is worth nothing to anybody. */
+export const SPAR_OPEN_GRACE_SECS = 120;
+
 /** Why the sparring wallet would not take this challenge now, or null when it
  *  would. The market-hours rule is checked separately, with mixedHoursAt, at
  *  the moment of the take. Pure, so the route and the tests agree. */
 export function sparRefusal(
-  d: Pick<DuelView, "status" | "invitee" | "creator" | "expiresTs" | "durationSecs" | "endTs">,
+  d: Pick<DuelView, "status" | "invitee" | "creator" | "expiresTs" | "durationSecs" | "endTs" | "createdTs">,
   now: number,
   spar: string,
 ): string | null {
   if (d.status !== STATUS_OPEN) return "not open";
   if (d.expiresTs <= now) return "expired";
-  if (!isInviteOnly(d as DuelView) || d.invitee.toBase58() !== spar) return "not addressed to the sparring wallet";
+  /* Before the invitee, so its own seats are named as its own rather than as
+   * an open seat it is waiting to sweep. */
   if (d.creator.toBase58() === spar) return "its own challenge";
+  if (isInviteOnly(d as DuelView)) {
+    if (d.invitee.toBase58() !== spar) return "not addressed to the sparring wallet";
+  } else if (now - Number(d.createdTs) < SPAR_OPEN_GRACE_SECS) {
+    return "an open seat, still somebody else's to take";
+  }
   if (!d.durationSecs || d.durationSecs > SPAR_MAX_ROUND_SECS) return "timed rounds up to 24 hours only";
   return null;
 }
