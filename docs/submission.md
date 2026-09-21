@@ -2,7 +2,9 @@
 
 Everything the form asks for, in one place. Hackathon: Stocklana, "something
 innovative with stocks on Solana". Submissions close **Friday 25 September 2026,
-4:00pm ET** (extended from the 18th). Judging runs through 2 October.
+3:00 PM**, as the countdown on the submission form itself states. This document
+said 4:00pm ET until 21 September, from research rather than from the form; the
+form is the authority and it is an hour earlier. Judging runs through 2 October.
 
 **Tracks: Main, PreStocks, Pyth.** See "Sponsor tracks" below for why those
 three, and why not Tessera, Meteora or Clawpump.
