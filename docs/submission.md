@@ -563,15 +563,24 @@ counts print themselves rather than reading them out.
 
 Settled with the owner on 13 September:
 
-1. **Repository stays private.** No published rule requires a public repo, and
-   the rules ask only for *at least one* link among GitHub, live demo or video.
-   The live demo and the two videos carry the entry. Judges are unnamed
-   Foundation appointees who cannot be granted access in advance, so the GitHub
-   link is worth nothing to them while the repo is private. Either accept that
-   and lean on the demo, or make it public before Friday. The code carries no
-   secrets (`.env*`, `keys/` and program keypairs are ignored), and the history
-   was scanned on every branch on 18 September: no key file, keypair array or
-   secret value was ever committed.
+1. **Repository is public. Reversed on 21 September**, because the form has a
+   GitHub field and a private link shows a judge a 404, which is worse than an
+   empty one. The history was scanned again that day across all 225 commits and
+   all four remote branches (`main`, `research/247-trading`,
+   `research/native-wallet`, `spike/privy-wallet`):
+
+   - no `.env`, `keys/` or `.pem` file has ever been committed, on any branch
+   - no 64-number array, which is the shape of a Solana keypair, appears anywhere
+   - every `api-key` value in the history is a placeholder: `SECRET` and
+     `abcdef123456`, both in tests
+   - no `PYTH_API_KEY`, `*_SECRET_KEY` or `CRON_SECRET` was ever committed with
+     a real value. `.env.example` carries only public defaults: the devnet RPC,
+     localhost and the Hermes URL
+   - the only long base58 runs in the whole history are two npm integrity
+     hashes in `package-lock.json`
+
+   `.gitignore` covers `.env*`, `keys/` and `*.pem`. Every script reads keys
+   from `.env.local` or `keys/`, never from source.
 2. **Author.** Solo, @crypt0nomist. The form invites teammates by platform
    username and has no field for an X handle, so it goes in the description.
 3. **How AI was used.** No rule requires disclosure and there is no field for
@@ -603,9 +612,13 @@ Still to do:
   and the form saves drafts, so filing a complete entry as soon as the demo link
   is stable removes the deadline risk entirely. Videos can land after.
 - **Pick the tracks: Main, PreStocks, Pyth.** Not Tessera, Meteora or Clawpump.
-- **Decide on the repo.** Make it public, or leave the GitHub field empty. A
-  private link shows judges a 404.
+- **Record the two videos**, and paste their URLs into the links page. They are
+  the only fields the entry cannot fill today.
+
 Done since:
+
+- **The repo is public. 21 September**, after a clean scan of all 225 commits
+  and all four branches. See Decisions.
 
 - **Real people fighting. 21 September.** One post brought 133 fights in a day
   and 65 X handles onto the leaderboard. See "Who used it".
