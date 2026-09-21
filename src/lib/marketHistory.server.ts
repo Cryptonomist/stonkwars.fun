@@ -22,6 +22,7 @@ async function batch(symbols: string[]): Promise<Map<string, number[]>> {
   const r = await fetch(`${SPARK}?symbols=${symbols.map(encodeURIComponent).join(",")}&range=1mo&interval=1d`, {
     headers: { "user-agent": "Mozilla/5.0 (compatible; stonkwars/1.0)" },
     cache: "no-store",
+    signal: AbortSignal.timeout(6_000),
   });
   if (!r.ok) throw new Error(`market data HTTP ${r.status}`);
   const body = (await r.json()) as { spark?: { result?: SparkResult[] } };

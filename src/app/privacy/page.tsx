@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalPage, Section } from "@/components/Legal";
+import { pageMeta } from "@/lib/pageMeta";
 
-export const metadata: Metadata = {
-  title: "Privacy",
-  description: "What Stonk Wars collects, which is close to nothing, and what the blockchain makes public forever.",
-};
+export const metadata: Metadata = pageMeta(
+  "Privacy",
+  "What Stonk Wars collects, which is close to nothing, and what the blockchain makes public forever.",
+  "/privacy",
+);
 
 export default function Privacy() {
   return (

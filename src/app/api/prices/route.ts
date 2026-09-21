@@ -70,5 +70,12 @@ export async function GET(req: NextRequest) {
   }
 
   const body: Quotes = { quotes, at: Math.floor(now / 1000), ...(error && !Object.keys(quotes).length ? { error } : {}) };
-  return NextResponse.json(body, { status: Object.keys(quotes).length || !error ? 200 : 503 });
+  const ok = Object.keys(quotes).length > 0 || !error;
+  return NextResponse.json(body, {
+    status: ok ? 200 : 503,
+    /* Shared at the edge for five seconds: every visitor on a board asks for the
+     * same sorted ticker list (lib/prices.ts), and these numbers are for the
+     * screen, never an input to a fight. A failure is never cached. */
+    headers: ok ? { "cache-control": "public, s-maxage=5, stale-while-revalidate=10" } : { "cache-control": "no-store" },
+  });
 }

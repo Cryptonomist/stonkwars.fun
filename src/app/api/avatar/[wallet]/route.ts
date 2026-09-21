@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ wal
   if (!url) return none(404);
 
   try {
-    const res = await fetch(url, { cache: "no-store", redirect: "error" });
+    const res = await fetch(url, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000) });
     const type = res.headers.get("content-type") ?? "";
     if (!res.ok || !/^image\/(jpeg|png|webp|gif)$/.test(type)) return none(404);
     const body = await res.arrayBuffer();

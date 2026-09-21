@@ -84,7 +84,7 @@ async function xstocks(): Promise<Listing[]> {
     }
     if (!body.page?.hasNextPage) break;
   }
-  if (!out.length) throw new Error("answered, but no Solana mints in it — the shape has moved");
+  if (!out.length) throw new Error("answered, but no Solana mints in it: the shape has moved");
   return out;
 }
 
@@ -255,7 +255,7 @@ async function main() {
 
   /* The other direction: a token the snapshot has that its issuer no longer
    * publishes. It has been delisted, wound down, or halted, and the roster
-   * should stop offering new fights on it. Only for issuers that answered —
+   * should stop offering new fights on it. Only for issuers that answered:
    * a list that failed to load has not dropped anything. */
   const answered = new Set(SOURCES.map((s) => s.issuer).filter((i) => !broke.some((b) => b.startsWith(`${i}:`))));
   const published = new Set(listings.map((l) => l.mint));
@@ -289,7 +289,7 @@ async function main() {
       for (const v of hold) say(`  ${v.listing.underlying.padEnd(8)} ${v.listing.issuer.padEnd(11)} ${v.why}`);
     }
     if (emptied.length) {
-      say(`\nwound down — dropped from the issuer's list and no supply left (${emptied.length}):`);
+      say(`\nwound down: dropped from the issuer's list and no supply left (${emptied.length}):`);
       for (const t of emptied.slice(0, 15)) say(`  ${t.underlying.padEnd(8)} ${t.issuer.padEnd(11)} ${t.mint}`);
       if (emptied.length > 15) say(`  ...and ${emptied.length - 15} more`);
       say(`  These should stop taking new fights. Open ones still settle.`);

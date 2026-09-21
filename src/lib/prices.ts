@@ -27,7 +27,7 @@ export function usePrices(tickers: (string | null | undefined)[], refetchMs = 5_
     queryKey: ["prices", key],
     queryFn: async () => {
       if (!list.length) return { quotes: {}, at: Math.floor(Date.now() / 1000) };
-      const r = await fetch(`/api/prices?t=${encodeURIComponent(key)}`, { cache: "no-store" });
+      const r = await fetch(`/api/prices?t=${encodeURIComponent(key)}`);
       const body = (await r.json()) as Quotes;
       if (!r.ok) return { quotes: {}, at: Date.now() / 1000, error: body.error ?? `HTTP ${r.status}` };
       return body;

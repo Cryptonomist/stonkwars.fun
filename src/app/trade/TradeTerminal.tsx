@@ -144,7 +144,7 @@ export function TradeTerminal({ ticker, side }: { ticker: string; side: Side }) 
               <FlashNum value={price} className="num text-num-lg font-semibold text-ink">
                 {usd(price)}
               </FlashNum>
-            ) : prices.isError ? (
+            ) : prices.isError || prices.data?.error || (prices.data && !quote) ? (
               <p className="text-sm text-dim">No price right now</p>
             ) : (
               <Skeleton className="h-6 w-28" />

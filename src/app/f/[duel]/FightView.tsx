@@ -209,6 +209,11 @@ function Arena({ d, now, quotes, fresh }: { d: DuelView; now: number; quotes?: Q
 
   return (
     <div className="py-6">
+      {/* The arena's big type is two tickers, not a heading, so the page had no
+        * h1 for a screen reader or a search engine to call it by. */}
+      <h1 className="sr-only">
+        {t1} vs {t2}
+      </h1>
       {beforeBell && now ? (
         <Scoreboard t1={t1} t2={t2} m1={m1} m2={m2} endTs={d.endTs} now={now} roundSecs={Math.max(60, d.endTs - d.startTs)} />
       ) : null}

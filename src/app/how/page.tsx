@@ -8,8 +8,13 @@ import { AROUND_THE_CLOCK, ROSTER } from "@/lib/stocks";
 import { ContentsDetails, ContentsRail, type Contents } from "./OnThisPage";
 import { WhySolana } from "./WhySolana";
 import { WorkedExample } from "./WorkedExample";
+import { pageMeta } from "@/lib/pageMeta";
 
-export const metadata: Metadata = { title: "How it works" };
+export const metadata: Metadata = pageMeta(
+  "How it works",
+  "How a Stonk Wars fight works: stake shares of your stock against someone else's, and the bigger percentage move by the bell takes both. The rules, a worked example and where every price comes from.",
+  "/how",
+);
 
 /* THE RULES, IN THE ORDER A NEWCOMER NEEDS THEM.
  *

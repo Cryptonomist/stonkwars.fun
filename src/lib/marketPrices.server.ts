@@ -32,6 +32,8 @@ import { withPrev, type Quote } from "@/lib/pricemath";
 import { byFeed, quoteSymbolFor, type Stock } from "@/lib/stocks";
 
 const SPARK = "https://query1.finance.yahoo.com/v7/finance/spark";
+/** How long any one market data source gets before it counts as down. */
+const UPSTREAM_MS = 6_000;
 const HYPERLIQUID = "https://api.hyperliquid.xyz/info";
 const PER_REQUEST = 20;
 const EXPO = -4;
@@ -51,6 +53,9 @@ async function sparkBatch(symbols: string[]): Promise<Map<string, { price: numbe
   const r = await fetch(`${SPARK}?symbols=${symbols.map(encodeURIComponent).join(",")}&range=5d&interval=1d`, {
     headers: { "user-agent": "Mozilla/5.0 (compatible; stonkwars/1.0)" },
     cache: "no-store",
+    /* A stalled upstream is a failed one. Without this, fetch waits five
+     * minutes for headers and the route hangs until the platform kills it. */
+    signal: AbortSignal.timeout(UPSTREAM_MS),
   });
   if (!r.ok) throw new Error(`market data HTTP ${r.status}`);
   const body = (await r.json()) as { spark?: { result?: SparkResult[] } };
@@ -180,7 +185,7 @@ async function extendedBatch(
 ): Promise<Map<string, { price: number; time: number; close?: number }>> {
   const r = await fetch(
     `${SPARK}?symbols=${symbols.map(encodeURIComponent).join(",")}&range=1d&interval=1m&includePrePost=true`,
-    { headers: { "user-agent": "Mozilla/5.0 (compatible; stonkwars/1.0)" }, cache: "no-store" },
+    { headers: { "user-agent": "Mozilla/5.0 (compatible; stonkwars/1.0)" }, cache: "no-store", signal: AbortSignal.timeout(UPSTREAM_MS) },
   );
   if (!r.ok) throw new Error(`market data HTTP ${r.status}`);
   const body = (await r.json()) as { spark?: { result?: MinuteSpark[] } };
@@ -244,6 +249,7 @@ async function perpMids(dex: string): Promise<Record<string, number>> {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(dex ? { type: "allMids", dex } : { type: "allMids" }),
     cache: "no-store",
+    signal: AbortSignal.timeout(UPSTREAM_MS),
   });
   if (!r.ok) throw new Error(`perp mids HTTP ${r.status}`);
   return parseAllMids(await r.json());

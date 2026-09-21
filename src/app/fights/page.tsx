@@ -5,11 +5,13 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SkeletonRows } from "@/components/ui/Skeleton";
 
 import { FightsBoard } from "./FightsBoard";
+import { pageMeta } from "@/lib/pageMeta";
 
-export const metadata: Metadata = {
-  title: "Fights",
-  description: "Every stock fight on chain: rounds live now, open challenges, and results by day.",
-};
+export const metadata: Metadata = pageMeta(
+  "Fights",
+  "Every stock fight on chain: rounds live now, open challenges, and results by day.",
+  "/fights",
+);
 
 /* The tab and the filters live in the query string, and reading it opts the
  * board out of static rendering up to this boundary. The fallback is the

@@ -28,7 +28,6 @@ import { toast } from "@/components/ui/Toast";
 import { readableProgramError } from "@/lib/duel";
 import { sendAndConfirm } from "@/lib/send";
 import { byPreTicker } from "@/lib/prestocks";
-import { mainnetStockToken } from "@/lib/swapPairs";
 import { CLUSTER, tokenSymbol } from "@/lib/stocks";
 import { DEFAULT_SLIPPAGE_BPS, SLIPPAGE_CHOICES, type PayWith, type QuoteResponse, type Side } from "@/lib/swap";
 import { useHoldings } from "@/lib/useHoldings";
@@ -60,8 +59,6 @@ export function TradePanel({
   const onMainnet = CLUSTER === "mainnet-beta";
   /* A private company: no exchange, no faucet, and never stakeable. */
   const preIpo = byPreTicker(ticker);
-  /* The real token behind this ticker on mainnet, for the buy link below. */
-  const realMint = mainnetStockToken(ticker)?.mint ?? null;
   const { connection } = useConnection();
   const { publicKey, signTransaction } = useWallet();
   const qc = useQueryClient();
@@ -105,6 +102,12 @@ export function TradePanel({
     retry: false,
   });
   const s = quote.data?.summary;
+  /* THE REAL TOKEN'S MINT, FROM THE QUOTE ALREADY ON SCREEN. This used to be
+   * looked up in lib/swapPairs.ts, whose own first line says "server and tests
+   * only": it carries the whole mainnet token list, and importing it here put
+   * 230 kB of data into every page with a ticket, to build one link. The quote
+   * names the same mint: what is bought on a buy, what is sold on a sell. */
+  const realMint = quote.data ? (side === "buy" ? quote.data.quote.outputMint : quote.data.quote.inputMint) : null;
 
   const inputSymbol = side === "buy" ? pay : symbol;
   const chips = useMemo(() => {

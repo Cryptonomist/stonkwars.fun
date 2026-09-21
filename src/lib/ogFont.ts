@@ -8,10 +8,10 @@ export async function loadGoogleFont(family: string, weight: number, text: strin
     const url = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&text=${encodeURIComponent(
       Array.from(new Set(text)).join(""),
     )}`;
-    const css = await (await fetch(url, { cache: "force-cache" })).text();
+    const css = await (await fetch(url, { cache: "force-cache", signal: AbortSignal.timeout(3_000) })).text();
     const src = css.match(/src: url\((.+?)\) format\('(opentype|truetype)'\)/);
     if (!src) return null;
-    const font = await fetch(src[1], { cache: "force-cache" });
+    const font = await fetch(src[1], { cache: "force-cache", signal: AbortSignal.timeout(3_000) });
     return font.ok ? await font.arrayBuffer() : null;
   } catch {
     return null;

@@ -95,5 +95,5 @@ export function sinceLastVisit(
   return out
     .sort((a, b) => b.at - a.at)
     .slice(0, DIGEST_MAX)
-    .map(({ at: _at, ...n }) => n);
+    .map((n) => ({ id: n.id, title: n.title, tone: n.tone, href: n.href }));
 }

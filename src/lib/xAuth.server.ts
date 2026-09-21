@@ -98,6 +98,7 @@ export async function readProfile(
 ): Promise<XProfile> {
   const res = await fetch(TOKEN, {
     method: "POST",
+    signal: AbortSignal.timeout(8_000),
     headers: {
       "content-type": "application/x-www-form-urlencoded",
       authorization: `Basic ${Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString("base64")}`,
@@ -118,6 +119,7 @@ export async function readProfile(
   const me = await fetch(`${ME}?user.fields=profile_image_url`, {
     headers: { authorization: `Bearer ${token.access_token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(8_000),
   });
   if (!me.ok) throw new Error(`X would not say who you are (HTTP ${me.status})`);
   const body = (await me.json()) as { data?: { id?: string; username?: string; profile_image_url?: string } };

@@ -24,10 +24,9 @@ export const maxDuration = 30;
  * source, so a chart can show where the market changed hands.
  *
  * Only US listings: session() models New York's hours and nobody else's.
- * Ranges are capped at six hours of minutes, and reach back no further than the
- * minute bars do. */
+ * How far a range may reach is set per bar size (lib/chart.ts STEPS), and never
+ * further back than the minute bars do. */
 
-const MAX_RANGE_SECS = 6 * 3_600;
 /** A daily bar covers whole sessions, so it comes from the exchange alone. */
 const DAILY = 86_400;
 /** A range that ended this long ago has every minute final. */

@@ -20,6 +20,13 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
 
+  /* lib/stocks.ts picks one cluster's token list and relies on the bundler to
+   * drop the other two, which it can only do when this is known at build time.
+   * A machine without the variable set used to ship all three lists (about
+   * 95 kB gzipped of dead data on every page). */
+  env: { NEXT_PUBLIC_CLUSTER: process.env.NEXT_PUBLIC_CLUSTER ?? "devnet" },
+
+
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },

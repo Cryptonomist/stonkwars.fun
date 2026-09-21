@@ -7,8 +7,13 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { DEVNET_SITE, FIGHTS_LIVE } from "@/lib/deployment";
 
 import { CreateFight } from "./CreateFight";
+import { pageMeta } from "@/lib/pageMeta";
 
-export const metadata: Metadata = { title: "Pick a fight" };
+export const metadata: Metadata = pageMeta(
+  "Pick a fight",
+  "Pick your stock and the one it beats, set the stake and the round, and send the link. Whoever takes it stakes the other side.",
+  "/new",
+);
 
 /* The ticket reads its fighters from the link (useSearchParams), so the page
  * renders in the browser and the server sends only this. It is the page's own

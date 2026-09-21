@@ -22,6 +22,8 @@ import {
   decodeProfile,
   decodeXClaim,
   PROGRAM_ID,
+  STATUS_REFUNDED,
+  STATUS_SETTLED,
   type DuelView,
 } from "@/lib/duel";
 import { sendAndConfirm } from "@/lib/send";
@@ -42,7 +44,13 @@ export function useDuel(address: PublicKey | null, refetchMs = 3_000) {
       if (!info || !info.owner.equals(PROGRAM_ID)) return null;
       return decodeDuel(address!, info.data);
     },
-    refetchInterval: refetchMs,
+    /* SETTLED and REFUNDED are terminal in the program, so a finished fight is
+     * read once more and then left alone: 20 reads a minute, for as long as a
+     * shared K.O. link sat open, on an account that can never change. */
+    refetchInterval: (q) => {
+      const status = q.state.data?.status;
+      return status === STATUS_SETTLED || status === STATUS_REFUNDED ? false : refetchMs;
+    },
   });
   useSettlerNudge(query.data);
   return query;

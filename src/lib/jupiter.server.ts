@@ -33,6 +33,9 @@ export class JupiterError extends Error {
   }
 }
 
+/** A quote or a build that takes longer than this is not worth waiting for. */
+const JUPITER_MS = 8_000;
+
 export async function jupQuote(o: {
   inputMint: string;
   outputMint: string;
@@ -47,7 +50,7 @@ export async function jupQuote(o: {
   url.searchParams.set("slippageBps", String(o.slippageBps));
   url.searchParams.set("swapMode", "ExactIn");
   if (o.platformFeeBps > 0) url.searchParams.set("platformFeeBps", String(o.platformFeeBps));
-  const res = await fetch(url, { headers: headers(), cache: "no-store" });
+  const res = await fetch(url, { headers: headers(), cache: "no-store", signal: AbortSignal.timeout(JUPITER_MS) });
   const body = (await res.json().catch(() => ({}))) as JupiterQuote & { error?: string };
   if (!res.ok || body.error) throw new JupiterError(body.error ?? `Jupiter quote failed (HTTP ${res.status})`, res.status);
   return body;
@@ -56,6 +59,7 @@ export async function jupQuote(o: {
 export async function jupSwap(o: { quote: JupiterQuote; user: string; feeAccount: string | null }) {
   const res = await fetch(`${HOST}/swap/v1/swap`, {
     method: "POST",
+    signal: AbortSignal.timeout(JUPITER_MS),
     headers: { ...headers(), "content-type": "application/json" },
     body: JSON.stringify({
       quoteResponse: o.quote,

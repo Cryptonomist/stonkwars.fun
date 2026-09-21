@@ -105,7 +105,7 @@ export function ShareFight({
       toast.push({ title: "Could not copy.", body: "The link is in the address bar." });
       return;
     }
-    navigator.clipboard.writeText(url).then(
+    navigator.clipboard.writeText(postUrl).then(
       () => toast.push({ title: "Link copied", check: true }),
       () => toast.push({ title: "Could not copy.", body: "The link is in the address bar." }),
     );
@@ -139,6 +139,7 @@ export function ShareFight({
             height={630}
             loading="lazy"
             onLoad={() => setLoaded(true)}
+            onError={() => setLoaded(true)}
             className={cx(
               "relative block h-full w-full transition-opacity duration-300 motion-reduce:transition-none",
               loaded ? "opacity-100" : "opacity-0",

@@ -49,7 +49,9 @@ export function useReceipt(d: DuelView | null | undefined) {
       }
       return { events, noHistory: false };
     },
-    refetchInterval: final ? false : 15_000,
+    /* The key carries the status, so a change of status is a fresh read. Between
+     * changes nothing new can be on the fight, so there is no timer. */
+    refetchInterval: false,
     staleTime: final ? Infinity : 10_000,
   });
 }

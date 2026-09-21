@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalPage, Section } from "@/components/Legal";
+import { pageMeta } from "@/lib/pageMeta";
 
-export const metadata: Metadata = {
-  title: "Terms",
-  description: "What Stonk Wars is, what it is not, and what you take on by using it.",
-};
+export const metadata: Metadata = pageMeta(
+  "Terms",
+  "What Stonk Wars is, what it is not, and what you take on by using it.",
+  "/terms",
+);
 
 export default function Terms() {
   return (
