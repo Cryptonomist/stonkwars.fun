@@ -316,7 +316,7 @@ full list is the better line anyway: it sounds like a lot, because it is.
 Screen: a stock page, then the buy panel with a live Jupiter quote.
 
 > *"And every stock here links to the real token on mainnet, routed through
-> Jupiter. The fight and the thing it is about are one tap apart."*
+> Jupiter. Back it in a fight, then go and buy it. One tap."*
 
 **Insert C, the new closer, about 18 seconds.** This goes immediately before
 the wordmark, so the last thing a judge hears is the leaderboard.
