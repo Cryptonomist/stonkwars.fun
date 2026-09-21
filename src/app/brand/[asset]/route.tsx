@@ -8,8 +8,8 @@
  *                      kept clear of the bottom-left corner the profile
  *                      picture covers on desktop
  *
- * The directions that were not chosen live at /brand/lab/<name>/<asset>; the
- * earlier arcade header with its sun is /brand/lab/arcade/banner.png.
+ * The directions that were not chosen are in the repository's history
+ * (lib/brandLab.tsx, removed before the repo went public).
  */
 
 import { battleBanner, markPfp } from "@/lib/brandArt";

@@ -185,3 +185,10 @@ NEXT_PUBLIC_CLUSTER=localnet NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8899 RPC_URL=h
 ## Disclaimer
 
 Stonk Wars is a demonstration of peer-to-peer escrow on Solana. Nothing here is financial, investment, gambling or legal advice.
+
+## License
+
+MIT, see [LICENSE](LICENSE). That covers this repository's code. The logos in
+`public/integrations` belong to their owners and are shown under each owner's
+brand terms (sources in `src/lib/integrations.ts`); the tokenized stocks are
+their issuers' products.

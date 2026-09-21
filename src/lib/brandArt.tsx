@@ -4,9 +4,7 @@
  * The header is the arcade title screen: two fighters, two health bars, a
  * round clock and a coin slot that takes shares. The profile picture is the
  * mark from lib/palette.ts on its cabinet ground.
- *
- * Shared with lib/brandLab.tsx, which renders the alternatives that were not
- * chosen. */
+ */
 
 import { ImageResponse } from "next/og";
 import type { CSSProperties, ReactElement } from "react";
