@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ClosingSoon } from "@/components/ClosingSoon";
+import { FaucetButton } from "@/components/FaucetButton";
 import { LiveBoard } from "@/components/LiveBoard";
 import { MainEvent } from "@/components/MainEvent";
 import { LiveNowLink } from "@/components/MarketBadge";
@@ -77,8 +78,11 @@ export default function Home() {
             * second copy up here cost the first screen a fight row. */}
           {/* Shares come before a stake, and nothing on this page said where to
             * get them. The desk is one tap from here and from the nav. */}
+          {/* Named for what is there: on devnet nothing is bought or sold (the
+            * shares are free, from the header's faucet button), so "Buy or sell"
+            * promised a step that does not exist. */}
           <Link href="/trade" className="btn btn-ghost hidden shrink-0 sm:inline-flex">
-            Buy or sell
+            {CLUSTER === "mainnet-beta" ? "Buy shares" : "Trade desk"}
           </Link>
           <Link href="/new" className="btn btn-primary hidden shrink-0 sm:inline-flex">
             Pick a fight
@@ -144,19 +148,40 @@ export default function Home() {
           </Plate>
 
           <Plate as="section" pad="std" className="flex flex-col gap-3" aria-labelledby="trade-cta">
+            {/* WHAT A NEWCOMER NEEDS BEFORE A FIGHT, SAID FOR THE NETWORK THEY ARE ON.
+              * This card read "Own the shares first ... buy a stock with USDC or
+              * SOL, sell what you hold", with Buy and Sell buttons. On devnet
+              * nobody can buy anything: the shares are free from the faucet, so
+              * it sent a first-time visitor to the wrong step, and "sell what you
+              * hold" is a trading desk's phrase on a page about fights. It now
+              * says what a stake is and hands over the actual next step. */}
             <p id="trade-cta" className="h-section">
-              Own the shares first
+              {CLUSTER === "mainnet-beta" ? "Get shares to fight with" : "Free shares to fight with"}
             </p>
-            <p className="text-sm text-dim">
-              Buy a stock with USDC or SOL, sell what you hold, and stake it in a fight. Your wallet, your shares.
-            </p>
+            {CLUSTER === "mainnet-beta" ? (
+              <p className="text-sm text-dim">
+                You fight with shares of the stock you back. Buy them here with USDC or SOL; they stay in your own wallet
+                until you put them in a fight.
+              </p>
+            ) : (
+              <p className="text-sm text-dim">
+                You fight with shares of the stock you back. Here they are free test shares: one tap and they are in your
+                wallet. The trade desk shows what the real ones cost.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
-              <Link href="/trade" className="btn btn-sm btn-light">
-                Buy stocks
-              </Link>
-              <Link href="/trade?side=sell" className="btn btn-sm btn-ghost">
-                Sell
-              </Link>
+              {CLUSTER === "mainnet-beta" ? (
+                <Link href="/trade" className="btn btn-sm btn-light">
+                  Buy shares
+                </Link>
+              ) : (
+                <>
+                  <FaucetButton label="Get free test shares" light />
+                  <Link href="/trade" className="btn btn-sm btn-ghost">
+                    See the trade desk
+                  </Link>
+                </>
+              )}
             </div>
           </Plate>
 

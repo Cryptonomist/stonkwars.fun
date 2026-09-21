@@ -62,6 +62,7 @@ export function FaucetButton({
   className = "",
   compact = false,
   primary = false,
+  light = false,
   tickers,
   label,
 }: {
@@ -69,6 +70,8 @@ export function FaucetButton({
   compact?: boolean;
   /** The next step on the page: a full-size light button instead of a small ghost one. */
   primary?: boolean;
+  /** Small, but the light plate rather than the ghost: the first step on a card. */
+  light?: boolean;
   /** The stocks to top up; the server's starter set when absent. */
   tickers?: string[];
   label?: string;
@@ -80,7 +83,7 @@ export function FaucetButton({
       onClick={drip}
       disabled={busy}
       aria-busy={busy || undefined}
-      className={cx("btn", primary ? "btn-light" : "btn-sm btn-ghost", compact && "px-2", className)}
+      className={cx("btn", primary ? "btn-light" : light ? "btn-sm btn-light" : "btn-sm btn-ghost", compact && "px-2", className)}
     >
       {busy ? "Minting..." : (label ?? (compact ? "Faucet" : "Get test shares"))}
     </button>
