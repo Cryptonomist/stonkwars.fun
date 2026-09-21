@@ -189,7 +189,7 @@ export function WalletButton({ className = "" }: { className?: string }) {
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="truncate text-sm font-semibold text-ink">Continue with X</span>
-        <span className="text-meta text-dim">Fight under your X name and picture, then pick a wallet.</span>
+        <span className="text-meta text-dim">Fight under your X name and picture. No wallet needed, we make you one.</span>
       </span>
     </a>
   );

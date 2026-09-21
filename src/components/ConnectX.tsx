@@ -20,7 +20,7 @@
  * who is cyan in one fight and pink in the next, and linking X is not taking a
  * side. `compact` is the one-line version for a profile or under a board. */
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -34,6 +34,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Sheet } from "@/components/ui/Sheet";
 import { toast } from "@/components/ui/Toast";
 import { buildUnlinkHandle, decodeProfile, isHandle, profilePda, readableProgramError } from "@/lib/duel";
+import { GuestWalletName } from "@/lib/guestWallet";
 import { useProfiles } from "@/lib/hooks";
 import { sendAndConfirm } from "@/lib/send";
 import { CLUSTER } from "@/lib/stocks";
@@ -121,9 +122,14 @@ function XLinkSheetInner() {
   const params = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const { connected, connecting } = useWallet();
+  const { connected, connecting, publicKey, select } = useWallet();
   const { sign, busy, error } = useLinkX();
   const [choosing, setChoosing] = useState(false);
+  /* Set when someone presses the one button: make a wallet, then link, without
+   * a second press in between. */
+  const [finishing, setFinishing] = useState(false);
+  const started = useRef(false);
+  const guestOffered = CLUSTER !== "mainnet-beta";
 
   const waiting = params.get("x") === "sign" ? params.get("handle") : null;
   const failed = params.get("x") === "error" ? params.get("message") : null;
@@ -141,6 +147,34 @@ function XLinkSheetInner() {
     toast.push({ title: "X sign-in did not finish.", body: failed.slice(0, 160) });
     clear();
   }, [failed, clear]);
+
+  /* THE ONE PRESS. A newcomer arrives here straight from X with no wallet at
+   * all, and used to be handed a wallet picker: choose, come back, press again.
+   * The guest wallet connects by itself once selected (autoConnect), so the
+   * moment it does, finish the link. useLinkX funds the new wallet from the
+   * faucet on the way through, so the whole of "wallet, funds, handle on chain"
+   * happens on one press.
+   *
+   * The ref, not `busy`, guards it: `busy` flips a tick after signing starts,
+   * which is long enough for another render to start a second signature. */
+  useEffect(() => {
+    if (!finishing || !connected || !publicKey || started.current) return;
+    started.current = true;
+    void (async () => {
+      const ok = await sign();
+      started.current = false;
+      setFinishing(false);
+      if (ok) clear();
+    })();
+  }, [finishing, connected, publicKey, sign, clear]);
+
+  /* If the wallet never connects (an adapter that fails quietly), give the
+   * button back rather than leaving it spinning forever. */
+  useEffect(() => {
+    if (!finishing || connected) return;
+    const id = setTimeout(() => setFinishing(false), 20_000);
+    return () => clearTimeout(id);
+  }, [finishing, connected]);
 
   /* Choosing a wallet opens the Connect sheet, so this one steps aside until a
    * wallet connects, or for a short while if the picker is closed without one. */
@@ -164,7 +198,9 @@ function XLinkSheetInner() {
           X says you are <span className="font-semibold">@{waiting}</span>.{" "}
           {connected
             ? "Sign with your wallet to show your handle and X picture beside your record."
-            : "Pick the wallet that fights as you, then sign."}
+            : guestOffered
+              ? "One press makes you a wallet, puts free test shares and SOL in it, and shows your handle and X picture beside your record."
+              : "Pick the wallet that fights as you, then sign."}
         </p>
         <p className="text-meta text-dim">
           It is written on chain in public and stays in the chain&apos;s history. The oracle has signed to say X vouched
@@ -191,18 +227,34 @@ function XLinkSheetInner() {
               {busy ? "Signing..." : `Put @${waiting} on chain`}
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setChoosing(true);
-                requestConnect();
-              }}
-              className="btn btn-sm btn-light"
-            >
-              Choose a wallet
-            </button>
+            <>
+              {guestOffered ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFinishing(true);
+                    select(GuestWalletName);
+                  }}
+                  disabled={busy || finishing}
+                  className="btn btn-sm btn-light"
+                >
+                  {busy || finishing ? "Setting you up..." : `Fight as @${waiting}`}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  setChoosing(true);
+                  requestConnect();
+                }}
+                disabled={busy || finishing}
+                className={guestOffered ? "btn btn-sm btn-ghost" : "btn btn-sm btn-light"}
+              >
+                {guestOffered ? "Use my own wallet" : "Choose a wallet"}
+              </button>
+            </>
           )}
-          <button type="button" onClick={clear} disabled={busy} className="btn btn-sm btn-ghost">
+          <button type="button" onClick={clear} disabled={busy || finishing} className="btn btn-sm btn-ghost">
             Not now
           </button>
         </div>
