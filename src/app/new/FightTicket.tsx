@@ -65,6 +65,8 @@ export type FightTicketProps = {
   onInviteOpen: (open: boolean) => void;
   inviteError: string | null;
   inviteValid: boolean;
+  /** The handle the invited wallet has linked on chain, when it has one. */
+  inviteName?: string | null;
   pricesError: boolean;
   /** What the connected wallet holds of its own stock, and its worth now; null
    *  with no wallet or before the balance is read. */
@@ -222,15 +224,17 @@ export function FightTicket(t: FightTicketProps) {
           </span>
           Call someone out
           {!t.inviteOpen && t.inviteValid ? (
-            <span className="num min-w-0 truncate text-meta text-dim">{t.sparring ? "Sparring wallet" : shortAddress(t.invite.trim())}</span>
+            <span className="num min-w-0 truncate text-meta text-dim">
+              {t.sparring ? "Sparring wallet" : (t.inviteName ?? shortAddress(t.invite.trim()))}
+            </span>
           ) : null}
         </summary>
         <div className="mt-2">
           <input
             value={t.invite}
             onChange={(e) => t.onInvite(e.target.value)}
-            placeholder="Their wallet address"
-            aria-label="Their wallet address"
+            placeholder="@theirhandle or a wallet address"
+            aria-label="Their X handle or wallet address"
             aria-invalid={t.inviteError ? true : undefined}
             aria-describedby="ticket-invite-help"
             autoComplete="off"
@@ -249,7 +253,13 @@ export function FightTicket(t: FightTicketProps) {
             ) : t.sparring ? (
               "The sparring wallet takes timed challenges addressed to it, up to 24 hours, from its own wallet, within seconds while this page is open. The fight is real and settles like any other; it is left off the ranks."
             ) : (
-              "Only that wallet can take it. Leave it empty and anyone with the link can."
+              <>
+                {t.inviteName && t.inviteValid ? (
+                  <span className="text-ink">Found {t.inviteName}. </span>
+                ) : null}
+                Only that wallet can take it. A handle works once they have linked X here. Leave it empty and anyone
+                with the link can.
+              </>
             )}
           </p>
         </div>

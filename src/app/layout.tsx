@@ -4,6 +4,7 @@ import { Big_Shoulders, Big_Shoulders_Stencil, Geist, Geist_Mono } from "next/fo
 import { BottomNav } from "@/components/BottomNav";
 import { CommandPalette } from "@/components/CommandPalette";
 import { XLinkSheet } from "@/components/ConnectX";
+import { CalledOutBanner } from "@/components/CalledOutBanner";
 import { FightWatcher } from "@/components/FightWatcher";
 import { NetworkStrip } from "@/components/NetworkStrip";
 import { Providers } from "@/components/Providers";
@@ -70,6 +71,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {/* Which of the two deployments this is, and where the other half of
             * the product lives. Renders nothing when there is no sibling. */}
           <NetworkStrip />
+          {/* A challenge naming the connected wallet, on every page until it is
+            * answered. Nothing without a wallet, and nothing when nobody has. */}
+          <CalledOutBanner />
           {/* The phone's bottom bar is fixed over the end of the page. Its
             * height is reserved once, under the footer (see SiteFooter), since
             * the footer always follows main: reserving it here as well would

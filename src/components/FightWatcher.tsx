@@ -81,7 +81,14 @@ export function FightWatcher() {
       said.current.add(n.id);
       markTold([n.id]);
       if (open && n.href === `/f/${open}`) continue;
-      toast.push({ title: n.title, tone: n.tone, href: n.href, hrefLabel: "Open the fight" });
+      const called = n.id.endsWith(":called");
+      toast.push({
+        title: n.title,
+        tone: n.tone,
+        href: n.href,
+        hrefLabel: called ? "Answer it" : "Open the fight",
+        ...(called ? { ttlMs: 0 } : {}),
+      });
     }
   }, [data, me, pathname]);
 

@@ -44,7 +44,8 @@ import { Tabs } from "@/components/ui/Tabs";
 import { TxButton } from "@/components/ui/TxButton";
 import { cx } from "@/components/ui/cx";
 import { requestConnect } from "@/components/ui/intents";
-import { useRegistrySources, useSend, useTokenBalance } from "@/lib/hooks";
+import { calloutError, resolveCallout } from "@/lib/callout";
+import { useProfiles, useRegistrySources, useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, randomSeed } from "@/lib/duel";
 import { FAUCET_TARGET_USD, faucetWouldTopUp } from "@/lib/faucet";
 import { etShort, etTime, hm, shares, span, usd } from "@/lib/format";
@@ -280,15 +281,14 @@ export function CreateFight() {
   const safeStake = Math.max(1, Math.floor(topUpHelps ? reachUsd * 0.96 : reachUsd));
   const beyondFaucet = testCluster && (short || noAccount) && dollars > reachUsd;
 
-  let inviteKey: PublicKey | undefined;
-  let inviteError: string | null = null;
-  if (invite.trim()) {
-    try {
-      inviteKey = new PublicKey(invite.trim());
-    } catch {
-      inviteError = "That is not a Solana address.";
-    }
-  }
+  /* A wallet address, or the X handle of a wallet that has linked one: people
+   * know each other's handles, not their keys (lib/callout.ts). What goes on
+   * chain is the wallet either way. */
+  const profiles = useProfiles();
+  const callout = resolveCallout(invite, profiles.data);
+  const inviteKey: PublicKey | undefined = callout.kind === "wallet" ? new PublicKey(callout.wallet) : undefined;
+  const inviteError: string | null = calloutError(callout, !profiles.isLoading);
+  const inviteName = callout.kind === "wallet" && callout.handle ? `@${callout.handle.replace(/^@/, "")}` : null;
 
   /* A challenge for the sparring wallet (lib/spar.ts) must be a round it
    * takes, or it would sit untaken; the other round chips are switched off
@@ -655,6 +655,7 @@ export function CreateFight() {
             onInviteOpen={setInviteOpen}
             inviteError={inviteError}
             inviteValid={!!inviteKey}
+            inviteName={inviteName}
             pricesError={pricesError}
             held={held}
             onSpar={spar}
