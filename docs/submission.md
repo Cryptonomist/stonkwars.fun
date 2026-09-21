@@ -263,9 +263,16 @@ account, and that account's claim names the same wallet back. It costs an X
 account rather than a keypair. So 53 is the floor under how many real people
 fought, and 102 the ceiling.
 
-Nobody was paid to turn up, the shares are free test shares, and the sparring
-wallet is disclosed wherever it appears, kept off the ranks, and excluded from
-every figure above.
+**They were recruited, and that is said out loud.** The post offered a token
+reward to anyone who linked X and finished a fight, so this is not organic
+discovery and the submission does not claim it is. What the reward bought was
+attendance; what happened after they arrived is on chain and real, which is the
+part these figures measure. Stating it is also the safer position: a judge who
+found the incentive behind an unqualified "nobody was paid" would rightly
+discount everything else on this page.
+
+The shares are free test shares, and the sparring wallet is disclosed wherever
+it appears, kept off the ranks, and excluded from every figure above.
 
 The day shows in the shape of the data rather than the total alone. The ten
 days to 20 September run 18, 9, 2, 7, 12, 10, 7, 4, 1, 3: one developer
