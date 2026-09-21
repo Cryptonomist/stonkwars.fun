@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 
-import { byTicker, STAKEABLE } from "@/lib/stocks";
+import { byTicker, CLUSTER, STAKEABLE } from "@/lib/stocks";
 import type { Side } from "@/lib/swap";
 
 import { TradeTerminal } from "./TradeTerminal";
 
 export const metadata: Metadata = {
   title: "Trade",
-  description: "Buy and sell tokenized stocks on Solana, in your own wallet, and stake them in a fight.",
+  description:
+    CLUSTER === "mainnet-beta"
+      ? "Buy and sell tokenized stocks on Solana, in your own wallet, and stake them in a fight."
+      : "Live prices and charts for every tokenized stock on Solana. Free test shares to fight with, and the way to buy the real token in your own wallet.",
 };
 
 /** /trade?t=TSLA&side=sell opens on that stock, on that side. */

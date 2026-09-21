@@ -76,8 +76,8 @@ export function PreIpoDesk({ initial }: { initial: string }) {
         <h1 className="h-page text-ink">The companies that have not listed yet</h1>
         <p className="max-w-prose text-sm text-dim">
           OpenAI, Anthropic and Neuralink have no ticker and no exchange, so there is no bell for them to close at.
-          PreStocks issues tokens that track them, and those trade on Solana every hour of every day. You can buy them
-          here in your own wallet, at live routed quotes rather than an index.
+          PreStocks issues tokens that track them, and those trade on Solana every hour of every day. The prices here
+          are live routed quotes rather than an index, and each one links to where you can buy it in your own wallet.
         </p>
       </Plate>
 

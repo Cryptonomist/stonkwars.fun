@@ -32,6 +32,7 @@ import { createPortal } from "react-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 
 import { IntradayChart } from "@/app/s/[ticker]/IntradayChart";
+import { FaucetButton } from "@/components/FaucetButton";
 import { Move } from "@/components/Ticker";
 import { TradePanel } from "@/components/TradePanel";
 import { Badge } from "@/components/ui/Badge";
@@ -239,7 +240,13 @@ export function TradeTerminal({ ticker, side }: { ticker: string; side: Side }) 
 
       {wide === false ? (
         <>
-          <TradeBar hidden={sheet !== null} symbol={symbol} onBuy={() => setSheet("buy")} onSell={() => setSheet("sell")} />
+          <TradeBar
+            hidden={sheet !== null}
+            ticker={picked}
+            symbol={symbol}
+            onBuy={() => setSheet("buy")}
+            onSell={() => setSheet("sell")}
+          />
           <Sheet
             open={sheet !== null}
             onClose={() => setSheet(null)}
@@ -283,7 +290,7 @@ function Holdings({
           </div>
         ) : held.length === 0 ? (
           <p className="px-3 py-3 text-sm text-dim">
-            No tokenized stocks yet. {CLUSTER === "mainnet-beta" ? "Buy some here." : "Get free test shares from Buy."}
+            No tokenized stocks yet. {CLUSTER === "mainnet-beta" ? "Buy some here." : "Get free test shares from the ticket."}
           </p>
         ) : (
           held.map((h) => (
@@ -293,9 +300,16 @@ function Holdings({
                 {shares(h.raw, h.decimals)} <span className="normal-case">{tokenSymbol(h.ticker)}</span>
               </span>
               <span className="num shrink-0 text-meta text-ink">{h.usd === null ? "" : usd(h.usd)}</span>
-              <button type="button" onClick={() => onSell(h.ticker)} className="btn btn-sm btn-ghost shrink-0">
-                Sell
-              </button>
+              {/* Test shares cannot be sold; what they are for is a fight. */}
+              {CLUSTER === "mainnet-beta" ? (
+                <button type="button" onClick={() => onSell(h.ticker)} className="btn btn-sm btn-ghost shrink-0">
+                  Sell
+                </button>
+              ) : (
+                <Link href={`/new?p1=${h.ticker}`} className="btn btn-sm btn-ghost shrink-0">
+                  Fight with it
+                </Link>
+              )}
             </div>
           ))
         )}
@@ -310,11 +324,13 @@ function Holdings({
  * same two buttons grown up. */
 function TradeBar({
   hidden,
+  ticker,
   symbol,
   onBuy,
   onSell,
 }: {
   hidden: boolean;
+  ticker: string;
   symbol: string;
   onBuy: () => void;
   onSell: () => void;
@@ -326,18 +342,31 @@ function TradeBar({
     <>
       <div
         role="region"
-        aria-label={`Buy or sell ${symbol}`}
+        aria-label={CLUSTER === "mainnet-beta" ? `Buy or sell ${symbol}` : `Get test ${symbol}, or see its real price`}
         hidden={hidden}
         className="rope on-panel-2 fixed inset-x-0 z-35 bg-panel-2 shadow-overlay"
         style={{ bottom: "calc(var(--bottom-nav-h) + env(safe-area-inset-bottom))" }}
       >
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
-          <button type="button" onClick={onBuy} aria-haspopup="dialog" className="btn btn-buy flex-1">
-            Buy <span className="normal-case">{symbol}</span>
-          </button>
-          <button type="button" onClick={onSell} aria-haspopup="dialog" className="btn btn-ghost flex-1">
-            Sell
-          </button>
+          {CLUSTER === "mainnet-beta" ? (
+            <>
+              <button type="button" onClick={onBuy} aria-haspopup="dialog" className="btn btn-buy flex-1">
+                Buy <span className="normal-case">{symbol}</span>
+              </button>
+              <button type="button" onClick={onSell} aria-haspopup="dialog" className="btn btn-ghost flex-1">
+                Sell
+              </button>
+            </>
+          ) : (
+            /* On devnet the thumb gets what is true: the free shares, and the
+             * ticket with the real price and the way to the real token. */
+            <>
+              <FaucetButton tickers={[ticker]} label={`Get test ${symbol}`} primary className="flex-1 normal-case" />
+              <button type="button" onClick={onBuy} aria-haspopup="dialog" className="btn btn-ghost flex-1">
+                Real price
+              </button>
+            </>
+          )}
         </div>
       </div>
       {hidden ? null : <div aria-hidden="true" className="h-16" />}

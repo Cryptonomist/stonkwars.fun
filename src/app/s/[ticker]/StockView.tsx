@@ -464,7 +464,7 @@ function Header({
             Fight against it
           </Link>
           <a href="#trade" className="btn btn-ghost col-span-2 min-h-11 px-3 text-sm whitespace-nowrap sm:px-6 sm:text-base">
-            Buy or sell
+            {CLUSTER === "mainnet-beta" ? "Buy or sell" : "Get shares"}
           </a>
         </div>
       ) : (
