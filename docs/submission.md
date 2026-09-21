@@ -137,7 +137,7 @@ Meteora and Raydium pools, nine venues' public minute bars and Yahoo bars.
   counterparty, paid out in shares rather than cash, settled permissionlessly by
   anyone, and exposed as a standard Solana Action any client can take. The 24/7
   part exists only because the share is a token.
-- **Quality of execution.** 786 tests across three suites, every 24/7 price
+- **Quality of execution.** 795 tests across three suites, every 24/7 price
   published with a proof anyone can recompute, and the limits below stated in
   the app before anybody stakes.
 
@@ -150,11 +150,16 @@ stuck on the one step that trips people up:
 > devnet first** (Phantom: Settings, Developer Settings, turn on Testnet Mode,
 > then choose Solana Devnet, not Solana Testnet), then
 > open https://stonkwars.fun, press Take on any open seat, press "Get test" for
-> free shares and fee SOL, and press "Take it". No wallet? Pick "Guest wallet".
-> A wallet left on mainnet still lands the fight on devnet, but may warn that
-> the transaction will fail, because it simulates on the wrong network. Rounds
-> are 15 minutes during US market hours and 12 hours outside them; the Main
-> Event on the front page is a finished fight with its full receipt.
+> free shares and fee SOL, and press "Take it". No wallet? Pick "Guest wallet"
+> and the site makes you one in the browser. A wallet left on mainnet still
+> lands the fight on devnet, but may warn that the transaction will fail,
+> because it simulates on the wrong network. Rounds are 15 minutes during US
+> market hours and 12 hours outside them; the Main Event on the front page is a
+> finished fight with its full receipt.
+>
+> If you would rather make your own fight than take one, do that instead:
+> somebody will take it within two minutes, because the disclosed sparring
+> wallet sweeps up a seat nobody has claimed. Nothing you start is left sitting.
 
 The Phantom steps were checked against Phantom's own help page, "Turn on devnet
 or testnet mode in Phantom" (help.phantom.com), on 19 September.
@@ -232,6 +237,38 @@ the stock page, the pool venue named per company, a sparring wallet that keeps
 eight seats open, and a check of every roster stock against its exchange, which
 took off Webster Financial, delisted when Santander bought it in August.
 
+## Who used it
+
+The question asked of any consumer app is whether people will actually use it.
+On **21 September**, after one post, the answer landed on chain, where a judge
+can recount every figure below from the program's own accounts.
+
+| | |
+|---|---|
+| Fights created that day | **133** |
+| Fights created on each of the ten days before it | 1 to 18 |
+| Fights finished, all time | **193** |
+| Wallets with a finished fight | 102 |
+| X handles linked in both directions | **65** |
+| Named people with a finished fight | **53** |
+| Finished fights with a named person on *both* sides | 19 |
+| Fights settled on the Pyth path | 11 |
+
+**Why the handle count is the honest number.** A wallet is free and proves
+nothing; one person can make a hundred. A handle counts here only when the link
+points both ways, which is the program's own rule: the profile names an X
+account, and that account's claim names the same wallet back. It costs an X
+account rather than a keypair. So 53 is the floor under how many real people
+fought, and 102 the ceiling.
+
+Nobody was paid to turn up, the shares are free test shares, and the sparring
+wallet is disclosed wherever it appears, kept off the ranks, and excluded from
+every figure above.
+
+The day shows in the shape of the data rather than the total alone. The ten
+days to 20 September run 18, 9, 2, 7, 12, 10, 7, 4, 1, 3: one developer
+testing. Then 133.
+
 ## Numbers
 
 - **1,031** stocks and ETFs, screened from 1,345 issuer tokens across 7
@@ -252,7 +289,7 @@ took off Webster Financial, delisted when Santander bought it in August.
 - **15** program instructions, **3** ways for a stake to leave escrow, **0**
   admin instructions that can touch one; a platform fee capped at 5%, set to 0
 - **34** Rust unit tests · **41** LiteSVM tests against the built binary, with
-  real Ed25519 signatures · **711** web tests, counted from the runners on 19
+  real Ed25519 signatures · **720** web tests, counted from the runners on 21
   September · live end-to-end fights whose every on-chain price matched its
   source, asked again independently
 - **1** transaction to open a fight, **1** to take it, **0** to settle it: the
@@ -568,8 +605,11 @@ Still to do:
 - **Pick the tracks: Main, PreStocks, Pyth.** Not Tessera, Meteora or Clawpump.
 - **Decide on the repo.** Make it public, or leave the GitHub field empty. A
   private link shows judges a 404.
-- **Get real people fighting this week.** Friends from CT, with their X handles
-  on the leaderboard, answer "will people actually use it" better than anything
-  else that can be built in a week.
-- **Run a VOO fight during market hours** if one has not yet gone end to end on
-  the Pyth path; it is the Pyth track's main claim.
+Done since:
+
+- **Real people fighting. 21 September.** One post brought 133 fights in a day
+  and 65 X handles onto the leaderboard. See "Who used it".
+- **A VOO fight end to end on the Pyth path. 21 September**, 11:34 to 11:50 ET,
+  at `HuSnJ3MMyoDimAmsCFx4SZMXNbeEpkdQKK4Qv8FxeSxt`, settled against a Pyth
+  update verified on chain against the Wormhole guardians. Eleven Pyth fights
+  have now settled in total.
