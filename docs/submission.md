@@ -29,7 +29,7 @@ so in that order, as the home page and the video already do.
 | Program (devnet) | `Hxr3N4cSJXTzPqiaUrdnKKyYSzMrAPkrGk5MzJhazc3D` |
 | Oracle (devnet) | `EoFpiFFsSodkwam5bx2zugSgioxmK5CCcxyc3bZCpAzy` |
 | Settler (devnet) | `7UoQ9CBJTomyTBHpYVivjKrTghWe8N4vCSj7gE7yHVyY` (the crank wallet; every unattended settlement pays from it) |
-| Repository | https://github.com/Cryptonomist/stonkwars.fun (private; see Decisions) |
+| Repository | https://github.com/Cryptonomist/stonkwars.fun (public since 21 September, after a clean history scan; see Decisions) |
 | Wedge | Consumer: social trading (1v1 stock fights), on 24/7 pricing |
 | Author | @crypt0nomist, solo |
 
@@ -42,88 +42,34 @@ a public receipt anyone can check.
 
 ## Long description
 
-> **Budget: 4,818 characters.** The form's Full Description field is reported to
-> be a 5,000 character hard cap that truncates silently. That cap is a research
-> finding rather than something confirmed against the live form, so check it
-> before pasting. There are 182 characters of headroom.
-> `python3 scripts/description-budget.py` counts this section and the short one.
+> **This is the text in the form, verbatim, at 5,000 of 5,000 characters.**
+> The field's cap is real and was confirmed against the live form on 21
+> September: it counts as you type. Recount with
+> `~/sw-scripts/count-desc.sh` before changing a word, because there is no
+> headroom left at all.
 
-**The problem.** Every group chat has the argument: *NVDA eats TSLA this week.*
-There has never been a way to settle it. A brokerage cannot hold a bet between
-two friends, a sportsbook will not take one on a stock, and a prediction market
-needs a market maker and an order book for a two-person grudge.
+**The problem.** Every group chat has the argument: *NVDA eats TSLA this week.* There has never been a way to settle it. A brokerage cannot hold a bet between two friends, a sportsbook will not take one on a stock, and a prediction market needs a market maker and an order book for a two-person grudge.
 
-**What Stonk Wars does.** Tokenized stocks make it one transaction. The
-challenger stakes shares of the stock they back and names the stock it beats;
-whoever takes the fight stakes the same dollar value of that one. The stock
-with the bigger percentage move takes both stakes, paid out as shares. Only
-tokenized stocks make that possible: nobody hands a friend "my Tesla shares" at
-a brokerage.
 
-**Fights that do not wait for a bell.** This is the part that could not exist
-off chain. 45 tokenized stocks fight 24/7/365 on real markets, with a public
-receipt anyone can check. Every other stock fights the moment its market opens.
-We never invent a price. In market hours the price is the stock's own market,
-4am to 8pm New York time. Outside them it is the median of the one-minute
-closes of up to nine public venues that trade the stock around the clock,
-perpetual futures and tokenized shares, from Hyperliquid and OKX to Binance and
-Lighter.
+**What Stonk Wars does.** Tokenized stocks make it one transaction. The challenger stakes shares of the stock they back and names the stock it beats; whoever takes the fight stakes the same dollar value of that one. The stock with the bigger percentage move takes both stakes, paid out as shares. Only tokenized stocks make that possible: nobody hands a friend "my Tesla shares" at a brokerage.
 
-A median is only as honest as its inputs, so we measured before trusting any.
-A stock gets the badge only if three venues with real volume traded it within
-15 minutes through 90% of a weekend's minutes, each checked against the share
-itself; that caught one venue's CL, crude oil where ours is Colgate-Palmolive.
-Then we attacked the rule. Even corrected for each venue's premium, one venue
-could tip a third of some stock's 15-minute rounds but at most 2.6% of 12-hour
-ones, so a round priced this way runs at least 12 hours and a shorter one waits
-for the open. Every composite price's proof, venue by venue with a sha256, is
-on the fight's receipt.
+**People turned up.** On 21 September one post, offering a token reward for linking X and finishing a fight, brought **133 fights in a day** against 1 to 18 on each of the ten days before. 193 fights have finished, 102 wallets have won or lost one, and **65 linked an X handle on chain**, 53 with a finished fight. The reward is stated because it is the honest reading: the crowd was recruited, and what they did on arrival is real and on chain. A wallet is free; a handle costs an X account, so 53 is the floor under how many people fought. The sparring wallet is excluded throughout.
 
-**Every tokenized stock.** We pulled every issuer's token list, read each mint's
-Token-2022 extensions on chain, and kept what a program can escrow: 1,345 issuer
-tokens down to 1,031 stocks and ETFs, including 80 listed in Hong Kong and
-London, each checked as still trading on its exchange, which caught a bank
-delisted in August. Allowlist-only tokens, whose accounts start frozen, are
-left out and the page says why.
+**Fights that do not wait for a bell.** This could not exist off chain. 45 tokenized stocks fight 24/7/365 on real markets, with a public receipt anyone can check. Every other stock fights the moment its market opens. We never invent a price. In market hours the price is the stock's own market, 4am to 8pm New York. Outside them it is the median of the one-minute closes of up to nine public venues trading it around the clock, from Hyperliquid and OKX to Binance and Lighter.
 
-**Companies that have not listed yet.** OpenAI, Anthropic and five more private
-companies trade here as PreStocks tokens, around the clock. Their issuer can
-move any holder's tokens, pause transfers and change a transfer fee, so they are
-never staked. Instead they fight exhibition bouts: OpenAI against NVDA over the
-same window, real pool prices, nothing staked and nothing on chain. Every stock
-page also links to the real token on mainnet through Jupiter.
+A median is only as honest as its inputs, so we measured before trusting any. A stock gets the badge only if three venues with real volume traded it within 15 minutes through 90% of a weekend's minutes, each checked against the share itself; that caught one venue's CL, crude oil where ours is Colgate-Palmolive. Then we attacked it: even corrected for each venue's premium, one venue could tip a third of a stock's 15-minute rounds but at most 2.6% of its 12-hour ones, so such a round runs at least 12 hours. Every composite price's proof, venue by venue with a sha256, is on the receipt.
 
-**Why nobody can rig it.** Each stock has one price authority, frozen onto every
-fight at creation. VOO is priced by Pyth updates verified on Solana against
-Wormhole guardian signatures, taking only the unique first price at or after
-each boundary, and its page shows Pyth's own confidence band. Every other stock
-is priced by the Stonk Wars oracle, signed off chain and checked on chain by
-Solana's Ed25519 program in the same transaction. The oracle is trusted about
-the market and the app says so; it cannot touch a stake, and every quote it
-signs is public. The winner is decided by cross-multiplying integer prices, so
-nothing rounds. Settling is permissionless. Stakes sit in accounts owned by the
-fight's own PDA and leave by exactly three paths. No admin instruction can
-touch one; the only deduction is a platform fee capped at 5% in the program,
-set to 0.
+**Every tokenized stock.** We pulled every issuer's token list, read each mint's Token-2022 extensions on chain, and kept what a program can escrow: 1,345 issuer tokens down to 1,031 stocks and ETFs, including 80 listed in Hong Kong and London, each checked as still trading, which caught a bank delisted in August. Allowlist-only tokens, whose accounts start frozen, are left out.
 
-**Your name on your wins.** Connecting X writes your handle beside your wallet
-on chain, and it takes two signatures: yours, proving the wallet, and the
-oracle's, which the server adds only after X's own sign-in named the handle.
-Neither is worth anything alone, so nobody can hang a stranger's name on their
-record or their own name on a stranger's wallet. The leaderboard needs no
-database: it reads profiles from the chain like everything else.
+**Companies that have not listed yet.** OpenAI, Anthropic and five more private companies trade here as PreStocks tokens, around the clock. Their issuer can move any holder's tokens, pause transfers and change a fee, so they are never staked. Instead they fight exhibition bouts: OpenAI against NVDA over the same window, real pool prices, nothing staked. Every stock page links to the real token on mainnet through Jupiter.
 
-**Built for the trenches.** The front page is a board, not a pitch: a live tape,
-what is in the ring, what is moving, who is winning. A fight link unfurls on X
-as a VS card, and every fight is a standard Solana Action any client can take.
-The fight page plays like a fighting game, over numbers
-that are real: every price lands as a hit, a run of them is a combo, the bell
-is a knockout. A guest wallet and a faucet put a stranger in a fight within a
-minute, no extension and no SOL.
+**Why nobody can rig it.** Each stock has one price authority, frozen onto every fight at creation. VOO is priced by Pyth updates verified on Solana against Wormhole guardian signatures, taking only the unique first price at or after each boundary, and its page shows Pyth's confidence band. Every other stock is priced by the Stonk Wars oracle, signed off chain and checked on chain by Solana's Ed25519 program in the same transaction. That oracle is trusted about the market and the app says so; it cannot touch a stake, and every quote is public. Winners are decided by cross-multiplying integer prices, so nothing rounds, and settling is permissionless. Stakes sit in the fight's own PDA accounts and leave by exactly three paths; no admin instruction can touch one, and the only deduction is a platform fee capped at 5%, set to 0.
 
-Built on Anchor, Pyth and Wormhole, Helius, Jupiter, Solana's Ed25519 program
-and LiteSVM, over xStocks', Ondo's, Backpack's and PreStocks' own token lists,
-Meteora and Raydium pools, nine venues' public minute bars and Yahoo bars.
+**Your name on your wins.** Connecting X writes your handle beside your wallet on chain, and it takes two signatures: yours, proving the wallet, and the oracle's, which the server adds only after X's sign-in named the handle. Neither is worth anything alone, so nobody can wear a stranger's name. The leaderboard needs no database: it reads profiles from the chain.
+
+**Built for the trenches.** The front page is a board, not a pitch: a live tape, what is in the ring, what is moving, who is winning. A fight link unfurls on X as a VS card, and every fight is a standard Solana Action any client can take. The fight page plays like a fighting game over real numbers: every price lands as a hit, a run is a combo, the bell is a knockout. A guest wallet and a faucet put a stranger in a fight within a minute, no extension and no SOL.
+
+Built on Anchor, Pyth, Wormhole, Helius, Jupiter and Solana's Ed25519 program, over seven issuers' token lists, Meteora and Raydium pools, and nine venues' bars.
 
 ## Against the four things judges look for
 
@@ -342,24 +288,29 @@ reads back the fee payer of every transaction that touched the duel.
 > A separate 95 second crawl, `stonkwars-crawl-16x9-v4.mp4`, is ready as a
 > teaser.
 
-### The re-cut, 21 September: three inserts, about 45 seconds
+### The re-cut, 21 September: three inserts, about 49 seconds
 
 The existing cut runs 2:04 and ends as though nobody had ever played it. Three
-inserts take it to about 2:49 and close on the one thing no other entry can
+inserts take it to about 2:53 and close on the one thing no other entry can
 copy: people showed up. Nothing else in the cut needs reshooting.
 
 **Check the numbers on the day you record.** Run
 `npx tsx scripts/submission-numbers.ts` and read the figures off it. They will
 have moved, and a number the chain contradicts is worse than no number.
 
-**Insert A, after the roster beat. The pre-IPO desk, about 16 seconds.**
-Screen: `/pre-ipo`, the seven cards, then an exhibition bout opening with
-OpenAI against NVDA and the price line moving.
+**Insert A, after the roster beat. The pre-IPO desk, about 20 seconds.**
+Screen: `/pre-ipo`, the seven cards, cut in one per name so the picture and the
+list stay together, then an exhibition bout opening with OpenAI against NVDA
+and the price line moving.
 
-> *"Seven companies that have not listed yet trade here too. OpenAI, Anthropic,
-> Anduril. Their issuer can freeze them or move them out of your wallet, so we
-> never let you stake one. They fight exhibitions instead. Real prices, nothing
-> on the line."*
+> *"Seven companies that have not listed yet trade here too. OpenAI. Anthropic.
+> Neuralink. Polymarket. Kalshi. Figure AI. Anduril. Their issuer can freeze
+> them or move them out of your wallet, so we never let you stake one. They
+> fight exhibitions instead. Real prices, nothing on the line."*
+
+All seven are named rather than three. Saying "seven" and then listing three
+either reads as though those are the seven, or leaves four unexplained. The
+full list is the better line anyway: it sounds like a lot, because it is.
 
 **Insert B, straight after A. The trade desk, about 11 seconds.**
 Screen: a stock page, then the buy panel with a live Jupiter quote.
