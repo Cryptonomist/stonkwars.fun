@@ -2,9 +2,22 @@
 //!
 //! The one account type we need is parsed by hand. It is small, its layout is
 //! fixed by the receiver's IDL, every byte of it is checked below, and the
-//! dependency tree stays at what Anchor already pulls in. (When this was
-//! written `pyth-solana-receiver-sdk` stopped at Anchor 0.31; its 2.0 release
-//! supports Anchor 1.x. The parser stayed: it is smaller and fully tested.)
+//! dependency tree stays at what Anchor already pulls in: `anchor-lang` and
+//! `anchor-spl`, nothing else.
+//!
+//! WHY NOT THE SDK, GIVEN IT NOW FITS. `pyth-solana-receiver-sdk` 2.0.0 (June
+//! 2026) takes `anchor-lang ^1.0.2`, so it would build against this program.
+//! The parser stays, and the crate's own history is the argument: it has moved
+//! its Anchor requirement three times in about a year, `>=0.28.0` to `^0.32.1`
+//! to `^1.0.2`, each one a breaking bump for anything depending on it. This
+//! file sat through all three without a line changing, because an account
+//! layout fixed by a deployed program does not churn the way a dependency
+//! graph does. Revisit if Pyth ever changes PriceUpdateV2 itself, which is the
+//! one event that flips the argument.
+//!
+//! This is about the on-chain side only. Off chain we use Pyth's own SDKs:
+//! `@pythnetwork/hermes-client` to fetch an update and
+//! `@pythnetwork/pyth-solana-receiver` to post it.
 //!
 //! ```text
 //! PriceUpdateV2 (Borsh, after the 8-byte discriminator)
