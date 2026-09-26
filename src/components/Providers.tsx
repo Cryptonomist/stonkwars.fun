@@ -19,17 +19,24 @@
  * key on the server; see app/api/rpc/route.ts.
  */
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { clusterApiUrl } from "@solana/web3.js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { captureEarnoutTag } from "@/lib/earnout";
 import { GuestWalletAdapter } from "@/lib/guestWallet";
 import { CLUSTER } from "@/lib/stocks";
 
 const FALLBACK = clusterApiUrl(CLUSTER === "mainnet-beta" ? "mainnet-beta" : "devnet");
 
 export function Providers({ children }: { children: ReactNode }) {
+  /* An Earnout link may have brought this player: keep its tag, and take it
+   * out of the address bar (lib/earnout). */
+  useEffect(() => {
+    captureEarnoutTag();
+  }, []);
+
   const configured = process.env.NEXT_PUBLIC_RPC_URL || FALLBACK;
   /* A relative endpoint is this site's own relay. web3.js needs an absolute
    * URL, and would derive a websocket address from it that no serverless route
