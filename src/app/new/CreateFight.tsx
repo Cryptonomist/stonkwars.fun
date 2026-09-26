@@ -47,6 +47,7 @@ import { requestConnect } from "@/components/ui/intents";
 import { calloutError, resolveCallout } from "@/lib/callout";
 import { useProfiles, useRegistrySources, useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, randomSeed } from "@/lib/duel";
+import { clearEarnoutTag, earnoutInstructionsForEntry } from "@/lib/earnout";
 import { FAUCET_TARGET_USD, faucetWouldTopUp } from "@/lib/faucet";
 import { etShort, etTime, hm, shares, span, usd } from "@/lib/format";
 import { OFFHOURS_WINDOW } from "@/lib/oracle";
@@ -358,7 +359,9 @@ export function CreateFight() {
         invitee: inviteKey,
         taunt: taunt.trim(),
       });
-      const sig = await send([instruction], onSent);
+      // A fight is the conversion an Earnout creator is paid for, so the tag rides here.
+      const sig = await send([instruction, ...earnoutInstructionsForEntry()], onSent);
+      clearEarnoutTag();
       router.push(`/f/${duel.toBase58()}?new=1`);
       return sig;
     };
