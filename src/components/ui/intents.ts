@@ -13,6 +13,12 @@ export const CONNECT_EVENT = "stonk:connect";
 /** Fired on window to ask the command palette to open. */
 export const PALETTE_EVENT = "stonk:palette";
 
+/** Fired on window to ask the fight builder to put a stock in a corner. */
+export const CORNER_EVENT = "stonk:corner";
+
+/** Which stock the search named, and which corner it was named for. */
+export type CornerPick = { ticker: string; side: "p1" | "p2" };
+
 /** localStorage key holding the fights this viewer has opened, newest first. */
 export const WATCH_KEY = "stonk:watched";
 
@@ -29,6 +35,16 @@ export function requestConnect(): void {
 export function requestPalette(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(PALETTE_EVENT));
+}
+
+/* The search names a stock while the fight builder may already be open behind
+ * it. The push that goes with this event moves the address bar and brings a
+ * visitor who is elsewhere to the builder, but it cannot reach a page Next
+ * never unmounted, and by then the corners are the visitor's own rather than
+ * the link's. The pick travels as an event as well, so it lands either way. */
+export function requestCorner(ticker: string, side: CornerPick["side"]): void {
+  if (typeof window === "undefined" || !ticker) return;
+  window.dispatchEvent(new CustomEvent<CornerPick>(CORNER_EVENT, { detail: { ticker, side } }));
 }
 
 /* Storage can be missing (a server render), full, or refused outright (a

@@ -28,7 +28,7 @@
  * reopens. The refusal is asked again at the click, because the render's
  * clock can be seconds old. */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -43,7 +43,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabs } from "@/components/ui/Tabs";
 import { TxButton } from "@/components/ui/TxButton";
 import { cx } from "@/components/ui/cx";
-import { requestConnect } from "@/components/ui/intents";
+import { CORNER_EVENT, requestConnect, type CornerPick } from "@/components/ui/intents";
 import { calloutError, resolveCallout } from "@/lib/callout";
 import { useProfiles, useRegistrySources, useSend, useTokenBalance } from "@/lib/hooks";
 import { ataFor, buildCreateDuel, randomSeed } from "@/lib/duel";
@@ -118,6 +118,18 @@ const ROUND_WORDS: Record<RoundId, string> = {
 
 type Corner = "p1" | "p2";
 
+/* Is this a stock that can actually be staked here?
+ *
+ * ticketFromParams fills a missing corner from the default pair, so a ticker
+ * nobody can price comes back as something else entirely rather than as
+ * nothing. Asking for one corner and keeping the answer only when it matches
+ * what was asked is how a junk ?p1=BANANA is told from a real one. */
+function onRoster(raw: string | null | undefined, side: Corner): string | null {
+  if (!raw) return null;
+  const t = ticketFromParams((k) => (k === side ? raw : null), Math.floor(Date.now() / 1000))[side];
+  return t.toUpperCase() === raw.trim().toUpperCase() ? t : null;
+}
+
 export function CreateFight() {
   const params = useSearchParams();
   const router = useRouter();
@@ -131,6 +143,61 @@ export function CreateFight() {
   const [p1, setP1] = useState<string | null>(initial.p1);
   const [p2, setP2] = useState<string | null>(initial.p2);
   const [corner, setCorner] = useState<Corner>("p1");
+
+  /* PICKING A STOCK AFTER THE PAGE IS ALREADY OPEN.
+   *
+   * The search palette names a stock and pushes /new?p1=TICKER, but this page
+   * is the likeliest one to be searching from, and Next keeps it mounted
+   * across a push to the route it is already on. Reading the ticket only at
+   * mount left picking a stock moving the address bar and nothing else.
+   *
+   * Two things land a late pick, because neither covers the other. The event
+   * is the pick itself and applies whatever the address bar happens to say,
+   * which matters once the visitor has moved the corners by hand, since
+   * nothing writes those back to the URL. The URL is what Back and Forward
+   * move, and what a link from anywhere else carries. Both end in
+   * putInCorner, so a pick arriving by both routes sets the corner twice to
+   * the same thing and React drops the second. */
+  const putInCorner = useCallback(
+    (ticker: string, side: Corner) => {
+      if (side === "p1") {
+        setP1(ticker);
+        /* Picked the stock already in the other corner: send that one across
+         * rather than leave a fight with itself, which the program refuses. */
+        if (p2 === ticker) setP2(p1);
+      } else {
+        setP2(ticker);
+        if (p1 === ticker) setP1(p2);
+      }
+      setCorner(side);
+    },
+    [p1, p2],
+  );
+
+  useEffect(() => {
+    const onPick = (e: Event) => {
+      const d = (e as CustomEvent<CornerPick>).detail;
+      const t = d ? onRoster(d.ticker, d.side) : null;
+      if (t) putInCorner(t, d.side);
+    };
+    window.addEventListener(CORNER_EVENT, onPick);
+    return () => window.removeEventListener(CORNER_EVENT, onPick);
+  }, [putInCorner]);
+
+  /* A corner is taken from the URL when it ARRIVES or CHANGES, never when it
+   * merely goes missing, so a push naming one corner cannot wipe the other. */
+  const rawP1 = params.get("p1");
+  const rawP2 = params.get("p2");
+  const applied = useRef({ p1: rawP1, p2: rawP2 });
+  useEffect(() => {
+    const was = applied.current;
+    applied.current = { p1: rawP1, p2: rawP2 };
+    const next1 = rawP1 !== was.p1 ? onRoster(rawP1, "p1") : null;
+    const next2 = rawP2 !== was.p2 ? onRoster(rawP2, "p2") : null;
+    if (next1) putInCorner(next1, "p1");
+    if (next2 && next2 !== next1) putInCorner(next2, "p2");
+  }, [rawP1, rawP2, putInCorner]);
+
   const prices = usePrices([p1, p2]);
   const [dollars, setDollars] = useState<number>(initial.usd);
   const [round, setRound] = useState<RoundId>(() => {

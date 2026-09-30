@@ -25,7 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/Badge";
 import { cx } from "@/components/ui/cx";
 import { FighterName } from "@/components/ui/FighterName";
-import { PALETTE_EVENT, watchedFights } from "@/components/ui/intents";
+import { PALETTE_EVENT, requestCorner, watchedFights } from "@/components/ui/intents";
 import { Kbd } from "@/components/ui/Kbd";
 import { Sheet } from "@/components/ui/Sheet";
 import {
@@ -124,13 +124,6 @@ function statusWord(d: DuelView, now: number): string {
     default:
       return "Fight";
   }
-}
-
-/** Letters of `q` in order inside `s`, not necessarily together: "stnk" finds "stonkwars". */
-function subsequence(s: string, q: string): boolean {
-  let i = 0;
-  for (const ch of s) if (ch === q[i] && ++i === q.length) return true;
-  return q.length === 0;
 }
 
 function asKey(q: string): string | null {
@@ -299,7 +292,12 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
       if (score > 0) scored.push({ s, score });
     });
     scored.sort((a, b) => b.score - a.score || a.s.ticker.localeCompare(b.s.ticker));
-    for (const { s } of scored.slice(0, 8)) {
+    const shown = scored.slice(0, 8);
+    /* The stocks that answered the query, for the fights below to match on.
+     * They used to match the typed text instead, so "tesla" found the TSLA
+     * stock and none of the TSLA fights, while "tsla" found both. */
+    const matched = new Set(shown.map((x) => x.s.ticker));
+    for (const { s } of shown) {
       out.push({
         kind: "stock",
         id: `stock:${s.ticker}`,
@@ -310,13 +308,22 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
     }
 
     /* Fighters: handles the chain vouches for, then wallets that have fought
-     * whose address starts with what was typed. */
+     * whose address starts with what was typed.
+     *
+     * A handle matches on its start first, then anywhere inside it. This used
+     * to be a subsequence test, which read letters straight through a handle
+     * and skipped what it liked: "tsla" surfaced @TFarisland, whose t, s, l
+     * and a merely appear in that order. Typing a ticker in full should never
+     * turn up a person with nothing to do with it. */
     const fighters = new Set<string>();
     const needle = lower.replace(/^@/, "");
     if (needle) {
-      for (const [wallet, handle] of Object.entries(handles ?? {})) {
-        if (subsequence(handle.toLowerCase(), needle)) fighters.add(wallet);
-      }
+      const rank = (h: string) => (h.startsWith(needle) ? 0 : h.includes(needle) ? 1 : 2);
+      Object.entries(handles ?? {})
+        .map(([wallet, handle]) => ({ wallet, at: rank(handle.toLowerCase()), handle }))
+        .filter((x) => x.at < 2)
+        .sort((a, b) => a.at - b.at || a.handle.localeCompare(b.handle))
+        .forEach((x) => fighters.add(x.wallet));
     }
     if (!key && q.length >= 3) {
       for (const d of list) {
@@ -335,7 +342,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
       .filter((d) => {
         const t1 = tickerForMint(d.creatorMint) ?? "";
         const t2 = tickerForMint(d.opponentMint) ?? "";
-        return t1.startsWith(upper) || t2.startsWith(upper);
+        return matched.has(t1) || matched.has(t2);
       })
       .sort(byUrgency)
       .slice(0, 5);
@@ -372,6 +379,10 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
       setWaitingFor(r.address);
       return;
     }
+    /* A stock goes to the fight builder, which is often the page being
+     * searched from. See requestCorner: the push alone cannot move a corner
+     * on a page Next keeps mounted, so the pick is announced as well. */
+    if (r.kind === "stock") requestCorner(r.stock.ticker, against ? "p2" : "p1");
     go(r.kind === "stock" && against ? r.against : r.href);
   };
   useEffect(() => {
@@ -472,7 +483,7 @@ function PaletteBody({ onDone }: { onDone: () => void }) {
                       tabIndex={-1}
                       onClick={(e) => {
                         e.stopPropagation();
-                        go(r.against);
+                        pick(r, true);
                       }}
                       className="btn btn-sm btn-ghost ml-auto shrink-0 px-3 py-1 text-xs"
                     >
