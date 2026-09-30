@@ -45,13 +45,21 @@ async function census(conn: Connection) {
       /* not a duel this build can read */
     }
   }
-  /* Open, past the grace, not the sparring wallet's own: exactly what a tick
-   * should be sweeping up. */
+  /* Open, still takeable, past the grace, not the sparring wallet's own:
+   * exactly what a tick should be sweeping up.
+   *
+   * The expiry test is the one that matters here, and leaving it out read as
+   * a fault in production rather than in this script: an expired challenge is
+   * open forever until somebody cancels it, so it was counted as ripe every
+   * run, never swept, because a tick refuses it exactly as it should, and the
+   * verdict said the crank had done nothing. Match sparRefusal or do not ask
+   * the question. */
   const sweepable = new Set(
     duels
       .filter(
         (d) =>
           d.status === STATUS_OPEN &&
+          Number(d.expiresTs) > now &&
           !isInviteOnly(d) &&
           d.creator.toBase58() !== SPAR &&
           now - Number(d.createdTs) >= SPAR_OPEN_GRACE_SECS,
@@ -87,10 +95,16 @@ async function main() {
   console.log(`  still open and ripe:   ${after.sweepable.size}`);
   console.log(`  still past the bell:   ${after.overdue.size}`);
   console.log("");
+  /* An idle window and a stalled crank look the same from the outside, and
+   * only one of them is worth waking up for. Nothing asked of it is the
+   * common case on a quiet afternoon; asked and not done is the fault. */
+  const asked = before.sweepable.size || before.overdue.size;
   console.log(
     swept.length || settled.length
       ? "VERDICT: the deployed crank is doing work."
-      : "VERDICT: the deployed crank did nothing in this window.",
+      : asked
+        ? "VERDICT: WORK WAS WAITING AND THE CRANK DID NONE OF IT."
+        : "VERDICT: nothing was waiting to be done. This says the board is quiet, not that the crank works.",
   );
 }
 
