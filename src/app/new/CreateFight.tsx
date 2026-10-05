@@ -426,9 +426,11 @@ export function CreateFight() {
         invitee: inviteKey,
         taunt: taunt.trim(),
       });
-      // A fight is the conversion an Earnout creator is paid for, so the tag rides here.
-      const sig = await send([instruction, ...earnoutInstructionsForEntry()], onSent);
-      clearEarnoutTag();
+      // A fight is the conversion an Earnout influencer is paid for, so the tag
+      // rides here when it fits; it is spent only if it went out.
+      const tagged = earnoutInstructionsForEntry([instruction], publicKey);
+      const sig = await send([instruction, ...tagged], onSent);
+      if (tagged.length) clearEarnoutTag();
       router.push(`/f/${duel.toBase58()}?new=1`);
       return sig;
     };

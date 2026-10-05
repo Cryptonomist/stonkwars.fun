@@ -4,9 +4,9 @@
  * anything else decodes to nothing. */
 
 import { expect } from "chai";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 
-import { decodeEarnoutToken, EARNOUT_PROGRAM, earnoutTagInstructions } from "../src/lib/earnout";
+import { decodeEarnoutToken, EARNOUT_PROGRAM, earnoutTagInstructions, fitsWith } from "../src/lib/earnout";
 
 const campaign = PublicKey.unique();
 const identity = PublicKey.unique();
@@ -35,6 +35,23 @@ describe("the Earnout tag on a fight", () => {
     expect(memo.programId.toBase58()).to.equal("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
     expect(memo.keys).to.deep.equal([]);
     expect(memo.data.toString("utf8")).to.equal(`solana-action:${identity.toBase58()}:${reference.toBase58()}:${signature}`);
+  });
+
+  it("rides along only when the fight's transaction still fits, so it never breaks one", () => {
+    const tag = earnoutTagInstructions(decodeEarnoutToken(token)!);
+    const payer = PublicKey.unique();
+    // A fight entry with this many bytes of instruction data, standing in for a long taunt.
+    const entry = (dataBytes: number) => [
+      new TransactionInstruction({
+        programId: PublicKey.unique(),
+        keys: Array.from({ length: 12 }, () => ({ pubkey: PublicKey.unique(), isSigner: false, isWritable: true })),
+        data: Buffer.alloc(dataBytes),
+      }),
+    ];
+    // The largest real fight creation on devnet was 868 bytes; 370 more is 6 over the cap.
+    expect(fitsWith(entry(100), payer, tag)).to.equal(true);
+    expect(fitsWith(entry(600), payer, tag)).to.equal(false);
+    expect(fitsWith(entry(600), payer, [])).to.equal(true);
   });
 
   it("decodes nothing else", () => {

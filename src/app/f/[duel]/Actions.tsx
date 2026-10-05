@@ -162,9 +162,12 @@ export function Actions({
       // The notice above says why, and when it can be taken; nothing was sent.
       throw new Error("The two markets stopped lining up just now, so nothing was sent.");
     }
-    // Taking a fight is the conversion an Earnout creator is paid for, so the tag rides here.
-    const sig = await send([buildAcceptDuel(d, publicKey!), ...earnoutInstructionsForEntry()], onSent);
-    clearEarnoutTag();
+    // Taking a fight is the conversion an Earnout influencer is paid for, so
+    // the tag rides here when it fits; it is spent only if it went out.
+    const accept = buildAcceptDuel(d, publicKey!);
+    const tagged = earnoutInstructionsForEntry([accept], publicKey!);
+    const sig = await send([accept, ...tagged], onSent);
+    if (tagged.length) clearEarnoutTag();
     return sig;
   };
 

@@ -17,7 +17,7 @@
  * sdk/client.ts and sdk/identity.ts), on web3.js like the rest of this app.
  * Storage key and token format are the SDK's, so the two stay compatible. */
 
-import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { ComputeBudgetProgram, Keypair, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 
 export const EARNOUT_PROGRAM = new PublicKey("EKcSH6aEQiKhULjqixHqaReodxh61tMKRZ8Vsg4Vz8dU");
 const MEMO_PROGRAM = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
@@ -122,9 +122,32 @@ export function earnoutTagInstructions(tag: EarnoutTag): TransactionInstruction[
   ];
 }
 
-/** Everything a fight-entry send needs: the pending tag's instructions, or
- * none. About 72,000 compute units when present, almost all of it the memo. */
-export function earnoutInstructionsForEntry(): TransactionInstruction[] {
+/** Solana's cap on one serialized transaction, in bytes. */
+const MAX_TX_BYTES = 1232;
+
+/** Whether `entry`, sent the way useSend sends it (a compute-unit limit
+ * first, one fee payer), still fits in a single transaction with `extra`
+ * added. The tag and memo add 370 bytes, and a fight with a long taunt
+ * comes close enough to the cap that they would push it over. */
+export function fitsWith(entry: TransactionInstruction[], feePayer: PublicKey, extra: TransactionInstruction[]): boolean {
+  try {
+    const tx = new Transaction({ feePayer, recentBlockhash: Keypair.generate().publicKey.toBase58() });
+    tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 500_000 }), ...entry, ...extra);
+    return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).length <= MAX_TX_BYTES;
+  } catch {
+    return false; // web3.js throws "Transaction too large" past the cap.
+  }
+}
+
+/** What a fight-entry send should append: the pending tag's instructions,
+ * or none. None when there is no tag, and none when adding it would make
+ * the fight's own transaction too large: Earnout's rule is that a tag never
+ * breaks the transaction it rides in, so the fight goes through untagged
+ * and the tag stays kept for the player's next one. About 72,000 compute
+ * units when present, almost all of it the memo. */
+export function earnoutInstructionsForEntry(entry: TransactionInstruction[], feePayer: PublicKey): TransactionInstruction[] {
   const tag = pendingEarnoutTag();
-  return tag ? earnoutTagInstructions(tag) : [];
+  if (!tag) return [];
+  const extra = earnoutTagInstructions(tag);
+  return fitsWith(entry, feePayer, extra) ? extra : [];
 }
