@@ -188,8 +188,7 @@ export function useSend() {
       if (!publicKey || !signTransaction) throw new Error("Connect a wallet first.");
       const latest = await connection.getLatestBlockhash("confirmed");
       const tx = new Transaction({ feePayer: publicKey, ...latest });
-      // Room for the duel instruction and, on a fight entry, Earnout's tag and memo (about 72k).
-      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 500_000 }));
+      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
       tx.add(...ixs);
       const signed = await signTransaction(tx);
       const sig = await sendAndConfirm(connection, signed, latest, onSent);

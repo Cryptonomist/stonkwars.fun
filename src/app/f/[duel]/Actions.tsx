@@ -67,7 +67,6 @@ import {
   type DuelView,
 } from "@/lib/duel";
 import { hm, shares, shortAddress, usd } from "@/lib/format";
-import { clearEarnoutTag, earnoutInstructionsForEntry } from "@/lib/earnout";
 import { useProfiles, useSend, useTokenBalance } from "@/lib/hooks";
 import { NextSeat } from "@/components/NextSeat";
 import { usePrices } from "@/lib/prices";
@@ -162,13 +161,7 @@ export function Actions({
       // The notice above says why, and when it can be taken; nothing was sent.
       throw new Error("The two markets stopped lining up just now, so nothing was sent.");
     }
-    // Taking a fight is the conversion an Earnout influencer is paid for, so
-    // the tag rides here when it fits; it is spent only if it went out.
-    const accept = buildAcceptDuel(d, publicKey!);
-    const tagged = earnoutInstructionsForEntry([accept], publicKey!);
-    const sig = await send([accept, ...tagged], onSent);
-    if (tagged.length) clearEarnoutTag();
-    return sig;
+    return send([buildAcceptDuel(d, publicKey!)], onSent);
   };
 
   const crank = (which: "start" | "settle") => async () => {
